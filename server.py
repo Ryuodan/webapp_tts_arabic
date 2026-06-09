@@ -2,6 +2,7 @@
 Serves the frontend and proxies synthesis requests to model workers.
 Workers must be started separately (see start.sh).
 """
+import os
 import pathlib
 from contextlib import asynccontextmanager
 from typing import Optional
@@ -14,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 BASE_DIR  = pathlib.Path(__file__).parent
 STATIC    = BASE_DIR / "static"
-WORKDIR   = pathlib.Path("~/tts-05172026").expanduser()
+WORKDIR   = pathlib.Path(os.getenv("TTS_WORKDIR", "~/tts-05172026")).expanduser()
 
 OUTPUT_DIRS = {
     "fish":      WORKDIR / "outputs",
@@ -34,7 +35,7 @@ _client: Optional[httpx.AsyncClient] = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _client
-    _client = httpx.AsyncClient(timeout=httpx.Timeout(connect=5.0, read=300.0, write=300.0, pool=5.0))
+    _client = httpx.AsyncClient(timeout=httpx.Timeout(connect=5.0, read=900.0, write=300.0, pool=5.0))
     yield
     await _client.aclose()
 
@@ -80,10 +81,12 @@ async def load_model(model: str):
     if model not in WORKER_URLS:
         raise HTTPException(404, f"Unknown model: {model}")
     try:
-        r = await _client.post(f"{WORKER_URLS[model]}/load", timeout=300.0)
+        r = await _client.post(f"{WORKER_URLS[model]}/load", timeout=900.0)
         return JSONResponse(r.json())
     except httpx.ConnectError:
         raise HTTPException(503, f"{model} worker is not running")
+    except httpx.ReadTimeout:
+        raise HTTPException(504, f"{model} model load timed out (>15 min)")
 
 
 @app.get("/api/{model}/status")

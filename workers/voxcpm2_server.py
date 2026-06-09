@@ -13,8 +13,12 @@ import uvicorn
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
-OUT_DIR = pathlib.Path("~/tts-05172026/outputs_voxcpm2").expanduser()
+WORKDIR = pathlib.Path(os.getenv("TTS_WORKDIR", "~/tts-05172026")).expanduser()
+OUT_DIR = pathlib.Path(os.getenv("VOXCPM2_OUT_DIR", str(WORKDIR / "outputs_voxcpm2"))).expanduser()
 OUT_DIR.mkdir(parents=True, exist_ok=True)
+VOXCPM2_MODEL_ID = os.getenv("VOXCPM2_MODEL_ID", "openbmb/VoxCPM2")
+VOXCPM2_DEVICE = os.getenv("VOXCPM2_DEVICE", "auto")
+VOXCPM2_OPTIMIZE = os.getenv("VOXCPM2_OPTIMIZE", "0").lower() in {"1", "true", "yes", "on"}
 
 app = FastAPI(title="VoxCPM2 Worker", docs_url=None, redoc_url=None)
 _model = None
@@ -27,7 +31,12 @@ def _do_load():
     if _model is not None:
         return
     from voxcpm import VoxCPM
-    _model = VoxCPM.from_pretrained("openbmb/VoxCPM2", load_denoiser=False)
+    _model = VoxCPM.from_pretrained(
+        VOXCPM2_MODEL_ID,
+        device=VOXCPM2_DEVICE,
+        optimize=VOXCPM2_OPTIMIZE,
+        load_denoiser=False,
+    )
     _sample_rate = _model.tts_model.sample_rate
 
 

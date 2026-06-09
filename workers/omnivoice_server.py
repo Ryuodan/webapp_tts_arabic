@@ -13,8 +13,11 @@ import uvicorn
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
-OUT_DIR = pathlib.Path("~/tts-05172026/outputs_omnivoice").expanduser()
+WORKDIR = pathlib.Path(os.getenv("TTS_WORKDIR", "~/tts-05172026")).expanduser()
+OUT_DIR = pathlib.Path(os.getenv("OMNIVOICE_OUT_DIR", str(WORKDIR / "outputs_omnivoice"))).expanduser()
 OUT_DIR.mkdir(parents=True, exist_ok=True)
+OMNIVOICE_MODEL_ID = os.getenv("OMNIVOICE_MODEL_ID", "k2-fsa/OmniVoice")
+OMNIVOICE_DEVICE = os.getenv("OMNIVOICE_DEVICE", "auto")
 
 app = FastAPI(title="OmniVoice Worker", docs_url=None, redoc_url=None)
 _model = None
@@ -28,9 +31,11 @@ def _do_load():
         return
     import torch
     from omnivoice import OmniVoice
-    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    device = "cuda:0" if OMNIVOICE_DEVICE == "auto" and torch.cuda.is_available() else (
+        "cpu" if OMNIVOICE_DEVICE == "auto" else OMNIVOICE_DEVICE
+    )
     dtype  = torch.float16 if torch.cuda.is_available() else torch.float32
-    _model = OmniVoice.from_pretrained("k2-fsa/OmniVoice", device_map=device, dtype=dtype)
+    _model = OmniVoice.from_pretrained(OMNIVOICE_MODEL_ID, device_map=device, dtype=dtype)
 
 
 async def _ensure_loaded():

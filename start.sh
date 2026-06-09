@@ -8,6 +8,17 @@
 set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PIDS=()
+CONDA_EXE="${CONDA_EXE:-/home/m.sayed/miniconda3/bin/conda}"
+GATEWAY_ENV="${GATEWAY_ENV:-arabic-tts-web}"
+
+if [[ ! -x "$CONDA_EXE" ]]; then
+  CONDA_EXE="$(command -v conda || true)"
+fi
+
+if [[ -z "$CONDA_EXE" ]]; then
+  echo "Could not find conda. Set CONDA_EXE=/path/to/conda and retry." >&2
+  exit 1
+fi
 
 # ── optional flags ──────────────────────────────────────────────
 PORT=8080
@@ -23,13 +34,13 @@ start_worker() {
   local script=$2
   local port=$3
 
-  if ! conda env list | grep -q "^${env_name} "; then
+  if ! "$CONDA_EXE" env list | grep -q "^${env_name}[[:space:]]"; then
     log "⚠  Conda env '${env_name}' not found — skipping ${script##*/}"
     return
   fi
 
   log "Starting ${script##*/} (${env_name}, port ${port})..."
-  conda run -n "${env_name}" --no-capture-output \
+  "$CONDA_EXE" run -n "${env_name}" --no-capture-output \
     python "${script}" &
   PIDS+=($!)
   log "  PID ${PIDS[-1]}"
@@ -60,7 +71,10 @@ log "Starting gateway on 0.0.0.0:${PORT}..."
 log "Open: http://localhost:${PORT}"
 echo ""
 
-# Try to use the gateway with the current active Python env
-# (must have fastapi, httpx, uvicorn installed — run setup_webapp.sh first)
-python "${SCRIPT_DIR}/server.py" --port "$PORT" 2>/dev/null || \
-  uvicorn webapp.server:app --host 0.0.0.0 --port "$PORT" --app-dir "$(dirname "${SCRIPT_DIR}")"
+if "$CONDA_EXE" env list | grep -q "^${GATEWAY_ENV}[[:space:]]"; then
+  "$CONDA_EXE" run -n "$GATEWAY_ENV" --no-capture-output \
+    python "${SCRIPT_DIR}/server.py" --port "$PORT"
+else
+  log "⚠  Gateway env '${GATEWAY_ENV}' not found; using current Python."
+  python "${SCRIPT_DIR}/server.py" --port "$PORT"
+fi

@@ -1,20 +1,42 @@
 #!/usr/bin/env bash
 # Install FastAPI/uvicorn into each TTS conda env so the worker servers can run.
-# Run once before starting the webapp: bash webapp/setup_webapp.sh
+# Run once before starting the webapp: bash setup_webapp.sh
 set -e
-PKGS="fastapi 'uvicorn[standard]' python-multipart"
 
-echo "Installing webapp dependencies in arabic-tts env..."
-conda run -n arabic-tts pip install --quiet $PKGS
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CONDA_EXE="${CONDA_EXE:-/home/m.sayed/miniconda3/bin/conda}"
+GATEWAY_ENV="${GATEWAY_ENV:-arabic-tts-web}"
+PKGS=(fastapi "uvicorn[standard]" python-multipart soundfile)
 
-echo "Installing webapp dependencies in omnivoice-tts env..."
-conda run -n omnivoice-tts pip install --quiet $PKGS
+if [[ ! -x "$CONDA_EXE" ]]; then
+  CONDA_EXE="$(command -v conda || true)"
+fi
 
-echo "Installing webapp dependencies in voxcpm2-tts env..."
-conda run -n voxcpm2-tts pip install --quiet $PKGS
+if [[ -z "$CONDA_EXE" ]]; then
+  echo "Could not find conda. Set CONDA_EXE=/path/to/conda and retry." >&2
+  exit 1
+fi
 
-echo "Installing gateway dependencies (current env)..."
-pip install --quiet -r "$(dirname "$0")/requirements.txt"
+env_exists() {
+  "$CONDA_EXE" env list | grep -q "^$1[[:space:]]"
+}
+
+if ! env_exists "$GATEWAY_ENV"; then
+  echo "Creating gateway conda env: ${GATEWAY_ENV}"
+  "$CONDA_EXE" env create -f "${SCRIPT_DIR}/environment.yml"
+fi
+
+echo "Installing gateway dependencies in ${GATEWAY_ENV}..."
+"$CONDA_EXE" run -n "$GATEWAY_ENV" python -m pip install --quiet -r "${SCRIPT_DIR}/requirements.txt"
+
+for env_name in arabic-tts omnivoice-tts voxcpm2-tts; do
+  if env_exists "$env_name"; then
+    echo "Installing worker web dependencies in ${env_name}..."
+    "$CONDA_EXE" run -n "$env_name" python -m pip install --quiet "${PKGS[@]}"
+  else
+    echo "Skipping missing worker env: ${env_name}"
+  fi
+done
 
 echo ""
-echo "All done. Run: bash webapp/start.sh"
+echo "All done. Run: bash start.sh"
