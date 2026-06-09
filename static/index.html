@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arabic TTS Studio</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ── Header ───────────────────────────────────────────── -->
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-icon">🎙</div>
+      <div class="brand-text">
+        <span class="brand-en">Arabic TTS Studio</span>
+        <span class="brand-ar">استوديو تحويل النص إلى كلام</span>
+      </div>
+    </div>
+    <div class="status-row" id="status-row">
+      <!-- status badges injected by JS -->
+    </div>
+  </header>
+
+  <!-- ── Main layout ──────────────────────────────────────── -->
+  <main class="workspace">
+
+    <!-- Left panel: controls ─────────────── -->
+    <div class="left-panel">
+
+      <!-- Model cards -->
+      <section class="panel-section">
+        <h3 class="section-label">النموذج</h3>
+        <div class="model-cards" id="model-cards">
+          <!-- Cards rendered by JS -->
+        </div>
+      </section>
+
+      <!-- Text input -->
+      <section class="panel-section">
+        <h3 class="section-label">
+          النص
+          <span class="char-count" id="char-count">0</span>
+        </h3>
+        <div class="tag-strip" id="tag-strip">
+          <!-- emotion-tag buttons rendered by JS -->
+        </div>
+        <textarea
+          id="text-input"
+          dir="auto"
+          placeholder="اكتب النص العربي هنا…  |  Type text here…"
+          rows="6"
+          spellcheck="false"
+        ></textarea>
+        <div class="input-footer">
+          <button class="btn-ghost btn-xs" id="btn-clear-text">مسح</button>
+          <span class="hint-text" id="sample-hint">أمثلة:</span>
+          <div class="sample-chips" id="sample-chips">
+            <!-- sample sentence chips -->
+          </div>
+        </div>
+      </section>
+
+      <!-- Parameters accordion -->
+      <section class="panel-section accordion" id="acc-params">
+        <button class="acc-header" data-target="params-body">
+          <span>⚙ المعاملات</span>
+          <span class="acc-arrow">›</span>
+        </button>
+        <div class="acc-body collapsed" id="params-body">
+          <!-- Rendered by JS based on selected model -->
+        </div>
+      </section>
+
+      <!-- Voice cloning accordion -->
+      <section class="panel-section accordion" id="acc-clone">
+        <button class="acc-header" data-target="clone-body">
+          <span>🎤 استنساخ الصوت</span>
+          <span class="acc-arrow">›</span>
+        </button>
+        <div class="acc-body collapsed" id="clone-body">
+          <!-- Rendered by JS based on selected model -->
+        </div>
+      </section>
+
+      <!-- Compare accordion -->
+      <section class="panel-section accordion" id="acc-compare">
+        <button class="acc-header" data-target="compare-body">
+          <span>⚖ مقارنة النماذج</span>
+          <span class="acc-arrow">›</span>
+        </button>
+        <div class="acc-body collapsed" id="compare-body">
+          <p class="compare-desc">تشغيل نفس النص على جميع النماذج المتاحة في آنٍ واحد.</p>
+          <div class="compare-checks" id="compare-checks">
+            <!-- checkboxes rendered by JS -->
+          </div>
+          <button class="btn-compare" id="btn-compare">
+            <span id="compare-label">قارن الآن</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Synthesize button -->
+      <div class="synth-wrap">
+        <button class="btn-synth" id="btn-synth" disabled>
+          <span class="synth-icon">▶</span>
+          <span id="synth-label">توليد الصوت</span>
+        </button>
+        <div class="synth-progress hidden" id="synth-progress">
+          <div class="progress-track">
+            <div class="progress-fill indeterminate" id="progress-fill"></div>
+          </div>
+          <span class="progress-hint" id="progress-hint">جاري التوليد…</span>
+        </div>
+      </div>
+
+    </div><!-- /left-panel -->
+
+    <!-- Right panel: output + history ───── -->
+    <div class="right-panel">
+
+      <!-- Audio player -->
+      <section class="panel-section player-card" id="player-card">
+        <h3 class="section-label">المخرجات</h3>
+
+        <div class="player-empty" id="player-empty">
+          <div class="empty-icon">🔈</div>
+          <p>سيظهر الصوت المولّد هنا بعد الضغط على "توليد الصوت"</p>
+        </div>
+
+        <div class="player-content hidden" id="player-content">
+          <div class="waveform-wrap">
+            <canvas id="waveform" height="72"></canvas>
+            <div class="waveform-progress" id="waveform-progress" style="width:0%"></div>
+          </div>
+          <div class="player-bar">
+            <button class="btn-play" id="btn-play">▶</button>
+            <span class="time-display">
+              <span id="cur-time">0:00</span>
+              <span class="time-sep">/</span>
+              <span id="tot-time">0:00</span>
+            </span>
+            <span class="player-badges" id="player-badges"></span>
+            <a class="btn-dl" id="btn-dl" download>⬇ تنزيل</a>
+          </div>
+          <audio id="audio-el" preload="auto"></audio>
+        </div>
+      </section>
+
+      <!-- Compare results (hidden until compare run) -->
+      <section class="panel-section compare-results hidden" id="compare-results">
+        <h3 class="section-label">نتائج المقارنة</h3>
+        <div class="compare-grid" id="compare-grid">
+          <!-- 3 mini-players rendered by JS -->
+        </div>
+      </section>
+
+      <!-- History -->
+      <section class="panel-section history-card">
+        <div class="history-header">
+          <h3 class="section-label">السجل</h3>
+          <div class="history-controls">
+            <select class="filter-select" id="history-filter">
+              <option value="all">كل النماذج</option>
+              <option value="fish">Fish S2 Pro</option>
+              <option value="omnivoice">OmniVoice</option>
+              <option value="voxcpm2">VoxCPM2</option>
+            </select>
+            <button class="btn-ghost btn-xs" id="btn-clear-history">مسح الكل</button>
+          </div>
+        </div>
+        <div class="history-list" id="history-list">
+          <div class="history-empty" id="history-empty">
+            <p>لا توجد مقاطع صوتية بعد</p>
+          </div>
+        </div>
+      </section>
+
+    </div><!-- /right-panel -->
+
+  </main>
+
+  <!-- Toast notification -->
+  <div class="toast hidden" id="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
