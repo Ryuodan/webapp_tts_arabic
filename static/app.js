@@ -487,9 +487,20 @@ function renderCompareChecks() {
     `;
     label.querySelector('input').addEventListener('change', e => {
       compareSelection[m.id] = e.target.checked;
+      updateCompareLabel();
     });
     container.appendChild(label);
   }
+  updateCompareLabel();
+}
+
+// Reflect the number of selected models on the compare button
+function updateCompareLabel() {
+  if (isComparing) return;
+  const n = $$('#compare-checks input:checked').length;
+  const label = $('compare-label');
+  if (label) label.textContent = n ? `قارن الآن (${n})` : 'اختر نماذج للمقارنة';
+  $('btn-compare').disabled = n === 0;
 }
 
 // ── Render sample chips ───────────────────────────────────────
@@ -965,6 +976,7 @@ async function compareModels() {
   const btn = $('btn-compare');
   btn.disabled = true;
   $('compare-results').classList.remove('hidden');
+  $('compare-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
   const grid = $('compare-grid');
   grid.innerHTML = '';
 
@@ -1024,9 +1036,9 @@ async function compareModels() {
   }
 
   renderCompareSummary(grid, results);
-  $('compare-label').textContent = 'قارن الآن';
-  btn.disabled = false;
   isComparing = false;
+  btn.disabled = false;
+  updateCompareLabel();
   showToast(results.some(r => r.error) ? 'اكتملت المقارنة مع أخطاء' : 'اكتملت المقارنة', results.some(r => r.error) ? 'warn' : 'success');
 }
 

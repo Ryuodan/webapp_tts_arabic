@@ -34,7 +34,8 @@ body {
   background: var(--bg);
   color: var(--txt);
   font-family: 'Segoe UI', 'Tahoma', 'Arial', sans-serif;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -51,8 +52,7 @@ textarea { resize: vertical; }
   padding: 12px 20px;
   background: var(--bg2);
   border-bottom: 1px solid var(--border);
-  position: sticky;
-  top: 0;
+  flex-shrink: 0;
   z-index: 100;
   gap: 16px;
 }
@@ -105,14 +105,17 @@ textarea { resize: vertical; }
 /* ── Workspace ────────────────────────────────────────────── */
 .workspace {
   flex: 1;
+  min-height: 0;            /* allow grid children to shrink so panels can scroll */
   display: grid;
   grid-template-columns: 420px 1fr;
+  grid-template-rows: minmax(0, 1fr);
   gap: 0;
-  max-height: calc(100vh - 57px);
   overflow: hidden;
 }
 .left-panel {
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   border-left: 1px solid var(--border);
   padding: 16px;
   display: flex;
@@ -122,7 +125,9 @@ textarea { resize: vertical; }
   scrollbar-color: var(--border) transparent;
 }
 .right-panel {
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -905,12 +910,19 @@ textarea { resize: vertical; }
 
 /* ── Responsive ───────────────────────────────────────────── */
 @media (max-width: 860px) {
+  /* Stack to one column and let the whole page scroll naturally */
+  body { height: auto; overflow: auto; }
   .workspace {
     grid-template-columns: 1fr;
-    max-height: none;
+    grid-template-rows: auto;
+    min-height: 0;
     overflow: visible;
   }
-  .left-panel, .right-panel { border: none; }
+  .left-panel, .right-panel {
+    min-height: 0;
+    overflow-y: visible;
+    border: none;
+  }
   .compare-grid { grid-template-columns: 1fr; }
   .metric-grid, .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .app-header { flex-wrap: wrap; gap: 8px; }
