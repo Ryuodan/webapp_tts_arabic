@@ -34,8 +34,7 @@ body {
   background: var(--bg);
   color: var(--txt);
   font-family: 'Segoe UI', 'Tahoma', 'Arial', sans-serif;
-  height: 100vh;
-  overflow: hidden;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
 }
@@ -52,6 +51,8 @@ textarea { resize: vertical; }
   padding: 12px 20px;
   background: var(--bg2);
   border-bottom: 1px solid var(--border);
+  position: sticky;          /* stays visible while the page scrolls */
+  top: 0;
   flex-shrink: 0;
   z-index: 100;
   gap: 16px;
@@ -105,35 +106,23 @@ textarea { resize: vertical; }
 /* ── Workspace ────────────────────────────────────────────── */
 .workspace {
   flex: 1;
-  min-height: 0;            /* allow grid children to shrink so panels can scroll */
   display: grid;
   grid-template-columns: 420px 1fr;
-  grid-template-rows: minmax(0, 1fr);
+  align-items: start;        /* each column sizes to its own content; page scrolls */
   gap: 0;
-  overflow: hidden;
 }
 .left-panel {
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
   border-left: 1px solid var(--border);
   padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
 }
 .right-panel {
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
   padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
 }
 
 /* ── Panel sections ───────────────────────────────────────── */
@@ -727,11 +716,13 @@ textarea { resize: vertical; }
 /* ── Compare results ──────────────────────────────────────── */
 .compare-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  /* Wrap to as many equal columns as fit; never crush below a readable width */
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 10px;
   padding: 8px 12px 12px;
 }
 .mini-player {
+  min-width: 0;                /* allow children to shrink so audio/metrics don't overflow */
   background: var(--bg3);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -740,6 +731,7 @@ textarea { resize: vertical; }
   flex-direction: column;
   gap: 6px;
 }
+.mini-player > * { min-width: 0; }
 .mini-player-title {
   font-size: .75rem;
   font-weight: 600;
@@ -759,8 +751,10 @@ textarea { resize: vertical; }
 .mini-player.fish     .mini-player-title { color: var(--fish); }
 .mini-player.omnivoice .mini-player-title { color: var(--omni); }
 .mini-player.voxcpm2  .mini-player-title { color: var(--vox); }
-.mini-player audio { width: 100%; height: 28px; accent-color: var(--omni); }
+.mini-player audio { width: 100%; min-width: 0; height: 32px; accent-color: var(--omni); }
 .mini-player .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* Keep the option chips uniform across models so cards line up */
+.mini-player .option-chips { margin-top: auto; }
 .mini-player .option-chip { font-size: .6rem; }
 .mini-player-meta { font-size: .65rem; color: var(--txt3); text-align: right; line-height: 1.45; direction: rtl; }
 .mini-player-meta.error { color: var(--red); }
@@ -827,7 +821,7 @@ textarea { resize: vertical; }
   cursor: pointer;
   direction: rtl;
 }
-.history-list { padding: 0 8px 8px; display: flex; flex-direction: column; gap: 4px; max-height: 420px; overflow-y: auto; }
+.history-list { padding: 0 8px 8px; display: flex; flex-direction: column; gap: 4px; }
 .history-empty { padding: 20px; text-align: center; color: var(--txt3); font-size: .78rem; }
 
 .history-item {
@@ -910,19 +904,9 @@ textarea { resize: vertical; }
 
 /* ── Responsive ───────────────────────────────────────────── */
 @media (max-width: 860px) {
-  /* Stack to one column and let the whole page scroll naturally */
-  body { height: auto; overflow: auto; }
-  .workspace {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto;
-    min-height: 0;
-    overflow: visible;
-  }
-  .left-panel, .right-panel {
-    min-height: 0;
-    overflow-y: visible;
-    border: none;
-  }
+  /* Stack to one column; the whole page already scrolls naturally */
+  .workspace { grid-template-columns: 1fr; }
+  .left-panel { border: none; }
   .compare-grid { grid-template-columns: 1fr; }
   .metric-grid, .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .app-header { flex-wrap: wrap; gap: 8px; }

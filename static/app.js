@@ -43,11 +43,11 @@ const MODELS = {
     ],
     compareNote: 'استخدمه كخط أساس للنطق والتغطية اللغوية.',
     params: [
-      { id: 'speaker', label: 'Voice Description (optional)', type: 'text',
-        placeholder: 'مثال: صوت مذيع عربي واضح وهادئ', default: '',
-        hint: 'وصف قصير للصوت المطلوب؛ اتركه فارغاً للصوت الافتراضي.' },
+      { id: 'speaker', label: 'Voice / Style Prompt', type: 'text',
+        placeholder: 'مثال: صوت مذيع عربي واضح وهادئ بنبرة رسمية', default: '',
+        hint: 'توجيه نصّي للصوت: صِف الجنس والنبرة والأسلوب (مثل: امرأة، هادئة، سرد). اتركه فارغاً للصوت الافتراضي.' },
     ],
-    emotionTags: ['[laughter]', '[applause]'],
+    emotionTags: ['[laughter]'],   // base model only documents [laughter]; [applause] is unsupported
     cloneFields: ['ref_audio', 'ref_text'],
     formFields: { ref_audio: 'ref_audio', ref_text: 'ref_text' },
   },

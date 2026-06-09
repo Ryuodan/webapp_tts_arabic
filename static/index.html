@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Arabic TTS Studio</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
 
@@ -61,13 +61,13 @@
         </div>
       </section>
 
-      <!-- Parameters accordion -->
-      <section class="panel-section accordion" id="acc-params">
+      <!-- Parameters accordion (open by default so params + prompt are visible) -->
+      <section class="panel-section accordion open" id="acc-params">
         <button class="acc-header" data-target="params-body">
-          <span>⚙ المعاملات</span>
+          <span>⚙ المعاملات والتوجيه</span>
           <span class="acc-arrow">›</span>
         </button>
-        <div class="acc-body collapsed" id="params-body">
+        <div class="acc-body" id="params-body">
           <!-- Rendered by JS based on selected model -->
         </div>
       </section>
@@ -83,13 +83,13 @@
         </div>
       </section>
 
-      <!-- Compare accordion -->
-      <section class="panel-section accordion" id="acc-compare">
+      <!-- Compare accordion (open by default so the comparison is discoverable) -->
+      <section class="panel-section accordion open" id="acc-compare">
         <button class="acc-header" data-target="compare-body">
           <span>⚖ مقارنة النماذج</span>
           <span class="acc-arrow">›</span>
         </button>
-        <div class="acc-body collapsed" id="compare-body">
+        <div class="acc-body" id="compare-body">
           <p class="compare-desc">تشغيل نفس النص على النماذج المختارة بالتتابع مع تسجيل الزمن والخيارات.</p>
           <div class="compare-checks" id="compare-checks">
             <!-- checkboxes rendered by JS -->
@@ -184,6 +184,6 @@
   <!-- Toast notification -->
   <div class="toast hidden" id="toast"></div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>
