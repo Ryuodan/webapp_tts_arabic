@@ -19,6 +19,30 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 OMNIVOICE_MODEL_ID = os.getenv("OMNIVOICE_MODEL_ID", "k2-fsa/OmniVoice")
 OMNIVOICE_DEVICE = os.getenv("OMNIVOICE_DEVICE", "auto")
 
+# Arabic is forced for every request. NOTE: OmniVoice's instruct/voice-design is trained on
+# EN/ZH only, so the dialect cue is best-effort — reference audio remains the strongest anchor.
+_ARABIC_DIALECTS = {
+    "msa":       "Modern Standard Arabic",
+    "egyptian":  "Egyptian Arabic",
+    "gulf":      "Gulf Arabic",
+    "levantine": "Levantine Arabic",
+    "iraqi":     "Iraqi Arabic",
+    "maghrebi":  "Maghrebi Arabic",
+}
+
+
+def _arabic_descriptor(dialect: str) -> str:
+    return _ARABIC_DIALECTS.get((dialect or "msa").strip().lower(), _ARABIC_DIALECTS["msa"])
+
+
+# gender + age are native OmniVoice voice-design attributes; empty = model's choice.
+_GENDERS = {"male": "male", "female": "female"}
+_AGES = {"young": "young adult", "middle": "middle-aged", "old": "elderly"}
+
+
+def _attr(mapping: dict, value: str) -> str:
+    return mapping.get((value or "").strip().lower(), "")
+
 app = FastAPI(title="OmniVoice Worker", docs_url=None, redoc_url=None)
 _model = None
 _lock = asyncio.Lock()
@@ -62,6 +86,9 @@ async def load_endpoint():
 @app.post("/synthesize")
 async def synthesize(
     text: str = Form(...),
+    dialect: str = Form("msa"),
+    gender: str = Form(""),
+    age: str = Form(""),
     speaker: str = Form(""),
     ref_audio: UploadFile | None = File(None),
     ref_text: str | None = Form(None),
@@ -81,8 +108,18 @@ async def synthesize(
         kwargs["ref_audio"] = ref_tmp
     if ref_text and ref_text.strip():
         kwargs["ref_text"] = ref_text.strip()
+
+    # Build the voice-design string: optional user prompt + gender/age + forced Arabic dialect.
+    # OmniVoice's instruct is a comma-separated attribute list.
+    attrs = []
     if speaker and speaker.strip():
-        kwargs["speaker"] = speaker.strip()
+        attrs.append(speaker.strip())
+    for frag in (_attr(_GENDERS, gender), _attr(_AGES, age)):
+        if frag:
+            attrs.append(frag)
+    attrs.append(f"{_arabic_descriptor(dialect)} accent")
+    # OmniVoice's documented voice-design kwarg is `instruct` (older builds used `speaker`).
+    kwargs["instruct"] = ", ".join(attrs)
 
     try:
         async with _lock:
@@ -102,6 +139,8 @@ async def synthesize(
     return {
         "filename": out_path.name,
         "model": "omnivoice",
+        "model_input": text,
+        "model_instruct": kwargs.get("instruct", ""),
         "elapsed_s": round(elapsed, 2),
         "duration_s": round(duration, 2),
         "rtf": round(elapsed / max(duration, 0.01), 3),

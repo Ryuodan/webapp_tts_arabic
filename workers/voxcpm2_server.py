@@ -20,6 +20,31 @@ VOXCPM2_MODEL_ID = os.getenv("VOXCPM2_MODEL_ID", "openbmb/VoxCPM2")
 VOXCPM2_DEVICE = os.getenv("VOXCPM2_DEVICE", "auto")
 VOXCPM2_OPTIMIZE = os.getenv("VOXCPM2_OPTIMIZE", "0").lower() in {"1", "true", "yes", "on"}
 
+# Arabic is forced for every request; the dialect rides VoxCPM2's leading-parenthetical style cue.
+_ARABIC_DIALECTS = {
+    "msa":       "Modern Standard Arabic",
+    "egyptian":  "Egyptian Arabic",
+    "gulf":      "Gulf Arabic",
+    "levantine": "Levantine Arabic",
+    "iraqi":     "Iraqi Arabic",
+    "maghrebi":  "Maghrebi Arabic",
+}
+
+
+def _arabic_descriptor(dialect: str) -> str:
+    return _ARABIC_DIALECTS.get((dialect or "msa").strip().lower(), _ARABIC_DIALECTS["msa"])
+
+
+# Optional voice persona — empty value means "let the model decide".
+_GENDERS = {"male": "male", "female": "female"}
+_AGES = {"young": "young adult", "middle": "middle-aged", "old": "elderly"}
+
+
+def _persona(gender: str, age: str) -> str:
+    g = _GENDERS.get((gender or "").strip().lower(), "")
+    a = _AGES.get((age or "").strip().lower(), "")
+    return " ".join(p for p in (g, a) if p)
+
 app = FastAPI(title="VoxCPM2 Worker", docs_url=None, redoc_url=None)
 _model = None
 _sample_rate = 48_000
@@ -65,6 +90,9 @@ async def load_endpoint():
 @app.post("/synthesize")
 async def synthesize(
     text: str = Form(...),
+    dialect: str = Form("msa"),
+    gender: str = Form(""),
+    age: str = Form(""),
     cfg_value: float = Form(2.0),
     inference_timesteps: int = Form(10),
     reference_wav: UploadFile | None = File(None),
@@ -90,8 +118,13 @@ async def synthesize(
             os.close(fd)
 
         out_path = OUT_DIR / f"voxcpm2_{uuid.uuid4().hex[:12]}.wav"
+        # Force Arabic + dialect (+ optional gender/age) via the leading-parenthetical style cue.
+        desc = _arabic_descriptor(dialect)
+        persona = _persona(gender, age)
+        cue = f"{persona}, {desc}" if persona else desc
+        eff_text = f"({cue}) {text}"
         kwargs: dict = {
-            "text": text,
+            "text": eff_text,
             "cfg_value": cfg_value,
             "inference_timesteps": inference_timesteps,
         }
@@ -122,6 +155,7 @@ async def synthesize(
     return {
         "filename": out_path.name,
         "model": "voxcpm2",
+        "model_input": eff_text,
         "elapsed_s": round(elapsed, 2),
         "duration_s": round(duration, 2),
         "rtf": round(elapsed / max(duration, 0.01), 3),

@@ -7,11 +7,11 @@ const MODELS = {
     name: 'Fish S2 Pro',
     icon: '🐟',
     specs: '5B · 44kHz · expressive',
-    role: 'تحكم تعبيري داخل النص مع صوت مرجعي، مناسب للتجارب السريعة نسبياً على العربية.',
-    traits: ['80+ لغة', 'وسوم تعبير', 'صوت مرجعي', '44kHz'],
+    role: 'الأقوى على العربية (المركز الأول في Arabic TTS Arena)؛ تحكم تعبيري حرّ داخل النص مع صوت مرجعي.',
+    traits: ['80+ لغة', '#1 عربي Arena', 'وسوم حرّة', '44kHz'],
     profile: [
-      { label: 'أفضل استخدام', value: 'قراءة عربية قصيرة أو متوسطة بوسوم مثل [whisper] و [laugh].' },
-      { label: 'التحكم', value: 'Sampling + emotion tags + reference audio.' },
+      { label: 'أفضل استخدام', value: 'قراءة عربية معبّرة؛ العربية لغة Tier-2 مدعومة بقوة، واللهجة تُحقن كوسم نصّي.' },
+      { label: 'التحكم', value: 'وسوم بلغة طبيعية حرّة (+15 ألف وسم) + Sampling + صوت مرجعي.' },
       { label: 'الأداء محلياً', value: 'أبطئ مع النصوص الطويلة؛ خفّض Max Tokens لاختبار أسرع.' },
     ],
     compareNote: 'قارن جودة التعبير والوسوم مقابل زمن التوليد.',
@@ -33,19 +33,19 @@ const MODELS = {
     id: 'omnivoice',
     name: 'OmniVoice',
     icon: '🌐',
-    specs: '0.6B · 24kHz · 646 lang',
-    role: 'أوسع تغطية لغات، جيد للعربية واللهجات والنطق متعدد اللغات مع وصف صوت بسيط.',
-    traits: ['646 لغة', 'Arabic-ready', 'Voice description', '24kHz'],
+    specs: '0.6B · 24kHz · 600+ lang',
+    role: 'أوسع تغطية لغات (600+) وجيد للعربية؛ لكن وصف الصوت (instruct) مُدرَّب على الإنجليزية/الصينية فقط.',
+    traits: ['600+ لغة', 'Arabic-ready', 'Voice design', '24kHz'],
     profile: [
-      { label: 'أفضل استخدام', value: 'مقارنة النطق العربي واللهجات أو نقل صوت مرجعي بين لغات.' },
-      { label: 'التحكم', value: 'وصف صوت نصي اختياري + reference audio عند الحاجة للثبات.' },
+      { label: 'أفضل استخدام', value: 'كخط أساس للنطق العربي أو نقل صوت مرجعي بين اللغات.' },
+      { label: 'التحكم', value: 'وصف صوت نصي + reference audio. ملاحظة: اللهجة العربية أفضل ما تُثبَّت بصوت مرجعي.' },
       { label: 'الأداء محلياً', value: 'عادةً أسرع من VoxCPM2 على CPU في هذا السيرفر.' },
     ],
     compareNote: 'استخدمه كخط أساس للنطق والتغطية اللغوية.',
     params: [
       { id: 'speaker', label: 'Voice / Style Prompt', type: 'text',
         placeholder: 'مثال: صوت مذيع عربي واضح وهادئ بنبرة رسمية', default: '',
-        hint: 'توجيه نصّي للصوت: صِف الجنس والنبرة والأسلوب (مثل: امرأة، هادئة، سرد). اتركه فارغاً للصوت الافتراضي.' },
+        hint: 'توجيه نصّي للصوت: صِف الجنس والنبرة والأسلوب (مثل: امرأة، هادئة، سرد). تُضاف اللهجة العربية تلقائياً إلى هذا الوصف. اتركه فارغاً للصوت الافتراضي.' },
     ],
     emotionTags: ['[laughter]'],   // base model only documents [laughter]; [applause] is unsupported
     cloneFields: ['ref_audio', 'ref_text'],
@@ -56,11 +56,11 @@ const MODELS = {
     name: 'VoxCPM2',
     icon: '🔊',
     specs: '2B · 48kHz · Diffusion',
-    role: 'جودة إخراج أعلى وتصميم/استنساخ صوت مرن، لكنه أثقل نموذج على CPU.',
-    traits: ['2B', '48kHz', 'Voice design', 'Cloning'],
+    role: 'جودة إخراج أعلى واستنساخ صوت مرن (30 لغة)؛ العربية مدعومة لكن بدقة أقل (WER ~13%)، وأثقل نموذج على CPU.',
+    traits: ['30 لغة', '48kHz', 'Voice design', 'Cloning'],
     profile: [
-      { label: 'أفضل استخدام', value: 'المقاطع النهائية عالية الجودة أو اختبار تصميم صوت/استنساخ متقدم.' },
-      { label: 'التحكم', value: 'CFG + timesteps + prompt/reference wav.' },
+      { label: 'أفضل استخدام', value: 'المقاطع النهائية عالية الجودة أو اختبار تصميم/استنساخ صوت متقدم.' },
+      { label: 'التحكم', value: 'CFG + timesteps + صوت مرجعي. اللهجة تُحقن كبادئة (Arabic) قبل النص؛ المرجع يثبّتها أكثر.' },
       { label: 'الأداء محلياً', value: 'الأبطأ على CPU؛ استخدم 5 timesteps للمسودات و20 للجودة.' },
     ],
     compareNote: 'قارنه عندما تكون الجودة أهم من زمن التوليد.',
@@ -80,6 +80,69 @@ const MODELS = {
     cloneHint: 'تلميح: أضف وصفاً في أقواس أمام النص: (calm and slow) النص هنا',
   },
 };
+
+// ── Arabic dialects ───────────────────────────────────────────
+// Language is locked to Arabic for every model; this picks the dialect that each
+// worker injects via its native lever (Fish [tag], OmniVoice instruct, VoxCPM2 (prefix)).
+const DIALECTS = [
+  { id: 'msa',       label: 'الفصحى' },
+  { id: 'egyptian',  label: 'مصري' },
+  { id: 'gulf',      label: 'خليجي' },
+  { id: 'levantine', label: 'شامي' },
+  { id: 'iraqi',     label: 'عراقي' },
+  { id: 'maghrebi',  label: 'مغربي' },
+];
+const dialectLabel = id => (DIALECTS.find(d => d.id === id) || DIALECTS[0]).label;
+
+// Optional voice persona (empty id = let the model decide), injected alongside the dialect.
+const GENDERS = [
+  { id: '',       label: 'تلقائي' },
+  { id: 'male',   label: 'ذكر' },
+  { id: 'female', label: 'أنثى' },
+];
+const AGES = [
+  { id: '',       label: 'تلقائي' },
+  { id: 'young',  label: 'شاب' },
+  { id: 'middle', label: 'متوسط' },
+  { id: 'old',    label: 'كبير السن' },
+];
+const attrLabel = (list, id) => (list.find(o => o.id === id) || list[0]).label;
+
+// English descriptors — MUST match the worker maps so the preview equals what's actually sent.
+const DIALECT_EN = {
+  msa: 'Modern Standard Arabic', egyptian: 'Egyptian Arabic', gulf: 'Gulf Arabic',
+  levantine: 'Levantine Arabic', iraqi: 'Iraqi Arabic', maghrebi: 'Maghrebi Arabic',
+};
+const GENDER_EN = { male: 'male', female: 'female' };
+const AGE_EN = { young: 'young adult', middle: 'middle-aged', old: 'elderly' };
+
+// Reproduces each worker's injection so the user sees the exact string that reaches the model.
+// Returns { text, instruct? } — `instruct` is only present for OmniVoice.
+function buildModelInput(mid, text) {
+  const v = paramValues[mid] || {};
+  const desc = DIALECT_EN[v.dialect || 'msa'] || DIALECT_EN.msa;
+  const persona = [GENDER_EN[v.gender] || '', AGE_EN[v.age] || ''].filter(Boolean).join(' ');
+  const body = text || '';
+
+  if (mid === 'fish') {
+    const tag = persona ? `${persona} voice speaking in ${desc}` : `speak in ${desc}`;
+    return { text: `[${tag}] ${body}` };
+  }
+  if (mid === 'voxcpm2') {
+    const cue = persona ? `${persona}, ${desc}` : desc;
+    return { text: `(${cue}) ${body}` };
+  }
+  if (mid === 'omnivoice') {
+    const attrs = [];
+    const sp = (v.speaker || '').trim();
+    if (sp) attrs.push(sp);
+    if (GENDER_EN[v.gender]) attrs.push(GENDER_EN[v.gender]);
+    if (AGE_EN[v.age]) attrs.push(AGE_EN[v.age]);
+    attrs.push(`${desc} accent`);
+    return { text: body, instruct: attrs.join(', ') };
+  }
+  return { text: body };
+}
 
 const SAMPLE_SENTENCES = [
   'مرحباً، كيف حالك؟',
@@ -198,6 +261,12 @@ function optionSummary(mid, includeClone = true) {
     return { label: p.label, value };
   });
 
+  // Forced language + chosen dialect/persona lead the summary.
+  const lead = [{ label: 'اللهجة', value: `العربية · ${dialectLabel(vals.dialect || 'msa')}` }];
+  if (vals.gender) lead.push({ label: 'الجنس', value: attrLabel(GENDERS, vals.gender) });
+  if (vals.age)    lead.push({ label: 'العمر', value: attrLabel(AGES, vals.age) });
+  entries.unshift(...lead);
+
   if (includeClone) {
     const usedClone = [];
     for (const stateKey of Object.values(model.formFields || {})) {
@@ -239,7 +308,7 @@ function showToast(msg, type = '', duration = 3000) {
 // ── Init param values ─────────────────────────────────────────
 function initParamValues() {
   for (const [mid, m] of Object.entries(MODELS)) {
-    paramValues[mid] = {};
+    paramValues[mid] = { dialect: 'msa', gender: '', age: '' };   // Arabic forced; persona auto
     for (const p of m.params) {
       paramValues[mid][p.id] = p.default;
     }
@@ -311,10 +380,96 @@ function renderModelInsights(model) {
   `;
 }
 
+// Labeled dropdown bound to paramValues[selectedModel][key]; auto-sent with each request.
+function makeAttrSelect(labelText, key, list) {
+  const cur = paramValues[selectedModel][key] || '';
+  const opts = list.map(o =>
+    `<option value="${o.id}" ${o.id === cur ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('');
+  const cell = document.createElement('div');
+  cell.style.cssText = 'display:flex;align-items:center;gap:6px';
+  cell.innerHTML = `
+    <label class="param-label" for="p-${key}" style="padding:0">${escapeHtml(labelText)}</label>
+    <select class="param-select" id="p-${key}" style="min-width:100px">${opts}</select>
+  `;
+  cell.querySelector('select').addEventListener('change', e => {
+    paramValues[selectedModel][key] = e.target.value;
+    updateModelInputPreview();
+  });
+  return cell;
+}
+
+// Locked "Arabic" indicator + dialect / gender / age controls, shown for every model.
+function renderLanguageBar(body) {
+  const wrap = document.createElement('div');
+  wrap.className = 'lang-dialect-row';
+  wrap.style.cssText = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px';
+
+  const lock = document.createElement('span');
+  lock.title = 'اللغة مثبّتة على العربية';
+  lock.style.cssText = 'display:inline-flex;align-items:center;gap:4px;font-size:.72rem;font-weight:600;color:var(--txt2);background:#21262d;border:1px solid #30363d;border-radius:6px;padding:4px 8px';
+  lock.textContent = '🔒 العربية';
+  wrap.appendChild(lock);
+
+  wrap.appendChild(makeAttrSelect('اللهجة', 'dialect', DIALECTS));
+  wrap.appendChild(makeAttrSelect('الجنس',  'gender',  GENDERS));
+  wrap.appendChild(makeAttrSelect('العمر',  'age',     AGES));
+  body.appendChild(wrap);
+
+  const hint = document.createElement('div');
+  hint.className = 'param-hint';
+  hint.style.marginBottom = '8px';
+  hint.textContent = 'العربية مفروضة على كل النماذج؛ اختر اللهجة والجنس والعمر وتُحقن تلقائياً في كل طلب.';
+  body.appendChild(hint);
+
+  const preview = document.createElement('div');
+  preview.id = 'model-input-preview';
+  preview.style.cssText = 'margin:0 0 12px;padding:8px 10px;background:#161b22;border:1px solid #30363d;border-radius:8px';
+  body.appendChild(preview);
+  updateModelInputPreview();
+}
+
+// One labelled monospace block — shared by the live preview and the post-synth echo.
+function codeLineHtml(label, value) {
+  return `
+    <div style="display:flex;flex-direction:column;gap:2px;margin-top:6px">
+      <span style="font-size:.66rem;color:var(--txt2);font-weight:700">${escapeHtml(label)}</span>
+      <code dir="auto" style="display:block;background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:6px 8px;font-size:.74rem;line-height:1.55;color:#e6edf3;white-space:pre-wrap;word-break:break-word">${escapeHtml(value && value.trim() ? value : '—')}</code>
+    </div>`;
+}
+
+// Live preview of the exact text/instruct that will actually be fed to the selected model.
+// Mirrors buildModelInput() (which mirrors the worker injection), so it equals what's sent.
+function updateModelInputPreview() {
+  const el = $('model-input-preview');
+  if (!el) return;
+  const ta = $('text-input');
+  const mi = buildModelInput(selectedModel, ta ? ta.value.trim() : '');
+  let html = '<div style="font-size:.7rem;color:var(--txt2);font-weight:700">📤 الإدخال الفعلي المُرسَل إلى النموذج</div>';
+  if (mi.instruct !== undefined) {
+    html += codeLineHtml('وصف الصوت (instruct)', mi.instruct);
+    html += codeLineHtml('النص (text)', mi.text);
+  } else {
+    html += codeLineHtml('النص المُرسَل (text)', mi.text);
+  }
+  el.innerHTML = html;
+}
+
+// Authoritative input echoed back by the worker for a generated clip (ground truth).
+function sentInputHtml(meta) {
+  if (!meta || (!meta.model_input && !meta.model_instruct)) return '';
+  return `
+    <div style="margin-top:10px;padding:8px 10px;background:#161b22;border:1px solid #30363d;border-radius:8px">
+      <div style="font-size:.7rem;color:var(--txt2);font-weight:700">📤 ما أُرسل فعلياً إلى النموذج</div>
+      ${meta.model_instruct ? codeLineHtml('وصف الصوت (instruct)', meta.model_instruct) : ''}
+      ${codeLineHtml('النص (text)', meta.model_input)}
+    </div>`;
+}
+
 function renderParams() {
   const body = $('params-body');
   const model = MODELS[selectedModel];
   body.innerHTML = renderModelInsights(model);
+  renderLanguageBar(body);
 
   if (!model.params.length) {
     body.insertAdjacentHTML('beforeend', '<p class="param-empty">لا توجد معاملات إضافية.</p>');
@@ -368,6 +523,7 @@ function renderParams() {
       body.appendChild(wrap);
       wrap.querySelector('input').addEventListener('input', e => {
         paramValues[selectedModel][p.id] = e.target.value;
+        updateModelInputPreview();   // OmniVoice style prompt feeds the instruct preview
       });
     }
   }
@@ -405,6 +561,7 @@ function insertTag(tag) {
   ta.setSelectionRange(newPos, newPos);
   ta.focus();
   updateCharCount();
+  updateModelInputPreview();
 }
 
 // ── Render voice-cloning panel ────────────────────────────────
@@ -516,6 +673,7 @@ function renderSampleChips() {
       $('text-input').value = s;
       updateCharCount();
       updateSynthBtn();
+      updateModelInputPreview();
     });
     container.appendChild(chip);
   }
@@ -675,6 +833,7 @@ async function loadPlayer(url, meta, text) {
       <p class="player-model-note">${escapeHtml(model.role || '')}</p>
       ${metricGridHtml(meta)}
       ${optionChipsHtml(options)}
+      ${sentInputHtml(meta)}
     `;
   }
 
@@ -925,6 +1084,27 @@ function miniTitleHtml(mid) {
   `;
 }
 
+// Final content for one compare mini-player — used both live and when restoring a saved run.
+function miniPlayerHtml(mid, item) {
+  const options = item.options || optionSummary(mid, false);
+  if (item.error) {
+    return `
+      ${miniTitleHtml(mid)}
+      <div class="mini-player-meta error">خطأ: ${escapeHtml(String(item.error).slice(0, 120))}</div>
+      ${optionChipsHtml(options)}
+    `;
+  }
+  const url = item.url || `/audio/${mid}/${item.result.filename}`;
+  return `
+    ${miniTitleHtml(mid)}
+    <audio controls preload="auto" src="${escapeHtml(url)}"></audio>
+    ${metricGridHtml(item.result)}
+    <div class="mini-player-meta">${escapeHtml(MODELS[mid].role)}</div>
+    ${optionChipsHtml(options)}
+    ${sentInputHtml(item.result)}
+  `;
+}
+
 function renderCompareSummary(grid, results) {
   const ok = results.filter(r => r.result);
   if (!ok.length) return;
@@ -962,6 +1142,34 @@ function renderCompareSummary(grid, results) {
     </div>
   `;
   grid.prepend(summary);
+}
+
+// ── Compare persistence ───────────────────────────────────────
+const COMPARE_KEY = 'tts_compare_v1';
+
+function saveCompare(data) {
+  try { localStorage.setItem(COMPARE_KEY, JSON.stringify(data)); } catch { /* quota */ }
+}
+
+function loadCompare() {
+  try { return JSON.parse(localStorage.getItem(COMPARE_KEY) || 'null'); } catch { return null; }
+}
+
+// Re-render the last compare run so the results survive a page reload.
+function renderSavedCompare() {
+  const data = loadCompare();
+  if (!data || !Array.isArray(data.items) || !data.items.length) return;
+  const grid = $('compare-grid');
+  $('compare-results').classList.remove('hidden');
+  grid.innerHTML = '';
+  for (const item of data.items) {
+    const mini = document.createElement('div');
+    mini.className = `mini-player ${item.mid} done`;
+    mini.id = `mini-${item.mid}`;
+    mini.innerHTML = miniPlayerHtml(item.mid, item);
+    grid.appendChild(mini);
+  }
+  renderCompareSummary(grid, data.items);
 }
 
 async function compareModels() {
@@ -1015,27 +1223,20 @@ async function compareModels() {
       const url = `/audio/${mid}/${result.filename}`;
       addToHistory({ ...result, text, url, options, timestamp: Date.now() });
 
-      players[mid].innerHTML = `
-        ${miniTitleHtml(mid)}
-        <audio controls preload="auto" src="${escapeHtml(url)}"></audio>
-        ${metricGridHtml(result)}
-        <div class="mini-player-meta">${escapeHtml(MODELS[mid].role)}</div>
-        ${optionChipsHtml(options)}
-      `;
-      results.push({ mid, result });
+      const item = { mid, result, options, url };
+      players[mid].innerHTML = miniPlayerHtml(mid, item);
+      results.push(item);
     } catch (e) {
-      players[mid].innerHTML = `
-        ${miniTitleHtml(mid)}
-        <div class="mini-player-meta error">خطأ: ${escapeHtml(e.message.slice(0, 120))}</div>
-        ${optionChipsHtml(options)}
-      `;
-      results.push({ mid, error: e });
+      const item = { mid, error: e.message, options };
+      players[mid].innerHTML = miniPlayerHtml(mid, item);
+      results.push(item);
     }
 
     players[mid].classList.add('done');
   }
 
   renderCompareSummary(grid, results);
+  saveCompare({ text, timestamp: Date.now(), items: results });
   isComparing = false;
   btn.disabled = false;
   updateCompareLabel();
@@ -1076,6 +1277,7 @@ function init() {
   renderCompareChecks();
   renderSampleChips();
   renderHistory();
+  renderSavedCompare();   // restore the last compare run after a reload
   setupAccordions();
   setupAudioEvents();
 
@@ -1083,6 +1285,7 @@ function init() {
   $('text-input').addEventListener('input', () => {
     updateCharCount();
     updateSynthBtn();
+    updateModelInputPreview();
   });
 
   // Synth button
@@ -1093,6 +1296,7 @@ function init() {
     $('text-input').value = '';
     updateCharCount();
     updateSynthBtn();
+    updateModelInputPreview();
   });
 
   // Clear history

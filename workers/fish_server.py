@@ -19,6 +19,31 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 S2_CUDA_DEVICE = os.getenv("S2_CUDA_DEVICE", "-1")
 S2_THREADS = os.getenv("S2_THREADS", str(os.cpu_count() or 4))
 
+# Arabic is forced for every request; the dialect steers the in-text [tag] S2 reads.
+_ARABIC_DIALECTS = {
+    "msa":       "Modern Standard Arabic",
+    "egyptian":  "Egyptian Arabic",
+    "gulf":      "Gulf Arabic",
+    "levantine": "Levantine Arabic",
+    "iraqi":     "Iraqi Arabic",
+    "maghrebi":  "Maghrebi Arabic",
+}
+
+
+def _arabic_descriptor(dialect: str) -> str:
+    return _ARABIC_DIALECTS.get((dialect or "msa").strip().lower(), _ARABIC_DIALECTS["msa"])
+
+
+# Optional voice persona — empty value means "let the model decide".
+_GENDERS = {"male": "male", "female": "female"}
+_AGES = {"young": "young adult", "middle": "middle-aged", "old": "elderly"}
+
+
+def _persona(gender: str, age: str) -> str:
+    g = _GENDERS.get((gender or "").strip().lower(), "")
+    a = _AGES.get((age or "").strip().lower(), "")
+    return " ".join(p for p in (g, a) if p)
+
 _MODEL_CANDIDATES = [
     "s2-pro-q4_k_m.gguf",
     "s2-pro-q5_k_m.gguf",
@@ -53,6 +78,9 @@ async def health():
 @app.post("/synthesize")
 async def synthesize(
     text: str = Form(...),
+    dialect: str = Form("msa"),
+    gender: str = Form(""),
+    age: str = Form(""),
     temperature: float = Form(0.7),
     top_p: float = Form(0.8),
     top_k: int = Form(30),
@@ -68,6 +96,12 @@ async def synthesize(
     out_path = OUT_DIR / f"fish_{uuid.uuid4().hex[:12]}.wav"
     ref_tmp: str | None = None
 
+    # Force Arabic + dialect (+ optional gender/age persona) via a free-form S2 tag.
+    desc = _arabic_descriptor(dialect)
+    persona = _persona(gender, age)
+    tag = f"{persona} voice speaking in {desc}" if persona else f"speak in {desc}"
+    eff_text = f"[{tag}] {text}"
+
     if reference_audio and reference_audio.filename:
         data = await reference_audio.read()
         fd, ref_tmp = tempfile.mkstemp(suffix=".wav")
@@ -78,7 +112,7 @@ async def synthesize(
         str(S2_BIN),
         "-m", str(MODEL),
         "-t", str(TOKENIZER),
-        "--text", text,
+        "--text", eff_text,
         "-c", S2_CUDA_DEVICE,
         "-threads", S2_THREADS,
         "--normalize",
@@ -115,6 +149,7 @@ async def synthesize(
     return {
         "filename": out_path.name,
         "model": "fish",
+        "model_input": eff_text,
         "elapsed_s": round(elapsed, 2),
         "duration_s": round(info.duration, 2),
         "rtf": round(elapsed / max(info.duration, 0.01), 3),
