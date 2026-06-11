@@ -18,13 +18,13 @@ STATIC    = BASE_DIR / "static"
 WORKDIR   = pathlib.Path(os.getenv("TTS_WORKDIR", "~/tts-05172026")).expanduser()
 
 OUTPUT_DIRS = {
+    # Keep old Fish/S2 Pro recordings serveable, but do not expose it as an active worker.
     "fish":      WORKDIR / "outputs",
     "omnivoice": WORKDIR / "outputs_omnivoice",
     "voxcpm2":   WORKDIR / "outputs_voxcpm2",
 }
 
 WORKER_URLS = {
-    "fish":      "http://127.0.0.1:8081",
     "omnivoice": "http://127.0.0.1:8082",
     "voxcpm2":   "http://127.0.0.1:8083",
 }

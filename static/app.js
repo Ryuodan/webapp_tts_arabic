@@ -2,33 +2,6 @@
 
 // ── Model definitions ────────────────────────────────────────
 const MODELS = {
-  fish: {
-    id: 'fish',
-    name: 'Fish S2 Pro',
-    icon: '🐟',
-    specs: '5B · 44kHz · expressive',
-    role: 'الأقوى على العربية (المركز الأول في Arabic TTS Arena)؛ تحكم تعبيري حرّ داخل النص مع صوت مرجعي.',
-    traits: ['80+ لغة', '#1 عربي Arena', 'وسوم حرّة', '44kHz'],
-    profile: [
-      { label: 'أفضل استخدام', value: 'قراءة عربية معبّرة؛ العربية لغة Tier-2 مدعومة بقوة، واللهجة تُحقن كوسم نصّي.' },
-      { label: 'التحكم', value: 'وسوم بلغة طبيعية حرّة (+15 ألف وسم) + Sampling + صوت مرجعي.' },
-      { label: 'الأداء محلياً', value: 'أبطئ مع النصوص الطويلة؛ خفّض Max Tokens لاختبار أسرع.' },
-    ],
-    compareNote: 'قارن جودة التعبير والوسوم مقابل زمن التوليد.',
-    params: [
-      { id: 'temperature', label: 'Temperature', type: 'range', min: 0.1, max: 2.0, step: 0.05, default: 0.7,
-        hint: 'أعلى = أداء أكثر تنوعاً وتعبيراً، لكنه قد يصبح أقل ثباتاً.' },
-      { id: 'top_p',       label: 'Top-P',        type: 'range', min: 0.0, max: 1.0, step: 0.05, default: 0.8,
-        hint: 'يضبط اتساع الاختيارات؛ 0.7-0.9 مناسب غالباً للصوت الطبيعي.' },
-      { id: 'top_k',       label: 'Top-K',        type: 'range', min: 1,   max: 100, step: 1,    default: 30,
-        hint: 'عدد الاختيارات المرشحة في كل خطوة؛ الأقل أكثر تحفظاً.' },
-      { id: 'max_tokens',  label: 'Max Tokens',   type: 'range', min: 256, max: 4096,step: 256,  default: 2048,
-        hint: 'سقف طول التوليد؛ قلله عند اختبار جمل قصيرة لتقليل الانتظار.' },
-    ],
-    emotionTags: ['[excited]', '[whisper]', '[laugh]', '[sad]', '[news]'],
-    cloneFields: ['ref_audio', 'ref_text'],
-    formFields: { reference_audio: 'ref_audio', reference_text: 'ref_text' },
-  },
   omnivoice: {
     id: 'omnivoice',
     name: 'OmniVoice',
@@ -83,7 +56,7 @@ const MODELS = {
 
 // ── Arabic dialects ───────────────────────────────────────────
 // Language is locked to Arabic for every model; this picks the dialect that each
-// worker injects via its native lever (Fish [tag], OmniVoice instruct, VoxCPM2 (prefix)).
+// worker injects via its native lever (OmniVoice instruct, VoxCPM2 prefix).
 const DIALECTS = [
   { id: 'msa',       label: 'الفصحى' },
   { id: 'egyptian',  label: 'مصري' },
@@ -124,10 +97,6 @@ function buildModelInput(mid, text) {
   const persona = [GENDER_EN[v.gender] || '', AGE_EN[v.age] || ''].filter(Boolean).join(' ');
   const body = text || '';
 
-  if (mid === 'fish') {
-    const tag = persona ? `${persona} voice speaking in ${desc}` : `speak in ${desc}`;
-    return { text: `[${tag}] ${body}` };
-  }
   if (mid === 'voxcpm2') {
     const cue = persona ? `${persona}, ${desc}` : desc;
     return { text: `(${cue}) ${body}` };
@@ -153,13 +122,13 @@ const SAMPLE_SENTENCES = [
 ];
 
 // ── State ─────────────────────────────────────────────────────
-let selectedModel = 'fish';
-let workerStatus  = { fish: 'offline', omnivoice: 'offline', voxcpm2: 'offline' };
+let selectedModel = 'omnivoice';
+let workerStatus  = { omnivoice: 'offline', voxcpm2: 'offline' };
 let currentAudioUrl = null;
 let isGenerating  = false;
 let isComparing   = false;
 let audioCtx      = null;
-let paramValues   = {};  // { fish: {temperature: 0.7, ...}, ... }
+let paramValues   = {};  // { omnivoice: {speaker: '', ...}, ... }
 let cloneFiles    = {};  // { ref_audio: File|null, ref_text: '', ... }
 let compareSelection = {};
 
@@ -577,7 +546,7 @@ function renderClonePanel() {
     body.appendChild(hint);
   }
 
-  if (model.id === 'fish' || model.id === 'omnivoice') {
+  if (model.id === 'omnivoice') {
     body.appendChild(makeFileZone('ref_audio', 'الصوت المرجعي (WAV 5–30 ثانية)', 'audio/wav,audio/*'));
     body.appendChild(makeTextRow('ref_text', 'نص الصوت المرجعي (اختياري)', 'النص المنطوق في الصوت المرجعي…'));
   }
@@ -896,8 +865,7 @@ async function drawWaveform(url, mid = selectedModel) {
     ctx.fillRect(0, 0, W, H);
 
     // Color based on model
-    const color = mid === 'fish' ? '#f0883e' :
-                  mid === 'voxcpm2' ? '#3fb950' : '#58a6ff';
+    const color = mid === 'voxcpm2' ? '#3fb950' : '#58a6ff';
     ctx.fillStyle = color + '90';
 
     for (let i = 0; i < W; i++) {
@@ -959,7 +927,8 @@ let historyItems = [];
 
 function loadHistory() {
   try {
-    historyItems = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+    const saved = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+    historyItems = Array.isArray(saved) ? saved.filter(i => MODELS[i.model]) : [];
   } catch { historyItems = []; }
 }
 
@@ -1159,17 +1128,19 @@ function loadCompare() {
 function renderSavedCompare() {
   const data = loadCompare();
   if (!data || !Array.isArray(data.items) || !data.items.length) return;
+  const items = data.items.filter(item => MODELS[item.mid]);
+  if (!items.length) return;
   const grid = $('compare-grid');
   $('compare-results').classList.remove('hidden');
   grid.innerHTML = '';
-  for (const item of data.items) {
+  for (const item of items) {
     const mini = document.createElement('div');
     mini.className = `mini-player ${item.mid} done`;
     mini.id = `mini-${item.mid}`;
     mini.innerHTML = miniPlayerHtml(item.mid, item);
     grid.appendChild(mini);
   }
-  renderCompareSummary(grid, data.items);
+  renderCompareSummary(grid, items);
 }
 
 async function compareModels() {

@@ -29,7 +29,7 @@ fi
 echo "Installing gateway dependencies in ${GATEWAY_ENV}..."
 "$CONDA_EXE" run -n "$GATEWAY_ENV" python -m pip install --quiet -r "${SCRIPT_DIR}/requirements.txt"
 
-for env_name in arabic-tts omnivoice-tts voxcpm2-tts; do
+for env_name in omnivoice-tts voxcpm2-tts; do
   if env_exists "$env_name"; then
     echo "Installing worker web dependencies in ${env_name}..."
     "$CONDA_EXE" run -n "$env_name" python -m pip install --quiet "${PKGS[@]}"
