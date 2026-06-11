@@ -95,6 +95,7 @@ async def synthesize(
     age: str = Form(""),
     cfg_value: float = Form(2.0),
     inference_timesteps: int = Form(10),
+    model_input_override: str = Form(""),
     reference_wav: UploadFile | None = File(None),
     prompt_wav: UploadFile | None = File(None),
     prompt_text: str | None = Form(None),
@@ -118,11 +119,16 @@ async def synthesize(
             os.close(fd)
 
         out_path = OUT_DIR / f"voxcpm2_{uuid.uuid4().hex[:12]}.wav"
-        # Force Arabic + dialect (+ optional gender/age) via the leading-parenthetical style cue.
-        desc = _arabic_descriptor(dialect)
-        persona = _persona(gender, age)
-        cue = f"{persona}, {desc}" if persona else desc
-        eff_text = f"({cue}) {text}"
+        # A non-empty override is used verbatim (frontend manual-edit mode); otherwise force
+        # Arabic + dialect (+ optional gender/age) via the leading-parenthetical style cue.
+        override = (model_input_override or "").strip()
+        if override:
+            eff_text = override
+        else:
+            desc = _arabic_descriptor(dialect)
+            persona = _persona(gender, age)
+            cue = f"{persona}, {desc}" if persona else desc
+            eff_text = f"({cue}) {text}"
         kwargs: dict = {
             "text": eff_text,
             "cfg_value": cfg_value,

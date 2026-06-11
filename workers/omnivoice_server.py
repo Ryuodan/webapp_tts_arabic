@@ -90,6 +90,8 @@ async def synthesize(
     gender: str = Form(""),
     age: str = Form(""),
     speaker: str = Form(""),
+    model_input_override: str = Form(""),
+    model_instruct_override: str = Form(""),
     ref_audio: UploadFile | None = File(None),
     ref_text: str | None = Form(None),
 ):
@@ -103,23 +105,29 @@ async def synthesize(
         os.close(fd)
 
     out_path = OUT_DIR / f"omnivoice_{uuid.uuid4().hex[:12]}.wav"
-    kwargs: dict = {"text": text}
+    # Non-empty overrides are used verbatim (frontend manual-edit mode).
+    eff_text = (model_input_override or "").strip() or text
+    kwargs: dict = {"text": eff_text}
     if ref_tmp:
         kwargs["ref_audio"] = ref_tmp
     if ref_text and ref_text.strip():
         kwargs["ref_text"] = ref_text.strip()
 
-    # Build the voice-design string: optional user prompt + gender/age + forced Arabic dialect.
-    # OmniVoice's instruct is a comma-separated attribute list.
-    attrs = []
-    if speaker and speaker.strip():
-        attrs.append(speaker.strip())
-    for frag in (_attr(_GENDERS, gender), _attr(_AGES, age)):
-        if frag:
-            attrs.append(frag)
-    attrs.append(f"{_arabic_descriptor(dialect)} accent")
-    # OmniVoice's documented voice-design kwarg is `instruct` (older builds used `speaker`).
-    kwargs["instruct"] = ", ".join(attrs)
+    instruct_override = (model_instruct_override or "").strip()
+    if instruct_override:
+        kwargs["instruct"] = instruct_override
+    else:
+        # Build the voice-design string: optional user prompt + gender/age + forced Arabic dialect.
+        # OmniVoice's instruct is a comma-separated attribute list.
+        attrs = []
+        if speaker and speaker.strip():
+            attrs.append(speaker.strip())
+        for frag in (_attr(_GENDERS, gender), _attr(_AGES, age)):
+            if frag:
+                attrs.append(frag)
+        attrs.append(f"{_arabic_descriptor(dialect)} accent")
+        # OmniVoice's documented voice-design kwarg is `instruct` (older builds used `speaker`).
+        kwargs["instruct"] = ", ".join(attrs)
 
     try:
         async with _lock:
@@ -139,7 +147,7 @@ async def synthesize(
     return {
         "filename": out_path.name,
         "model": "omnivoice",
-        "model_input": text,
+        "model_input": eff_text,
         "model_instruct": kwargs.get("instruct", ""),
         "elapsed_s": round(elapsed, 2),
         "duration_s": round(duration, 2),

@@ -129,6 +129,7 @@ let isGenerating  = false;
 let isComparing   = false;
 let audioCtx      = null;
 let paramValues   = {};  // { omnivoice: {speaker: '', ...}, ... }
+let manualOverride = {}; // { omnivoice: {enabled, text, instruct}, ... } — verbatim model-input edits
 let cloneFiles    = {};  // { ref_audio: File|null, ref_text: '', ... }
 let compareSelection = {};
 
@@ -406,21 +407,66 @@ function codeLineHtml(label, value) {
     </div>`;
 }
 
+function overrideState(mid) {
+  if (!manualOverride[mid]) manualOverride[mid] = { enabled: false, text: '', instruct: '' };
+  return manualOverride[mid];
+}
+
+// Editable counterpart of codeLineHtml — value is wired up after innerHTML is set.
+function editLineHtml(label, id) {
+  return `
+    <div style="display:flex;flex-direction:column;gap:2px;margin-top:6px">
+      <span style="font-size:.66rem;color:#d29922;font-weight:700">✏️ ${escapeHtml(label)}</span>
+      <textarea id="${id}" dir="auto" rows="2" spellcheck="false"
+        style="background:#0d1117;border:1px solid #d29922;border-radius:6px;padding:6px 8px;font-size:.74rem;line-height:1.55;color:#e6edf3;font-family:inherit;resize:vertical;width:100%"></textarea>
+    </div>`;
+}
+
 // Live preview of the exact text/instruct that will actually be fed to the selected model.
 // Mirrors buildModelInput() (which mirrors the worker injection), so it equals what's sent.
+// "تعديل يدوي" turns the blocks into textareas whose content is sent verbatim instead.
 function updateModelInputPreview() {
   const el = $('model-input-preview');
   if (!el) return;
   const ta = $('text-input');
   const mi = buildModelInput(selectedModel, ta ? ta.value.trim() : '');
-  let html = '<div style="font-size:.7rem;color:var(--txt2);font-weight:700">📤 الإدخال الفعلي المُرسَل إلى النموذج</div>';
-  if (mi.instruct !== undefined) {
-    html += codeLineHtml('وصف الصوت (instruct)', mi.instruct);
-    html += codeLineHtml('النص (text)', mi.text);
+  const ov = overrideState(selectedModel);
+
+  let html = `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <span style="font-size:.7rem;color:var(--txt2);font-weight:700">📤 الإدخال الفعلي المُرسَل إلى النموذج</span>
+      <button type="button" id="btn-input-override" class="tag-chip" style="flex-shrink:0">
+        ${ov.enabled ? '↺ رجوع للتلقائي' : '✏️ تعديل يدوي'}
+      </button>
+    </div>`;
+
+  if (!ov.enabled) {
+    if (mi.instruct !== undefined) {
+      html += codeLineHtml('وصف الصوت (instruct)', mi.instruct);
+      html += codeLineHtml('النص (text)', mi.text);
+    } else {
+      html += codeLineHtml('النص المُرسَل (text)', mi.text);
+    }
+    el.innerHTML = html;
   } else {
-    html += codeLineHtml('النص المُرسَل (text)', mi.text);
+    if (mi.instruct !== undefined) html += editLineHtml('وصف الصوت (instruct)', 'ov-instruct');
+    html += editLineHtml('النص (text)', 'ov-text');
+    html += '<div class="param-hint" style="margin-top:6px">وضع التعديل اليدوي: يُرسَل المحتوى أعلاه إلى النموذج حرفياً (بدون حقن اللهجة/الجنس/العمر). اترك الحقل فارغاً للرجوع إلى القيمة التلقائية.</div>';
+    el.innerHTML = html;
+    const t = $('ov-text');
+    if (t) { t.value = ov.text; t.addEventListener('input', e => { ov.text = e.target.value; }); }
+    const ins = $('ov-instruct');
+    if (ins) { ins.value = ov.instruct; ins.addEventListener('input', e => { ov.instruct = e.target.value; }); }
   }
-  el.innerHTML = html;
+
+  $('btn-input-override').addEventListener('click', () => {
+    ov.enabled = !ov.enabled;
+    if (ov.enabled) {           // seed the editor with the current auto-built input
+      ov.text = mi.text;
+      ov.instruct = mi.instruct || '';
+    }
+    updateModelInputPreview();
+  });
 }
 
 // Authoritative input echoed back by the worker for a generated clip (ground truth).
@@ -711,6 +757,13 @@ function buildFormDataForModel(mid, text, includeClone = true) {
   const vals = paramValues[mid] || {};
   for (const [k, v] of Object.entries(vals)) {
     fd.append(k, v);
+  }
+
+  // Manual override: the worker uses these verbatim and skips its own injection.
+  const ov = manualOverride[mid];
+  if (ov && ov.enabled) {
+    fd.append('model_input_override', ov.text);
+    if (mid === 'omnivoice') fd.append('model_instruct_override', ov.instruct);
   }
 
   // Clone files/text
