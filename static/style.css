@@ -783,6 +783,19 @@ textarea { resize: vertical; }
 .mini-player-meta { font-size: .65rem; color: var(--txt3); text-align: right; line-height: 1.45; direction: rtl; }
 .mini-player-meta.error { color: var(--red); }
 .mini-spinner { font-size: .75rem; color: var(--txt3); text-align: center; padding: 10px 0; animation: blink .8s infinite; }
+.mini-retry {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  background: var(--bg4);
+  color: var(--txt2);
+  font-size: .72rem;
+  font-weight: 600;
+  border: 1px solid var(--border2);
+  transition: var(--transition);
+}
+.mini-retry:hover { color: var(--omni); border-color: var(--omni); }
 
 .compare-summary {
   grid-column: 1 / -1;

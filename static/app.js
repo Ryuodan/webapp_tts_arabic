@@ -144,6 +144,7 @@ let paramValues   = {};  // { omnivoice: {speaker: '', ...}, ... }
 let manualOverride = {}; // { omnivoice: {enabled, text, instruct}, ... } — verbatim model-input edits
 let cloneFiles    = {};  // { ref_audio: File|null, ref_text: '', ... }
 let compareSelection = {};
+let currentCompareRunId = null;  // id of the comparison run currently shown in the grid (for retry)
 
 // ── DOM helpers ───────────────────────────────────────────────
 const $  = id => document.getElementById(id);
@@ -861,12 +862,13 @@ function currentInstruct() {
 }
 
 // ── Build FormData for synthesis ──────────────────────────────
-function buildFormDataForModel(mid, text, includeClone = true) {
+// paramsOverride lets a retry rebuild the exact params captured at compare time.
+function buildFormDataForModel(mid, text, includeClone = true, paramsOverride = null) {
   const fd = new FormData();
   fd.append('text', text);
 
   // Model-specific params
-  const vals = paramValues[mid] || {};
+  const vals = paramsOverride || paramValues[mid] || {};
   for (const [k, v] of Object.entries(vals)) {
     fd.append(k, v);
   }
@@ -1238,6 +1240,7 @@ function miniPlayerHtml(mid, item) {
     return `
       ${miniTitleHtml(mid)}
       <div class="mini-player-meta error">خطأ: ${escapeHtml(String(item.error).slice(0, 120))}</div>
+      <button class="mini-retry" data-mid="${escapeAttr(mid)}" type="button">↻ إعادة المحاولة</button>
       ${optionChipsHtml(options)}
     `;
   }
@@ -1346,6 +1349,7 @@ function clearCompareRuns() {
 function renderComparisonInto(run) {
   const items = (run.items || []).filter(item => MODELS[item.mid]);
   if (!items.length) return;
+  currentCompareRunId = run.id;   // so retry buttons in the grid target this run
   const grid = $('compare-grid');
   $('compare-results').classList.remove('hidden');
   grid.innerHTML = '';
@@ -1364,6 +1368,45 @@ function viewSavedComparison(id) {
   if (!run) return;
   renderComparisonInto(run);
   $('compare-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// Re-run a single failed (or any) model in a comparison, reusing the same text + captured params.
+async function retryCompareItem(runId, mid) {
+  if (isComparing) { showToast('انتظر حتى تكتمل المقارنة الحالية', 'warn'); return; }
+  const run = compareRuns.find(r => r.id === runId);
+  if (!run) { showToast('تعذّر العثور على المقارنة', 'error'); return; }
+  const idx = (run.items || []).findIndex(i => i.mid === mid);
+  if (idx === -1) return;
+
+  const prev = run.items[idx];
+  const options = prev.options || optionSummary(mid, false);
+  const mini = $(`mini-${mid}`);
+  if (mini) mini.innerHTML = `${miniTitleHtml(mid)}<div class="mini-spinner">جاري إعادة المحاولة…</div>${optionChipsHtml(options)}`;
+
+  let item;
+  try {
+    const fd = buildFormDataForModel(mid, run.text, false, prev.params || null);
+    const r = await fetch(`/api/${mid}/synthesize`, { method: 'POST', body: fd });
+    if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+    const result = await r.json();
+    const url = `/audio/${mid}/${result.filename}`;
+    addToHistory({ ...result, text: run.text, url, options, timestamp: Date.now() });
+    item = { mid, result, options, url, params: prev.params };
+    showToast('تمت إعادة التوليد ✓', 'success');
+  } catch (e) {
+    item = { mid, error: e.message, options, params: prev.params };
+    showToast(`فشلت إعادة المحاولة: ${String(e.message).slice(0, 80)}`, 'error', 5000);
+  }
+
+  run.items[idx] = item;
+  if (mini) mini.innerHTML = miniPlayerHtml(mid, item);
+  persistCompareRuns();
+  renderCompareLibrary();
+  // Refresh the "best of" summary in place.
+  const grid = $('compare-grid');
+  const old = grid.querySelector('.compare-summary');
+  if (old) old.remove();
+  renderCompareSummary(grid, run.items);
 }
 
 // The list of saved comparisons (click to re-open, with per-item + clear-all delete).
@@ -1442,6 +1485,7 @@ async function compareModels() {
       ${optionChipsHtml(options)}
     `;
 
+    const params = { ...paramValues[mid] };   // snapshot so a retry reproduces these exact inputs
     try {
       const fd = buildFormDataForModel(mid, text, false);
 
@@ -1451,11 +1495,11 @@ async function compareModels() {
       const url = `/audio/${mid}/${result.filename}`;
       addToHistory({ ...result, text, url, options, timestamp: Date.now() });
 
-      const item = { mid, result, options, url };
+      const item = { mid, result, options, url, params };
       players[mid].innerHTML = miniPlayerHtml(mid, item);
       results.push(item);
     } catch (e) {
-      const item = { mid, error: e.message, options };
+      const item = { mid, error: e.message, options, params };
       players[mid].innerHTML = miniPlayerHtml(mid, item);
       results.push(item);
     }
@@ -1464,7 +1508,9 @@ async function compareModels() {
   }
 
   renderCompareSummary(grid, results);
-  addCompareRun({ id: `c${Date.now()}`, text, timestamp: Date.now(), items: results });
+  const run = { id: `c${Date.now()}`, text, timestamp: Date.now(), items: results };
+  addCompareRun(run);
+  currentCompareRunId = run.id;   // grid now shows this run; retry buttons target it
   isComparing = false;
   btn.disabled = false;
   updateCompareLabel();
@@ -1544,6 +1590,12 @@ function init() {
 
   // Compare
   $('btn-compare').addEventListener('click', compareModels);
+
+  // Retry a failed model inside a comparison (event-delegated on the results grid)
+  $('compare-grid').addEventListener('click', e => {
+    const btn = e.target.closest('.mini-retry');
+    if (btn) retryCompareItem(currentCompareRunId, btn.dataset.mid);
+  });
 
   // Initial status poll + periodic refresh
   pollStatus();

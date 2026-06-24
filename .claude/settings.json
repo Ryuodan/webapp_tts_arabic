@@ -32,7 +32,8 @@
       "Bash(~/miniconda3/envs/arabic-tts-web/bin/python -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\('model_input:',d.get\\('model_input'\\)\\);print\\('file:',d.get\\('filename'\\),'| dur:',d.get\\('duration_s'\\),'s'\\)\")",
       "Bash(curl -s --max-time 5 http://127.0.0.1:8025/)",
       "Bash(curl -s --max-time 5 \"http://127.0.0.1:8025/app.js?v=10\")",
-      "Bash(curl -s --max-time 5 \"http://127.0.0.1:8025/app.js?v=11\")"
+      "Bash(curl -s --max-time 5 \"http://127.0.0.1:8025/app.js?v=11\")",
+      "Bash(curl -s --max-time 5 \"http://127.0.0.1:8025/app.js?v=12\")"
     ]
   }
 }
