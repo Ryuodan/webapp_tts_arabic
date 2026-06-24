@@ -12,12 +12,53 @@ import uvicorn
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
-WORKDIR   = pathlib.Path("~/tts-05172026").expanduser()
-S2_BIN    = WORKDIR / "s2.cpp" / "build" / "s2"
-MODEL     = WORKDIR / "model" / "s2-pro-q6_k.gguf"
-TOKENIZER = WORKDIR / "model" / "tokenizer.json"
-OUT_DIR   = WORKDIR / "outputs"
+WORKDIR   = pathlib.Path(os.getenv("TTS_WORKDIR", "~/tts-05172026")).expanduser()
+S2_BIN    = pathlib.Path(os.getenv("S2_BIN", str(WORKDIR / "s2.cpp" / "build" / "s2"))).expanduser()
+TOKENIZER = pathlib.Path(os.getenv("FISH_TOKENIZER", str(WORKDIR / "model" / "tokenizer.json"))).expanduser()
+OUT_DIR   = pathlib.Path(os.getenv("FISH_OUT_DIR", str(WORKDIR / "outputs"))).expanduser()
 OUT_DIR.mkdir(parents=True, exist_ok=True)
+S2_CUDA_DEVICE = os.getenv("S2_CUDA_DEVICE", "-1")
+S2_THREADS = os.getenv("S2_THREADS", str(os.cpu_count() or 4))
+
+# Arabic is forced for every request; the dialect steers the in-text [tag] S2 reads.
+_ARABIC_DIALECTS = {
+    "msa":       "Modern Standard Arabic",
+    "egyptian":  "Egyptian Arabic",
+    "gulf":      "Gulf Arabic",
+    "levantine": "Levantine Arabic",
+    "iraqi":     "Iraqi Arabic",
+    "maghrebi":  "Maghrebi Arabic",
+}
+
+
+def _arabic_descriptor(dialect: str) -> str:
+    return _ARABIC_DIALECTS.get((dialect or "msa").strip().lower(), _ARABIC_DIALECTS["msa"])
+
+
+# Optional voice persona — empty value means "let the model decide".
+_GENDERS = {"male": "male", "female": "female"}
+_AGES = {"young": "young adult", "middle": "middle-aged", "old": "elderly"}
+
+
+def _persona(gender: str, age: str) -> str:
+    g = _GENDERS.get((gender or "").strip().lower(), "")
+    a = _AGES.get((age or "").strip().lower(), "")
+    return " ".join(p for p in (g, a) if p)
+
+_MODEL_CANDIDATES = [
+    "s2-pro-q4_k_m.gguf",
+    "s2-pro-q5_k_m.gguf",
+    "s2-pro-q6_k.gguf",
+    "s2-pro-q3_k.gguf",
+    "s2-pro-q2_k.gguf",
+]
+if os.getenv("FISH_MODEL"):
+    MODEL = pathlib.Path(os.environ["FISH_MODEL"]).expanduser()
+else:
+    MODEL = next(
+        (WORKDIR / "model" / name for name in _MODEL_CANDIDATES if (WORKDIR / "model" / name).exists()),
+        WORKDIR / "model" / _MODEL_CANDIDATES[0],
+    )
 
 app = FastAPI(title="Fish S2 Pro Worker", docs_url=None, redoc_url=None)
 _lock = asyncio.Lock()
@@ -38,6 +79,9 @@ async def health():
 @app.post("/synthesize")
 async def synthesize(
     text: str = Form(...),
+    dialect: str = Form("msa"),
+    gender: str = Form(""),
+    age: str = Form(""),
     temperature: float = Form(0.7),
     top_p: float = Form(0.8),
     top_k: int = Form(30),
@@ -48,10 +92,16 @@ async def synthesize(
     if not S2_BIN.exists():
         raise HTTPException(503, "s2 binary not built — run create_env.sh first")
     if not MODEL.exists():
-        raise HTTPException(503, "Model GGUF not found — download s2-pro-q6_k.gguf first")
+        raise HTTPException(503, f"Model GGUF not found at {MODEL}")
 
     out_path = OUT_DIR / f"fish_{uuid.uuid4().hex[:12]}.wav"
     ref_tmp: str | None = None
+
+    # Force Arabic + dialect (+ optional gender/age persona) via a free-form S2 tag.
+    desc = _arabic_descriptor(dialect)
+    persona = _persona(gender, age)
+    tag = f"{persona} voice speaking in {desc}" if persona else f"speak in {desc}"
+    eff_text = f"[{tag}] {text}"
 
     if reference_audio and reference_audio.filename:
         data = await reference_audio.read()
@@ -63,8 +113,9 @@ async def synthesize(
         str(S2_BIN),
         "-m", str(MODEL),
         "-t", str(TOKENIZER),
-        "--text", text,
-        "-c", "0",
+        "--text", eff_text,
+        "-c", S2_CUDA_DEVICE,
+        "-threads", S2_THREADS,
         "--normalize",
         "--trim-silence",
         "--temperature", str(temperature),
@@ -99,6 +150,7 @@ async def synthesize(
     result = {
         "filename": out_path.name,
         "model": "fish",
+        "model_input": eff_text,
         "elapsed_s": round(elapsed, 2),
         "duration_s": round(info.duration, 2),
         "rtf": round(elapsed / max(info.duration, 0.01), 3),

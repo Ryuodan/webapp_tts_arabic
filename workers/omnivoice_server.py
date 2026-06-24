@@ -14,8 +14,35 @@ import uvicorn
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
-OUT_DIR = pathlib.Path("~/tts-05172026/outputs_omnivoice").expanduser()
+WORKDIR = pathlib.Path(os.getenv("TTS_WORKDIR", "~/tts-05172026")).expanduser()
+OUT_DIR = pathlib.Path(os.getenv("OMNIVOICE_OUT_DIR", str(WORKDIR / "outputs_omnivoice"))).expanduser()
 OUT_DIR.mkdir(parents=True, exist_ok=True)
+OMNIVOICE_MODEL_ID = os.getenv("OMNIVOICE_MODEL_ID", "k2-fsa/OmniVoice")
+OMNIVOICE_DEVICE = os.getenv("OMNIVOICE_DEVICE", "auto")
+
+# Arabic is forced for every request. NOTE: OmniVoice's instruct/voice-design is trained on
+# EN/ZH only, so the dialect cue is best-effort — reference audio remains the strongest anchor.
+_ARABIC_DIALECTS = {
+    "msa":       "Modern Standard Arabic",
+    "egyptian":  "Egyptian Arabic",
+    "gulf":      "Gulf Arabic",
+    "levantine": "Levantine Arabic",
+    "iraqi":     "Iraqi Arabic",
+    "maghrebi":  "Maghrebi Arabic",
+}
+
+
+def _arabic_descriptor(dialect: str) -> str:
+    return _ARABIC_DIALECTS.get((dialect or "msa").strip().lower(), _ARABIC_DIALECTS["msa"])
+
+
+# gender + age are native OmniVoice voice-design attributes; empty = model's choice.
+_GENDERS = {"male": "male", "female": "female"}
+_AGES = {"young": "young adult", "middle": "middle-aged", "old": "elderly"}
+
+
+def _attr(mapping: dict, value: str) -> str:
+    return mapping.get((value or "").strip().lower(), "")
 
 app = FastAPI(title="OmniVoice Worker", docs_url=None, redoc_url=None)
 _model = None
@@ -29,9 +56,11 @@ def _do_load():
         return
     import torch
     from omnivoice import OmniVoice
-    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    device = "cuda:0" if OMNIVOICE_DEVICE == "auto" and torch.cuda.is_available() else (
+        "cpu" if OMNIVOICE_DEVICE == "auto" else OMNIVOICE_DEVICE
+    )
     dtype  = torch.float16 if torch.cuda.is_available() else torch.float32
-    _model = OmniVoice.from_pretrained("k2-fsa/OmniVoice", device_map=device, dtype=dtype)
+    _model = OmniVoice.from_pretrained(OMNIVOICE_MODEL_ID, device_map=device, dtype=dtype)
 
 
 async def _ensure_loaded():
@@ -58,7 +87,12 @@ async def load_endpoint():
 @app.post("/synthesize")
 async def synthesize(
     text: str = Form(...),
+    dialect: str = Form("msa"),
+    gender: str = Form(""),
+    age: str = Form(""),
     speaker: str = Form(""),
+    model_input_override: str = Form(""),
+    model_instruct_override: str = Form(""),
     ref_audio: UploadFile | None = File(None),
     ref_text: str | None = Form(None),
 ):
@@ -72,13 +106,29 @@ async def synthesize(
         os.close(fd)
 
     out_path = OUT_DIR / f"omnivoice_{uuid.uuid4().hex[:12]}.wav"
-    kwargs: dict = {"text": text}
+    # Non-empty overrides are used verbatim (frontend manual-edit mode).
+    eff_text = (model_input_override or "").strip() or text
+    kwargs: dict = {"text": eff_text}
     if ref_tmp:
         kwargs["ref_audio"] = ref_tmp
     if ref_text and ref_text.strip():
         kwargs["ref_text"] = ref_text.strip()
-    if speaker and speaker.strip():
-        kwargs["speaker"] = speaker.strip()
+
+    instruct_override = (model_instruct_override or "").strip()
+    if instruct_override:
+        kwargs["instruct"] = instruct_override
+    else:
+        # Build the voice-design string: optional user prompt + gender/age + forced Arabic dialect.
+        # OmniVoice's instruct is a comma-separated attribute list.
+        attrs = []
+        if speaker and speaker.strip():
+            attrs.append(speaker.strip())
+        for frag in (_attr(_GENDERS, gender), _attr(_AGES, age)):
+            if frag:
+                attrs.append(frag)
+        attrs.append(f"{_arabic_descriptor(dialect)} accent")
+        # OmniVoice's documented voice-design kwarg is `instruct` (older builds used `speaker`).
+        kwargs["instruct"] = ", ".join(attrs)
 
     try:
         async with _lock:
@@ -98,6 +148,8 @@ async def synthesize(
     result = {
         "filename": out_path.name,
         "model": "omnivoice",
+        "model_input": eff_text,
+        "model_instruct": kwargs.get("instruct", ""),
         "elapsed_s": round(elapsed, 2),
         "duration_s": round(duration, 2),
         "rtf": round(elapsed / max(duration, 0.01), 3),

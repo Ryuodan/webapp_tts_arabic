@@ -2,31 +2,25 @@
 
 // ── Model definitions ────────────────────────────────────────
 const MODELS = {
-  fish: {
-    id: 'fish',
-    name: 'Fish S2 Pro',
-    icon: '🐟',
-    specs: '5B · 44kHz',
-    params: [
-      { id: 'temperature', label: 'Temperature', type: 'range', min: 0.1, max: 2.0, step: 0.05, default: 0.7 },
-      { id: 'top_p',       label: 'Top-P',        type: 'range', min: 0.0, max: 1.0, step: 0.05, default: 0.8 },
-      { id: 'top_k',       label: 'Top-K',        type: 'range', min: 1,   max: 100, step: 1,    default: 30  },
-      { id: 'max_tokens',  label: 'Max Tokens',   type: 'range', min: 256, max: 4096,step: 256,  default: 2048},
-    ],
-    emotionTags: ['[excited]', '[whisper]', '[laugh]', '[sad]', '[news]'],
-    cloneFields: ['ref_audio', 'ref_text'],
-    formFields: { reference_audio: 'ref_audio', reference_text: 'ref_text' },
-  },
   omnivoice: {
     id: 'omnivoice',
     name: 'OmniVoice',
     icon: '🌐',
-    specs: '0.6B · 24kHz · 646 lang',
-    params: [
-      { id: 'speaker', label: 'Voice Description (optional)', type: 'text',
-        placeholder: 'e.g. A professional male Arabic news anchor', default: '' },
+    specs: '0.6B · 24kHz · 600+ lang',
+    role: 'أوسع تغطية لغات (600+) وجيد للعربية؛ لكن وصف الصوت (instruct) مُدرَّب على الإنجليزية/الصينية فقط.',
+    traits: ['600+ لغة', 'Arabic-ready', 'Voice design', '24kHz'],
+    profile: [
+      { label: 'أفضل استخدام', value: 'كخط أساس للنطق العربي أو نقل صوت مرجعي بين اللغات.' },
+      { label: 'التحكم', value: 'وصف صوت نصي + reference audio. ملاحظة: اللهجة العربية أفضل ما تُثبَّت بصوت مرجعي.' },
+      { label: 'الأداء محلياً', value: 'عادةً أسرع من VoxCPM2 على CPU في هذا السيرفر.' },
     ],
-    emotionTags: ['[laughter]', '[applause]'],
+    compareNote: 'استخدمه كخط أساس للنطق والتغطية اللغوية.',
+    params: [
+      { id: 'speaker', label: 'Voice / Style Prompt', type: 'text',
+        placeholder: 'مثال: صوت مذيع عربي واضح وهادئ بنبرة رسمية', default: '',
+        hint: 'توجيه نصّي للصوت: صِف الجنس والنبرة والأسلوب (مثل: امرأة، هادئة، سرد). تُضاف اللهجة العربية تلقائياً إلى هذا الوصف. اتركه فارغاً للصوت الافتراضي.' },
+    ],
+    emotionTags: ['[laughter]'],   // base model only documents [laughter]; [applause] is unsupported
     cloneFields: ['ref_audio', 'ref_text'],
     formFields: { ref_audio: 'ref_audio', ref_text: 'ref_text' },
   },
@@ -35,9 +29,19 @@ const MODELS = {
     name: 'VoxCPM2',
     icon: '🔊',
     specs: '2B · 48kHz · Diffusion',
+    role: 'جودة إخراج أعلى واستنساخ صوت مرن (30 لغة)؛ العربية مدعومة لكن بدقة أقل (WER ~13%)، وأثقل نموذج على CPU.',
+    traits: ['30 لغة', '48kHz', 'Voice design', 'Cloning'],
+    profile: [
+      { label: 'أفضل استخدام', value: 'المقاطع النهائية عالية الجودة أو اختبار تصميم/استنساخ صوت متقدم.' },
+      { label: 'التحكم', value: 'CFG + timesteps + صوت مرجعي. اللهجة تُحقن كبادئة (Arabic) قبل النص؛ المرجع يثبّتها أكثر.' },
+      { label: 'الأداء محلياً', value: 'الأبطأ على CPU؛ استخدم 5 timesteps للمسودات و20 للجودة.' },
+    ],
+    compareNote: 'قارنه عندما تكون الجودة أهم من زمن التوليد.',
     params: [
-      { id: 'cfg_value',           label: 'CFG Value',        type: 'range',  min: 1.0, max: 5.0, step: 0.1, default: 2.0 },
-      { id: 'inference_timesteps', label: 'Timesteps',        type: 'select', options: [5, 10, 20], default: 10 },
+      { id: 'cfg_value',           label: 'CFG Value',        type: 'range',  min: 1.0, max: 5.0, step: 0.1, default: 2.0,
+        hint: 'أعلى = اتباع أقوى للوصف أو المرجع، وقد يزيد الحدة أو الاصطناع.' },
+      { id: 'inference_timesteps', label: 'Timesteps',        type: 'select', options: [5, 10, 20], default: 10,
+        hint: '5 أسرع للمسودات، 10 متوازن، 20 أفضل جودة لكنه أبطأ.' },
     ],
     emotionTags: ['(calm)', '(excited)', '(sad)', '(whisper)', '(cheerful)'],
     cloneFields: ['ref_wav', 'prompt_wav', 'prompt_text'],
@@ -50,6 +54,65 @@ const MODELS = {
   },
 };
 
+// ── Arabic dialects ───────────────────────────────────────────
+// Language is locked to Arabic for every model; this picks the dialect that each
+// worker injects via its native lever (OmniVoice instruct, VoxCPM2 prefix).
+const DIALECTS = [
+  { id: 'msa',       label: 'الفصحى' },
+  { id: 'egyptian',  label: 'مصري' },
+  { id: 'gulf',      label: 'خليجي' },
+  { id: 'levantine', label: 'شامي' },
+  { id: 'iraqi',     label: 'عراقي' },
+  { id: 'maghrebi',  label: 'مغربي' },
+];
+const dialectLabel = id => (DIALECTS.find(d => d.id === id) || DIALECTS[0]).label;
+
+// Optional voice persona (empty id = let the model decide), injected alongside the dialect.
+const GENDERS = [
+  { id: '',       label: 'تلقائي' },
+  { id: 'male',   label: 'ذكر' },
+  { id: 'female', label: 'أنثى' },
+];
+const AGES = [
+  { id: '',       label: 'تلقائي' },
+  { id: 'young',  label: 'شاب' },
+  { id: 'middle', label: 'متوسط' },
+  { id: 'old',    label: 'كبير السن' },
+];
+const attrLabel = (list, id) => (list.find(o => o.id === id) || list[0]).label;
+
+// English descriptors — MUST match the worker maps so the preview equals what's actually sent.
+const DIALECT_EN = {
+  msa: 'Modern Standard Arabic', egyptian: 'Egyptian Arabic', gulf: 'Gulf Arabic',
+  levantine: 'Levantine Arabic', iraqi: 'Iraqi Arabic', maghrebi: 'Maghrebi Arabic',
+};
+const GENDER_EN = { male: 'male', female: 'female' };
+const AGE_EN = { young: 'young adult', middle: 'middle-aged', old: 'elderly' };
+
+// Reproduces each worker's injection so the user sees the exact string that reaches the model.
+// Returns { text, instruct? } — `instruct` is only present for OmniVoice.
+function buildModelInput(mid, text) {
+  const v = paramValues[mid] || {};
+  const desc = DIALECT_EN[v.dialect || 'msa'] || DIALECT_EN.msa;
+  const persona = [GENDER_EN[v.gender] || '', AGE_EN[v.age] || ''].filter(Boolean).join(' ');
+  const body = text || '';
+
+  if (mid === 'voxcpm2') {
+    const cue = persona ? `${persona}, ${desc}` : desc;
+    return { text: `(${cue}) ${body}` };
+  }
+  if (mid === 'omnivoice') {
+    const attrs = [];
+    const sp = (v.speaker || '').trim();
+    if (sp) attrs.push(sp);
+    if (GENDER_EN[v.gender]) attrs.push(GENDER_EN[v.gender]);
+    if (AGE_EN[v.age]) attrs.push(AGE_EN[v.age]);
+    attrs.push(`${desc} accent`);
+    return { text: body, instruct: attrs.join(', ') };
+  }
+  return { text: body };
+}
+
 const SAMPLE_SENTENCES = [
   'مرحباً، كيف حالك؟',
   'أهلاً وسهلاً، يسعدنا تواجدكم معنا.',
@@ -59,26 +122,149 @@ const SAMPLE_SENTENCES = [
 ];
 
 // ── State ─────────────────────────────────────────────────────
-let selectedModel = 'fish';
-let workerStatus  = { fish: 'offline', omnivoice: 'offline', voxcpm2: 'offline' };
+let selectedModel = 'omnivoice';
+let workerStatus  = { omnivoice: 'offline', voxcpm2: 'offline' };
 let currentAudioUrl = null;
 let isGenerating  = false;
+let isComparing   = false;
 let audioCtx      = null;
-let paramValues   = {};  // { fish: {temperature: 0.7, ...}, ... }
+let paramValues   = {};  // { omnivoice: {speaker: '', ...}, ... }
+let manualOverride = {}; // { omnivoice: {enabled, text, instruct}, ... } — verbatim model-input edits
 let cloneFiles    = {};  // { ref_audio: File|null, ref_text: '', ... }
+let compareSelection = {};
 
 // ── DOM helpers ───────────────────────────────────────────────
 const $  = id => document.getElementById(id);
 const $$ = sel => document.querySelectorAll(sel);
 
-const escapeHtml = s => String(s).replace(/[&<>"']/g, c =>
-  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const escapeAttr = escapeHtml;
+const escapeAttr = escapeHtml;  // escapeHtml is defined below (hoisted)
 
 function formatTime(s) {
   const m = Math.floor(s / 60);
   const sec = Math.floor(s % 60);
   return `${m}:${sec.toString().padStart(2, '0')}`;
+}
+
+function escapeHtml(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }[ch]));
+}
+
+function numeric(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function formatSeconds(value) {
+  const n = numeric(value);
+  return n === null || n <= 0 ? '—' : `${n.toFixed(2)}s`;
+}
+
+function formatRtf(value) {
+  const n = numeric(value);
+  return n === null || n <= 0 ? '—' : n.toFixed(2);
+}
+
+function formatSampleRate(value) {
+  const n = numeric(value);
+  if (n === null || n <= 0) return '—';
+  if (n >= 1000) {
+    const khz = n / 1000;
+    return `${Number.isInteger(khz) ? khz.toFixed(0) : khz.toFixed(1)}kHz`;
+  }
+  return `${n}Hz`;
+}
+
+function rtfProfile(value) {
+  const n = numeric(value);
+  if (n === null || n <= 0) return { tone: 'neutral', label: 'غير معروف' };
+  if (n <= 1) return { tone: 'fast', label: 'أسرع من الزمن الحقيقي' };
+  if (n <= 5) return { tone: 'ok', label: 'مقبول للتجارب' };
+  if (n <= 15) return { tone: 'slow', label: 'بطيء على CPU' };
+  return { tone: 'very-slow', label: 'بطيء جداً على CPU' };
+}
+
+function metricGridHtml(meta) {
+  const rtf = rtfProfile(meta.rtf);
+  return `
+    <div class="metric-grid">
+      <div class="metric-cell">
+        <span class="metric-label">زمن التوليد</span>
+        <strong class="metric-value">${formatSeconds(meta.elapsed_s)}</strong>
+      </div>
+      <div class="metric-cell">
+        <span class="metric-label">مدة الصوت</span>
+        <strong class="metric-value">${formatSeconds(meta.duration_s)}</strong>
+      </div>
+      <div class="metric-cell">
+        <span class="metric-label">RTF</span>
+        <strong class="metric-value rtf-${rtf.tone}">${formatRtf(meta.rtf)}</strong>
+        <small>${rtf.label}</small>
+      </div>
+      <div class="metric-cell">
+        <span class="metric-label">العينة</span>
+        <strong class="metric-value">${formatSampleRate(meta.sample_rate)}</strong>
+      </div>
+    </div>
+  `;
+}
+
+function cloneLabel(key) {
+  return {
+    ref_audio: 'صوت مرجعي',
+    ref_text: 'نص مرجعي',
+    ref_wav: 'مرجع Basic',
+    prompt_wav: 'صوت Prompt',
+    prompt_text: 'نص Prompt',
+  }[key] || key;
+}
+
+function optionSummary(mid, includeClone = true) {
+  const model = MODELS[mid];
+  const vals = paramValues[mid] || {};
+  const entries = (model.params || []).map(p => {
+    const raw = Object.prototype.hasOwnProperty.call(vals, p.id) ? vals[p.id] : p.default;
+    const value = typeof raw === 'string' && !raw.trim() ? 'افتراضي' : raw;
+    return { label: p.label, value };
+  });
+
+  // Forced language + chosen dialect/persona lead the summary.
+  const lead = [{ label: 'اللهجة', value: `العربية · ${dialectLabel(vals.dialect || 'msa')}` }];
+  if (vals.gender) lead.push({ label: 'الجنس', value: attrLabel(GENDERS, vals.gender) });
+  if (vals.age)    lead.push({ label: 'العمر', value: attrLabel(AGES, vals.age) });
+  entries.unshift(...lead);
+
+  if (includeClone) {
+    const usedClone = [];
+    for (const stateKey of Object.values(model.formFields || {})) {
+      const val = cloneFiles[stateKey];
+      if (val instanceof File) usedClone.push({ label: cloneLabel(stateKey), value: val.name });
+      else if (typeof val === 'string' && val.trim()) usedClone.push({ label: cloneLabel(stateKey), value: 'موجود' });
+    }
+    entries.push(...usedClone);
+    if (!usedClone.length && model.formFields) entries.push({ label: 'استنساخ', value: 'بدون مرجع' });
+  }
+
+  return entries;
+}
+
+function optionChipsHtml(entries) {
+  if (!entries || !entries.length) return '';
+  return `
+    <div class="option-chips">
+      ${entries.map(e => `
+        <span class="option-chip">
+          <b>${escapeHtml(e.label)}</b>
+          <span>${escapeHtml(e.value)}</span>
+        </span>
+      `).join('')}
+    </div>
+  `;
 }
 
 function showToast(msg, type = '', duration = 3000) {
@@ -94,7 +280,7 @@ function showToast(msg, type = '', duration = 3000) {
 // ── Init param values ─────────────────────────────────────────
 function initParamValues() {
   for (const [mid, m] of Object.entries(MODELS)) {
-    paramValues[mid] = {};
+    paramValues[mid] = { dialect: 'msa', gender: '', age: '' };   // Arabic forced; persona auto
     for (const p of m.params) {
       paramValues[mid][p.id] = p.default;
     }
@@ -111,9 +297,17 @@ function renderModelCards() {
     card.className = `model-card ${m.id} ${selectedModel === m.id ? 'active' : ''} ${st === 'offline' ? 'offline' : ''}`;
     card.dataset.model = m.id;
     card.innerHTML = `
-      <div class="mc-icon">${m.icon}</div>
-      <div class="mc-name">${m.name}</div>
-      <div class="mc-specs">${m.specs}</div>
+      <div class="mc-header">
+        <div class="mc-icon">${m.icon}</div>
+        <div class="mc-main">
+          <div class="mc-name">${escapeHtml(m.name)}</div>
+          <div class="mc-specs">${escapeHtml(m.specs)}</div>
+        </div>
+      </div>
+      <div class="mc-role">${escapeHtml(m.role)}</div>
+      <div class="mc-traits">
+        ${(m.traits || []).map(t => `<span>${escapeHtml(t)}</span>`).join('')}
+      </div>
       <div class="mc-status ${st}">${st === 'online' ? '● متاح' : st === 'loading' ? '● تحميل' : '● غير متاح'}</div>
     `;
     card.addEventListener('click', () => selectModel(m.id));
@@ -135,14 +329,170 @@ function renderStatusBadges() {
 }
 
 // ── Render params panel ───────────────────────────────────────
+function renderModelInsights(model) {
+  const rows = (model.profile || []).map(item => `
+    <div class="insight-item">
+      <span>${escapeHtml(item.label)}</span>
+      <strong>${escapeHtml(item.value)}</strong>
+    </div>
+  `).join('');
+
+  return `
+    <div class="model-insights ${model.id}">
+      <div class="insight-head">
+        <span class="insight-icon">${model.icon}</span>
+        <div>
+          <strong>${escapeHtml(model.name)}</strong>
+          <p>${escapeHtml(model.role)}</p>
+        </div>
+      </div>
+      <div class="insight-grid">${rows}</div>
+      <div class="insight-note">${escapeHtml(model.compareNote)}</div>
+    </div>
+  `;
+}
+
+// Labeled dropdown bound to paramValues[selectedModel][key]; auto-sent with each request.
+function makeAttrSelect(labelText, key, list) {
+  const cur = paramValues[selectedModel][key] || '';
+  const opts = list.map(o =>
+    `<option value="${o.id}" ${o.id === cur ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('');
+  const cell = document.createElement('div');
+  cell.style.cssText = 'display:flex;align-items:center;gap:6px';
+  cell.innerHTML = `
+    <label class="param-label" for="p-${key}" style="padding:0">${escapeHtml(labelText)}</label>
+    <select class="param-select" id="p-${key}" style="min-width:100px">${opts}</select>
+  `;
+  cell.querySelector('select').addEventListener('change', e => {
+    paramValues[selectedModel][key] = e.target.value;
+    updateModelInputPreview();
+  });
+  return cell;
+}
+
+// Locked "Arabic" indicator + dialect / gender / age controls, shown for every model.
+function renderLanguageBar(body) {
+  const wrap = document.createElement('div');
+  wrap.className = 'lang-dialect-row';
+  wrap.style.cssText = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px';
+
+  const lock = document.createElement('span');
+  lock.title = 'اللغة مثبّتة على العربية';
+  lock.style.cssText = 'display:inline-flex;align-items:center;gap:4px;font-size:.72rem;font-weight:600;color:var(--txt2);background:#21262d;border:1px solid #30363d;border-radius:6px;padding:4px 8px';
+  lock.textContent = '🔒 العربية';
+  wrap.appendChild(lock);
+
+  wrap.appendChild(makeAttrSelect('اللهجة', 'dialect', DIALECTS));
+  wrap.appendChild(makeAttrSelect('الجنس',  'gender',  GENDERS));
+  wrap.appendChild(makeAttrSelect('العمر',  'age',     AGES));
+  body.appendChild(wrap);
+
+  const hint = document.createElement('div');
+  hint.className = 'param-hint';
+  hint.style.marginBottom = '8px';
+  hint.textContent = 'العربية مفروضة على كل النماذج؛ اختر اللهجة والجنس والعمر وتُحقن تلقائياً في كل طلب.';
+  body.appendChild(hint);
+
+  const preview = document.createElement('div');
+  preview.id = 'model-input-preview';
+  preview.style.cssText = 'margin:0 0 12px;padding:8px 10px;background:#161b22;border:1px solid #30363d;border-radius:8px';
+  body.appendChild(preview);
+  updateModelInputPreview();
+}
+
+// One labelled monospace block — shared by the live preview and the post-synth echo.
+function codeLineHtml(label, value) {
+  return `
+    <div style="display:flex;flex-direction:column;gap:2px;margin-top:6px">
+      <span style="font-size:.66rem;color:var(--txt2);font-weight:700">${escapeHtml(label)}</span>
+      <code dir="auto" style="display:block;background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:6px 8px;font-size:.74rem;line-height:1.55;color:#e6edf3;white-space:pre-wrap;word-break:break-word">${escapeHtml(value && value.trim() ? value : '—')}</code>
+    </div>`;
+}
+
+function overrideState(mid) {
+  if (!manualOverride[mid]) manualOverride[mid] = { enabled: false, text: '', instruct: '' };
+  return manualOverride[mid];
+}
+
+// Editable counterpart of codeLineHtml — value is wired up after innerHTML is set.
+function editLineHtml(label, id) {
+  return `
+    <div style="display:flex;flex-direction:column;gap:2px;margin-top:6px">
+      <span style="font-size:.66rem;color:#d29922;font-weight:700">✏️ ${escapeHtml(label)}</span>
+      <textarea id="${id}" dir="auto" rows="2" spellcheck="false"
+        style="background:#0d1117;border:1px solid #d29922;border-radius:6px;padding:6px 8px;font-size:.74rem;line-height:1.55;color:#e6edf3;font-family:inherit;resize:vertical;width:100%"></textarea>
+    </div>`;
+}
+
+// Live preview of the exact text/instruct that will actually be fed to the selected model.
+// Mirrors buildModelInput() (which mirrors the worker injection), so it equals what's sent.
+// "تعديل يدوي" turns the blocks into textareas whose content is sent verbatim instead.
+function updateModelInputPreview() {
+  const el = $('model-input-preview');
+  if (!el) return;
+  const ta = $('text-input');
+  const mi = buildModelInput(selectedModel, ta ? ta.value.trim() : '');
+  const ov = overrideState(selectedModel);
+
+  let html = `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <span style="font-size:.7rem;color:var(--txt2);font-weight:700">📤 الإدخال الفعلي المُرسَل إلى النموذج</span>
+      <button type="button" id="btn-input-override" class="tag-chip" style="flex-shrink:0">
+        ${ov.enabled ? '↺ رجوع للتلقائي' : '✏️ تعديل يدوي'}
+      </button>
+    </div>`;
+
+  if (!ov.enabled) {
+    if (mi.instruct !== undefined) {
+      html += codeLineHtml('وصف الصوت (instruct)', mi.instruct);
+      html += codeLineHtml('النص (text)', mi.text);
+    } else {
+      html += codeLineHtml('النص المُرسَل (text)', mi.text);
+    }
+    el.innerHTML = html;
+  } else {
+    if (mi.instruct !== undefined) html += editLineHtml('وصف الصوت (instruct)', 'ov-instruct');
+    html += editLineHtml('النص (text)', 'ov-text');
+    html += '<div class="param-hint" style="margin-top:6px">وضع التعديل اليدوي: يُرسَل المحتوى أعلاه إلى النموذج حرفياً (بدون حقن اللهجة/الجنس/العمر). اترك الحقل فارغاً للرجوع إلى القيمة التلقائية.</div>';
+    el.innerHTML = html;
+    const t = $('ov-text');
+    if (t) { t.value = ov.text; t.addEventListener('input', e => { ov.text = e.target.value; }); }
+    const ins = $('ov-instruct');
+    if (ins) { ins.value = ov.instruct; ins.addEventListener('input', e => { ov.instruct = e.target.value; }); }
+  }
+
+  $('btn-input-override').addEventListener('click', () => {
+    ov.enabled = !ov.enabled;
+    if (ov.enabled) {           // seed the editor with the current auto-built input
+      ov.text = mi.text;
+      ov.instruct = mi.instruct || '';
+    }
+    updateModelInputPreview();
+  });
+}
+
+// Authoritative input echoed back by the worker for a generated clip (ground truth).
+function sentInputHtml(meta) {
+  if (!meta || (!meta.model_input && !meta.model_instruct)) return '';
+  return `
+    <div style="margin-top:10px;padding:8px 10px;background:#161b22;border:1px solid #30363d;border-radius:8px">
+      <div style="font-size:.7rem;color:var(--txt2);font-weight:700">📤 ما أُرسل فعلياً إلى النموذج</div>
+      ${meta.model_instruct ? codeLineHtml('وصف الصوت (instruct)', meta.model_instruct) : ''}
+      ${codeLineHtml('النص (text)', meta.model_input)}
+    </div>`;
+}
+
 function renderParams() {
   const body = $('params-body');
   const model = MODELS[selectedModel];
+  body.innerHTML = renderModelInsights(model);
+  renderLanguageBar(body);
+
   if (!model.params.length) {
-    body.innerHTML = '<p style="font-size:.75rem;color:var(--txt3)">لا توجد معاملات إضافية.</p>';
+    body.insertAdjacentHTML('beforeend', '<p class="param-empty">لا توجد معاملات إضافية.</p>');
     return;
   }
-  body.innerHTML = '';
+
   for (const p of model.params) {
     const val = paramValues[selectedModel][p.id];
     const row = document.createElement('div');
@@ -154,6 +504,7 @@ function renderParams() {
         <span class="param-value" id="v-${p.id}">${val}</span>
         <input class="param-range ${selectedModel}-range" type="range"
           id="p-${p.id}" min="${p.min}" max="${p.max}" step="${p.step}" value="${val}">
+        ${p.hint ? `<div class="param-hint">${escapeHtml(p.hint)}</div>` : ''}
       `;
       body.appendChild(row);
       row.querySelector('input').addEventListener('input', e => {
@@ -168,6 +519,7 @@ function renderParams() {
       row.innerHTML = `
         <label class="param-label" for="p-${p.id}">${p.label}</label>
         <select class="param-select" id="p-${p.id}">${opts}</select>
+        ${p.hint ? `<div class="param-hint">${escapeHtml(p.hint)}</div>` : ''}
       `;
       body.appendChild(row);
       row.querySelector('select').addEventListener('change', e => {
@@ -182,11 +534,13 @@ function renderParams() {
       wrap.innerHTML = `
         <label class="param-label" style="padding-bottom:0" for="p-${p.id}">${p.label}</label>
         <input class="param-text" type="text" id="p-${p.id}"
-          placeholder="${p.placeholder || ''}" value="${val}">
+          placeholder="${escapeHtml(p.placeholder || '')}" value="${escapeHtml(val)}">
+        ${p.hint ? `<div class="param-hint">${escapeHtml(p.hint)}</div>` : ''}
       `;
       body.appendChild(wrap);
       wrap.querySelector('input').addEventListener('input', e => {
         paramValues[selectedModel][p.id] = e.target.value;
+        updateModelInputPreview();   // OmniVoice style prompt feeds the instruct preview
       });
     }
   }
@@ -224,6 +578,7 @@ function insertTag(tag) {
   ta.setSelectionRange(newPos, newPos);
   ta.focus();
   updateCharCount();
+  updateModelInputPreview();
 }
 
 // ── Render voice-cloning panel ────────────────────────────────
@@ -239,7 +594,7 @@ function renderClonePanel() {
     body.appendChild(hint);
   }
 
-  if (model.id === 'fish' || model.id === 'omnivoice') {
+  if (model.id === 'omnivoice') {
     body.appendChild(makeFileZone('ref_audio', 'الصوت المرجعي (WAV 5–30 ثانية)', 'audio/wav,audio/*'));
     body.appendChild(makeTextRow('ref_text', 'نص الصوت المرجعي (اختياري)', 'النص المنطوق في الصوت المرجعي…'));
   }
@@ -295,14 +650,31 @@ function renderCompareChecks() {
   for (const m of Object.values(MODELS)) {
     const label = document.createElement('label');
     label.className = 'compare-check';
-    const checked = workerStatus[m.id] === 'online' ? 'checked' : '';
+    const hasSaved = Object.prototype.hasOwnProperty.call(compareSelection, m.id);
+    const selected = hasSaved ? compareSelection[m.id] : workerStatus[m.id] === 'online';
+    const checked = selected && workerStatus[m.id] === 'online' ? 'checked' : '';
     const disabled = workerStatus[m.id] !== 'online' ? 'disabled' : '';
     label.innerHTML = `
       <input type="checkbox" value="${m.id}" ${checked} ${disabled}>
-      ${m.icon} ${m.name}
+      <span class="compare-name">${m.icon} ${escapeHtml(m.name)}</span>
+      <small>${escapeHtml(m.compareNote)}</small>
     `;
+    label.querySelector('input').addEventListener('change', e => {
+      compareSelection[m.id] = e.target.checked;
+      updateCompareLabel();
+    });
     container.appendChild(label);
   }
+  updateCompareLabel();
+}
+
+// Reflect the number of selected models on the compare button
+function updateCompareLabel() {
+  if (isComparing) return;
+  const n = $$('#compare-checks input:checked').length;
+  const label = $('compare-label');
+  if (label) label.textContent = n ? `قارن الآن (${n})` : 'اختر نماذج للمقارنة';
+  $('btn-compare').disabled = n === 0;
 }
 
 // ── Render sample chips ───────────────────────────────────────
@@ -318,6 +690,7 @@ function renderSampleChips() {
       $('text-input').value = s;
       updateCharCount();
       updateSynthBtn();
+      updateModelInputPreview();
     });
     container.appendChild(chip);
   }
@@ -388,26 +761,38 @@ function currentInstruct() {
 }
 
 // ── Build FormData for synthesis ──────────────────────────────
-function buildFormData() {
-  const fd   = new FormData();
-  const text = $('text-input').value.trim();
+function buildFormDataForModel(mid, text, includeClone = true) {
+  const fd = new FormData();
   fd.append('text', text);
 
   // Model-specific params
-  const vals = paramValues[selectedModel];
+  const vals = paramValues[mid] || {};
   for (const [k, v] of Object.entries(vals)) {
     fd.append(k, v);
   }
 
+  // Manual override: the worker uses these verbatim and skips its own injection.
+  const ov = manualOverride[mid];
+  if (ov && ov.enabled) {
+    fd.append('model_input_override', ov.text);
+    if (mid === 'omnivoice') fd.append('model_instruct_override', ov.instruct);
+  }
+
   // Clone files/text
-  const model = MODELS[selectedModel];
-  for (const [formKey, stateKey] of Object.entries(model.formFields || {})) {
-    const val = cloneFiles[stateKey];
-    if (val instanceof File)   fd.append(formKey, val, val.name);
-    else if (typeof val === 'string' && val.trim()) fd.append(formKey, val.trim());
+  if (includeClone) {
+    const model = MODELS[mid];
+    for (const [formKey, stateKey] of Object.entries(model.formFields || {})) {
+      const val = cloneFiles[stateKey];
+      if (val instanceof File)   fd.append(formKey, val, val.name);
+      else if (typeof val === 'string' && val.trim()) fd.append(formKey, val.trim());
+    }
   }
 
   return fd;
+}
+
+function buildFormData() {
+  return buildFormDataForModel(selectedModel, $('text-input').value.trim(), true);
 }
 
 // ── Synthesize ────────────────────────────────────────────────
@@ -439,10 +824,11 @@ async function synthesize() {
 
     const result = await r.json();
     const audioUrl = `/audio/${selectedModel}/${result.filename}`;
+    const options = optionSummary(selectedModel, true);
 
-    await loadPlayer(audioUrl, result, text);
+    await loadPlayer(audioUrl, { ...result, options }, text);
     addToHistory({
-      ...result, text, url: audioUrl, timestamp: Date.now(),
+      ...result, text, url: audioUrl, options, timestamp: Date.now(),
       instruct: currentInstruct(),
       params: { ...paramValues[selectedModel] },
     });
@@ -470,11 +856,24 @@ async function loadPlayer(url, meta, text) {
 
   // Badges
   const badges = $('player-badges');
+  const model = MODELS[meta.model] || { name: meta.model, role: '' };
+  const rtf = rtfProfile(meta.rtf);
   badges.innerHTML = `
-    <span class="model-badge ${meta.model}">${MODELS[meta.model]?.name || meta.model}</span>
-    <span class="rtf-badge">${meta.elapsed_s}s · RTF ${meta.rtf}</span>
-    <span class="rtf-badge">${meta.duration_s}s audio</span>
+    <span class="model-badge ${meta.model}">${escapeHtml(model.name || meta.model)}</span>
+    <span class="rtf-badge rtf-${rtf.tone}">${rtf.label}</span>
+    <span class="rtf-badge">${formatSeconds(meta.elapsed_s)} توليد</span>
   `;
+
+  const insights = $('player-insights');
+  if (insights) {
+    const options = meta.options || optionSummary(meta.model, false);
+    insights.innerHTML = `
+      <p class="player-model-note">${escapeHtml(model.role || '')}</p>
+      ${metricGridHtml(meta)}
+      ${optionChipsHtml(options)}
+      ${sentInputHtml(meta)}
+    `;
+  }
 
   // Download
   const dl = $('btn-dl');
@@ -491,11 +890,11 @@ async function loadPlayer(url, meta, text) {
   $('waveform-progress').style.width = '0%';
 
   // Draw waveform
-  drawWaveform(url);
+  drawWaveform(url, meta.model);
 }
 
 // ── Waveform drawing ──────────────────────────────────────────
-async function drawWaveform(url) {
+async function drawWaveform(url, mid = selectedModel) {
   const canvas = $('waveform');
   const ctx    = canvas.getContext('2d');
   canvas.width = canvas.offsetWidth * (window.devicePixelRatio || 1);
@@ -535,8 +934,7 @@ async function drawWaveform(url) {
     ctx.fillRect(0, 0, W, H);
 
     // Color based on model
-    const color = selectedModel === 'fish' ? '#f0883e' :
-                  selectedModel === 'voxcpm2' ? '#3fb950' : '#58a6ff';
+    const color = mid === 'voxcpm2' ? '#3fb950' : '#58a6ff';
     ctx.fillStyle = color + '90';
 
     for (let i = 0; i < W; i++) {
@@ -598,7 +996,8 @@ let historyItems = [];
 
 function loadHistory() {
   try {
-    historyItems = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+    const saved = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+    historyItems = Array.isArray(saved) ? saved.filter(i => MODELS[i.model]) : [];
   } catch { historyItems = []; }
 }
 
@@ -641,12 +1040,18 @@ function renderHistory(filterModel = 'all') {
     const instructRow = instruct
       ? `<div class="hi-instruct" title="${escapeAttr(instruct)}">🎙 ${escapeHtml(instruct.slice(0, 50))}</div>`
       : '';
+    const metaBits = [
+      `${formatSeconds(item.elapsed_s)} توليد`,
+      `${formatSeconds(item.duration_s)} صوت`,
+      `RTF ${formatRtf(item.rtf)}`,
+      ago,
+    ].filter(v => v && !v.startsWith('—'));
     el.innerHTML = `
-      <div class="hi-badge"><span class="model-badge ${item.model}">${MODELS[item.model]?.icon || ''}</span></div>
+      <div class="hi-badge"><span class="model-badge ${item.model}">${(MODELS[item.model] && MODELS[item.model].icon) || ''}</span></div>
       <div class="hi-info">
         <div class="hi-filename">${escapeHtml(textSnippet)}</div>
         ${instructRow}
-        <div class="hi-meta">${item.duration_s}s · RTF ${item.rtf} · ${ago}</div>
+        <div class="hi-meta">${escapeHtml(metaBits.join(' · '))}</div>
       </div>
       <div class="hi-actions">
         <button class="hi-btn play" title="تشغيل">▶</button>
@@ -715,15 +1120,120 @@ async function loadServerHistory() {
   renderHistory();
 }
 
-// ── Compare all models ────────────────────────────────────────
+// ── Compare selected models ───────────────────────────────────
+function miniTitleHtml(mid) {
+  const m = MODELS[mid];
+  return `
+    <div class="mini-player-title">
+      <span>${m.icon} ${escapeHtml(m.name)}</span>
+      <small>${escapeHtml(m.compareNote)}</small>
+    </div>
+  `;
+}
+
+// Final content for one compare mini-player — used both live and when restoring a saved run.
+function miniPlayerHtml(mid, item) {
+  const options = item.options || optionSummary(mid, false);
+  if (item.error) {
+    return `
+      ${miniTitleHtml(mid)}
+      <div class="mini-player-meta error">خطأ: ${escapeHtml(String(item.error).slice(0, 120))}</div>
+      ${optionChipsHtml(options)}
+    `;
+  }
+  const url = item.url || `/audio/${mid}/${item.result.filename}`;
+  return `
+    ${miniTitleHtml(mid)}
+    <audio controls preload="auto" src="${escapeHtml(url)}"></audio>
+    ${metricGridHtml(item.result)}
+    <div class="mini-player-meta">${escapeHtml(MODELS[mid].role)}</div>
+    ${optionChipsHtml(options)}
+    ${sentInputHtml(item.result)}
+  `;
+}
+
+function renderCompareSummary(grid, results) {
+  const ok = results.filter(r => r.result);
+  if (!ok.length) return;
+
+  const byMetric = (key) => ok
+    .filter(r => numeric(r.result[key]) !== null && numeric(r.result[key]) > 0)
+    .sort((a, b) => numeric(a.result[key]) - numeric(b.result[key]))[0];
+  const fastest = byMetric('elapsed_s');
+  const bestRtf = byMetric('rtf');
+  const highestRate = ok
+    .filter(r => numeric(r.result.sample_rate) !== null)
+    .sort((a, b) => numeric(b.result.sample_rate) - numeric(a.result.sample_rate))[0];
+
+  const item = (label, row, value) => `
+    <div class="summary-item">
+      <span>${label}</span>
+      <strong>${row ? escapeHtml(MODELS[row.mid].name) : '—'}</strong>
+      <small>${escapeHtml(value || '—')}</small>
+    </div>
+  `;
+
+  const summary = document.createElement('div');
+  summary.className = 'compare-summary';
+  summary.innerHTML = `
+    <div class="summary-title">ملخص المقارنة</div>
+    <div class="summary-grid">
+      ${item('أسرع توليد', fastest, fastest ? formatSeconds(fastest.result.elapsed_s) : '')}
+      ${item('أفضل RTF', bestRtf, bestRtf ? `${formatRtf(bestRtf.result.rtf)} · ${rtfProfile(bestRtf.result.rtf).label}` : '')}
+      ${item('أعلى عينة', highestRate, highestRate ? formatSampleRate(highestRate.result.sample_rate) : '')}
+      <div class="summary-item">
+        <span>عدد النتائج</span>
+        <strong>${ok.length}/${results.length}</strong>
+        <small>${results.some(r => r.error) ? 'توجد أخطاء' : 'كلها اكتملت'}</small>
+      </div>
+    </div>
+  `;
+  grid.prepend(summary);
+}
+
+// ── Compare persistence ───────────────────────────────────────
+const COMPARE_KEY = 'tts_compare_v1';
+
+function saveCompare(data) {
+  try { localStorage.setItem(COMPARE_KEY, JSON.stringify(data)); } catch { /* quota */ }
+}
+
+function loadCompare() {
+  try { return JSON.parse(localStorage.getItem(COMPARE_KEY) || 'null'); } catch { return null; }
+}
+
+// Re-render the last compare run so the results survive a page reload.
+function renderSavedCompare() {
+  const data = loadCompare();
+  if (!data || !Array.isArray(data.items) || !data.items.length) return;
+  const items = data.items.filter(item => MODELS[item.mid]);
+  if (!items.length) return;
+  const grid = $('compare-grid');
+  $('compare-results').classList.remove('hidden');
+  grid.innerHTML = '';
+  for (const item of items) {
+    const mini = document.createElement('div');
+    mini.className = `mini-player ${item.mid} done`;
+    mini.id = `mini-${item.mid}`;
+    mini.innerHTML = miniPlayerHtml(item.mid, item);
+    grid.appendChild(mini);
+  }
+  renderCompareSummary(grid, items);
+}
+
 async function compareModels() {
+  if (isComparing) return;
   const text = $('text-input').value.trim();
   if (!text) { showToast('أدخل نصاً أولاً', 'warn'); return; }
 
   const selected = Array.from($$('#compare-checks input:checked')).map(e => e.value);
   if (!selected.length) { showToast('اختر نموذجاً واحداً على الأقل', 'warn'); return; }
 
+  isComparing = true;
+  const btn = $('btn-compare');
+  btn.disabled = true;
   $('compare-results').classList.remove('hidden');
+  $('compare-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
   const grid = $('compare-grid');
   grid.innerHTML = '';
 
@@ -734,42 +1244,52 @@ async function compareModels() {
     mini.className = `mini-player ${mid}`;
     mini.id = `mini-${mid}`;
     mini.innerHTML = `
-      <div class="mini-player-title">${MODELS[mid].icon} ${MODELS[mid].name}</div>
-      <div class="mini-spinner">جاري التوليد…</div>
+      ${miniTitleHtml(mid)}
+      <div class="mini-spinner">في الانتظار…</div>
+      ${optionChipsHtml(optionSummary(mid, false))}
     `;
     grid.appendChild(mini);
     players[mid] = mini;
   }
 
-  // Run all in parallel
-  const promises = selected.map(async mid => {
+  const results = [];
+  for (let i = 0; i < selected.length; i++) {
+    const mid = selected[i];
+    $('compare-label').textContent = `جاري المقارنة ${i + 1}/${selected.length}`;
+    const options = optionSummary(mid, false);
+    players[mid].innerHTML = `
+      ${miniTitleHtml(mid)}
+      <div class="mini-spinner">جاري التوليد…</div>
+      ${optionChipsHtml(options)}
+    `;
+
     try {
-      const fd = new FormData();
-      fd.append('text', text);
-      const vals = paramValues[mid];
-      for (const [k, v] of Object.entries(vals)) fd.append(k, v);
+      const fd = buildFormDataForModel(mid, text, false);
 
       const r = await fetch(`/api/${mid}/synthesize`, { method: 'POST', body: fd });
       if (!r.ok) throw new Error(await r.text());
       const result = await r.json();
       const url = `/audio/${mid}/${result.filename}`;
-      addToHistory({ ...result, text, url, timestamp: Date.now() });
+      addToHistory({ ...result, text, url, options, timestamp: Date.now() });
 
-      players[mid].innerHTML = `
-        <div class="mini-player-title">${MODELS[mid].icon} ${MODELS[mid].name}</div>
-        <audio controls preload="auto" src="${url}"></audio>
-        <div class="mini-player-meta">${result.duration_s}s · RTF ${result.rtf} · ${result.elapsed_s}s</div>
-      `;
+      const item = { mid, result, options, url };
+      players[mid].innerHTML = miniPlayerHtml(mid, item);
+      results.push(item);
     } catch (e) {
-      players[mid].innerHTML = `
-        <div class="mini-player-title">${MODELS[mid].icon} ${MODELS[mid].name}</div>
-        <div class="mini-player-meta" style="color:var(--red)">خطأ: ${e.message.slice(0,80)}</div>
-      `;
+      const item = { mid, error: e.message, options };
+      players[mid].innerHTML = miniPlayerHtml(mid, item);
+      results.push(item);
     }
-  });
 
-  await Promise.all(promises);
-  showToast('اكتملت المقارنة', 'success');
+    players[mid].classList.add('done');
+  }
+
+  renderCompareSummary(grid, results);
+  saveCompare({ text, timestamp: Date.now(), items: results });
+  isComparing = false;
+  btn.disabled = false;
+  updateCompareLabel();
+  showToast(results.some(r => r.error) ? 'اكتملت المقارنة مع أخطاء' : 'اكتملت المقارنة', results.some(r => r.error) ? 'warn' : 'success');
 }
 
 // ── Accordion toggle ──────────────────────────────────────────
@@ -806,6 +1326,7 @@ function init() {
   renderCompareChecks();
   renderSampleChips();
   renderHistory();
+  renderSavedCompare();   // restore the last compare run after a reload
   setupAccordions();
   setupAudioEvents();
 
@@ -813,6 +1334,7 @@ function init() {
   $('text-input').addEventListener('input', () => {
     updateCharCount();
     updateSynthBtn();
+    updateModelInputPreview();
   });
 
   // Synth button
@@ -823,6 +1345,7 @@ function init() {
     $('text-input').value = '';
     updateCharCount();
     updateSynthBtn();
+    updateModelInputPreview();
   });
 
   // Clear history
