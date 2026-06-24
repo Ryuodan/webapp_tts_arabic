@@ -5,7 +5,15 @@
       "Bash(git fetch *)",
       "Bash(git merge *)",
       "Bash(grep -rn *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(python -c ' *)",
+      "Bash(~/miniconda3/envs/omnivoice-tts/bin/python -c ' *)",
+      "Bash(~/miniconda3/envs/voxcpm2-tts/bin/python -c ' *)",
+      "Bash(~/miniconda3/envs/omnivoice-tts/bin/python -m py_compile workers/omnivoice_server.py)",
+      "Bash(~/miniconda3/envs/voxcpm2-tts/bin/python -m py_compile workers/voxcpm2_server.py)",
+      "Bash(~/miniconda3/envs/omnivoice-tts/bin/python -m py_compile workers/fish_server.py)",
+      "Bash(~/miniconda3/envs/omnivoice-tts/bin/python -)",
+      "Bash(~/miniconda3/envs/omnivoice-tts/bin/python -m py_compile workers/omnivoice_server.py workers/fish_server.py)"
     ]
   }
 }

@@ -11,14 +11,14 @@ const MODELS = {
     traits: ['600+ لغة', 'Arabic-ready', 'Voice design', '24kHz'],
     profile: [
       { label: 'أفضل استخدام', value: 'كخط أساس للنطق العربي أو نقل صوت مرجعي بين اللغات.' },
-      { label: 'التحكم', value: 'وصف صوت نصي + reference audio. ملاحظة: اللهجة العربية أفضل ما تُثبَّت بصوت مرجعي.' },
+      { label: 'التحكم', value: 'اللهجة تُختار عبر لغة النموذج العربية تلقائياً؛ الجنس/العمر/الأسلوب عبر instruct الإنجليزي + صوت مرجعي اختياري.' },
       { label: 'الأداء محلياً', value: 'عادةً أسرع من VoxCPM2 على CPU في هذا السيرفر.' },
     ],
     compareNote: 'استخدمه كخط أساس للنطق والتغطية اللغوية.',
     params: [
       { id: 'speaker', label: 'Voice / Style Prompt', type: 'text',
-        placeholder: 'مثال: صوت مذيع عربي واضح وهادئ بنبرة رسمية', default: '',
-        hint: 'توجيه نصّي للصوت: صِف الجنس والنبرة والأسلوب (مثل: امرأة، هادئة، سرد). تُضاف اللهجة العربية تلقائياً إلى هذا الوصف. اتركه فارغاً للصوت الافتراضي.' },
+        placeholder: 'e.g. female, young adult, whisper', default: '',
+        hint: 'وصف الصوت بمفردات OmniVoice الإنجليزية فقط: الجنس (male/female)، العمر (young adult/middle-aged/elderly)، النبرة (low/high pitch)، الأسلوب (whisper). لا يقبل وصفاً عربياً حراً. اللهجة العربية تُضبط تلقائياً عبر لغة النموذج، وليست جزءاً من هذا الوصف. اتركه فارغاً للصوت الافتراضي.' },
     ],
     emotionTags: ['[laughter]'],   // base model only documents [laughter]; [applause] is unsupported
     cloneFields: ['ref_audio', 'ref_text'],
@@ -58,12 +58,9 @@ const MODELS = {
 // Language is locked to Arabic for every model; this picks the dialect that each
 // worker injects via its native lever (OmniVoice instruct, VoxCPM2 prefix).
 const DIALECTS = [
-  { id: 'msa',       label: 'الفصحى' },
-  { id: 'egyptian',  label: 'مصري' },
-  { id: 'gulf',      label: 'خليجي' },
-  { id: 'levantine', label: 'شامي' },
-  { id: 'iraqi',     label: 'عراقي' },
-  { id: 'maghrebi',  label: 'مغربي' },
+  { id: 'msa',      label: 'الفصحى' },
+  { id: 'saudi',    label: 'سعودي' },
+  { id: 'egyptian', label: 'مصري' },
 ];
 const dialectLabel = id => (DIALECTS.find(d => d.id === id) || DIALECTS[0]).label;
 
@@ -81,16 +78,19 @@ const AGES = [
 ];
 const attrLabel = (list, id) => (list.find(o => o.id === id) || list[0]).label;
 
-// English descriptors — MUST match the worker maps so the preview equals what's actually sent.
+// English descriptors for VoxCPM2's leading-parenthetical cue — MUST match its worker map.
 const DIALECT_EN = {
-  msa: 'Modern Standard Arabic', egyptian: 'Egyptian Arabic', gulf: 'Gulf Arabic',
-  levantine: 'Levantine Arabic', iraqi: 'Iraqi Arabic', maghrebi: 'Maghrebi Arabic',
+  msa: 'Modern Standard Arabic', saudi: 'Saudi (Najdi) Arabic', egyptian: 'Egyptian Arabic',
+};
+// OmniVoice picks the dialect via its native ISO 639-3 language code — MUST match the worker map.
+const DIALECT_LANG = {
+  msa: 'arb', saudi: 'ars', egyptian: 'arz',
 };
 const GENDER_EN = { male: 'male', female: 'female' };
 const AGE_EN = { young: 'young adult', middle: 'middle-aged', old: 'elderly' };
 
 // Reproduces each worker's injection so the user sees the exact string that reaches the model.
-// Returns { text, instruct? } — `instruct` is only present for OmniVoice.
+// Returns { text, instruct?, lang? } — `instruct`/`lang` are only present for OmniVoice.
 function buildModelInput(mid, text) {
   const v = paramValues[mid] || {};
   const desc = DIALECT_EN[v.dialect || 'msa'] || DIALECT_EN.msa;
@@ -102,13 +102,13 @@ function buildModelInput(mid, text) {
     return { text: `(${cue}) ${body}` };
   }
   if (mid === 'omnivoice') {
+    // Dialect → language code (not instruct); instruct carries only valid EN voice-design tokens.
     const attrs = [];
     const sp = (v.speaker || '').trim();
     if (sp) attrs.push(sp);
     if (GENDER_EN[v.gender]) attrs.push(GENDER_EN[v.gender]);
     if (AGE_EN[v.age]) attrs.push(AGE_EN[v.age]);
-    attrs.push(`${desc} accent`);
-    return { text: body, instruct: attrs.join(', ') };
+    return { text: body, instruct: attrs.join(', '), lang: DIALECT_LANG[v.dialect || 'msa'] || DIALECT_LANG.msa };
   }
   return { text: body };
 }
@@ -444,6 +444,8 @@ function updateModelInputPreview() {
 
   if (!ov.enabled) {
     if (mi.instruct !== undefined) {
+      const v = paramValues[selectedModel] || {};
+      html += codeLineHtml('لغة النموذج (language)', `${mi.lang} · العربية (${dialectLabel(v.dialect || 'msa')})`);
       html += codeLineHtml('وصف الصوت (instruct)', mi.instruct);
       html += codeLineHtml('النص (text)', mi.text);
     } else {
@@ -453,7 +455,10 @@ function updateModelInputPreview() {
   } else {
     if (mi.instruct !== undefined) html += editLineHtml('وصف الصوت (instruct)', 'ov-instruct');
     html += editLineHtml('النص (text)', 'ov-text');
-    html += '<div class="param-hint" style="margin-top:6px">وضع التعديل اليدوي: يُرسَل المحتوى أعلاه إلى النموذج حرفياً (بدون حقن اللهجة/الجنس/العمر). اترك الحقل فارغاً للرجوع إلى القيمة التلقائية.</div>';
+    const langNote = mi.lang
+      ? 'يُرسَل المحتوى أعلاه حرفياً (بدون حقن الجنس/العمر)؛ لهجة اللغة العربية تبقى مُطبَّقة عبر لغة النموذج.'
+      : 'يُرسَل المحتوى أعلاه إلى النموذج حرفياً (بدون حقن اللهجة/الجنس/العمر).';
+    html += `<div class="param-hint" style="margin-top:6px">وضع التعديل اليدوي: ${escapeHtml(langNote)} اترك الحقل فارغاً للرجوع إلى القيمة التلقائية.</div>`;
     el.innerHTML = html;
     const t = $('ov-text');
     if (t) { t.value = ov.text; t.addEventListener('input', e => { ov.text = e.target.value; }); }

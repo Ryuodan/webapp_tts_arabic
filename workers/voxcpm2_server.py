@@ -23,12 +23,9 @@ VOXCPM2_OPTIMIZE = os.getenv("VOXCPM2_OPTIMIZE", "0").lower() in {"1", "true", "
 
 # Arabic is forced for every request; the dialect rides VoxCPM2's leading-parenthetical style cue.
 _ARABIC_DIALECTS = {
-    "msa":       "Modern Standard Arabic",
-    "egyptian":  "Egyptian Arabic",
-    "gulf":      "Gulf Arabic",
-    "levantine": "Levantine Arabic",
-    "iraqi":     "Iraqi Arabic",
-    "maghrebi":  "Maghrebi Arabic",
+    "msa":      "Modern Standard Arabic",
+    "saudi":    "Saudi (Najdi) Arabic",
+    "egyptian": "Egyptian Arabic",
 }
 
 

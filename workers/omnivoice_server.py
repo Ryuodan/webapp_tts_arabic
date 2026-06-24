@@ -20,20 +20,20 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 OMNIVOICE_MODEL_ID = os.getenv("OMNIVOICE_MODEL_ID", "k2-fsa/OmniVoice")
 OMNIVOICE_DEVICE = os.getenv("OMNIVOICE_DEVICE", "auto")
 
-# Arabic is forced for every request. NOTE: OmniVoice's instruct/voice-design is trained on
-# EN/ZH only, so the dialect cue is best-effort — reference audio remains the strongest anchor.
-_ARABIC_DIALECTS = {
-    "msa":       "Modern Standard Arabic",
-    "egyptian":  "Egyptian Arabic",
-    "gulf":      "Gulf Arabic",
-    "levantine": "Levantine Arabic",
-    "iraqi":     "Iraqi Arabic",
-    "maghrebi":  "Maghrebi Arabic",
+# Arabic is forced for every request. OmniVoice selects the dialect via its NATIVE language
+# code (ISO 639-3), not the instruct field: instruct is a closed EN/ZH voice-design vocab
+# (gender/age/pitch/style/accent) with no Arabic accent token, so any Arabic string placed
+# there is rejected with "Unsupported instruct items". Each dialect maps to a real OmniVoice
+# language code instead — these are all present in the model's 600+ language set.
+_ARABIC_DIALECT_LANG = {
+    "msa":      "arb",   # Modern Standard Arabic
+    "saudi":    "ars",   # Najdi (central Saudi) Arabic
+    "egyptian": "arz",   # Egyptian Arabic
 }
 
 
-def _arabic_descriptor(dialect: str) -> str:
-    return _ARABIC_DIALECTS.get((dialect or "msa").strip().lower(), _ARABIC_DIALECTS["msa"])
+def _dialect_language(dialect: str) -> str:
+    return _ARABIC_DIALECT_LANG.get((dialect or "msa").strip().lower(), _ARABIC_DIALECT_LANG["msa"])
 
 
 # gender + age are native OmniVoice voice-design attributes; empty = model's choice.
@@ -114,21 +114,24 @@ async def synthesize(
     if ref_text and ref_text.strip():
         kwargs["ref_text"] = ref_text.strip()
 
+    # The Arabic dialect rides OmniVoice's language code — never the instruct field.
+    kwargs["language"] = _dialect_language(dialect)
+
     instruct_override = (model_instruct_override or "").strip()
     if instruct_override:
         kwargs["instruct"] = instruct_override
     else:
-        # Build the voice-design string: optional user prompt + gender/age + forced Arabic dialect.
-        # OmniVoice's instruct is a comma-separated attribute list.
+        # Voice-design instruct = optional user prompt + gender/age, all from OmniVoice's closed
+        # EN/ZH vocab. Omitted entirely when empty so the model picks a voice on its own.
         attrs = []
         if speaker and speaker.strip():
             attrs.append(speaker.strip())
         for frag in (_attr(_GENDERS, gender), _attr(_AGES, age)):
             if frag:
                 attrs.append(frag)
-        attrs.append(f"{_arabic_descriptor(dialect)} accent")
-        # OmniVoice's documented voice-design kwarg is `instruct` (older builds used `speaker`).
-        kwargs["instruct"] = ", ".join(attrs)
+        if attrs:
+            # OmniVoice's documented voice-design kwarg is `instruct` (older builds used `speaker`).
+            kwargs["instruct"] = ", ".join(attrs)
 
     try:
         async with _lock:
@@ -150,6 +153,7 @@ async def synthesize(
         "model": "omnivoice",
         "model_input": eff_text,
         "model_instruct": kwargs.get("instruct", ""),
+        "model_language": kwargs.get("language", ""),
         "elapsed_s": round(elapsed, 2),
         "duration_s": round(duration, 2),
         "rtf": round(elapsed / max(duration, 0.01), 3),

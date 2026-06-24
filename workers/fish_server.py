@@ -22,12 +22,9 @@ S2_THREADS = os.getenv("S2_THREADS", str(os.cpu_count() or 4))
 
 # Arabic is forced for every request; the dialect steers the in-text [tag] S2 reads.
 _ARABIC_DIALECTS = {
-    "msa":       "Modern Standard Arabic",
-    "egyptian":  "Egyptian Arabic",
-    "gulf":      "Gulf Arabic",
-    "levantine": "Levantine Arabic",
-    "iraqi":     "Iraqi Arabic",
-    "maghrebi":  "Maghrebi Arabic",
+    "msa":      "Modern Standard Arabic",
+    "saudi":    "Saudi (Najdi) Arabic",
+    "egyptian": "Egyptian Arabic",
 }
 
 
