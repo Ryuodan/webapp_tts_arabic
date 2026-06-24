@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Arabic TTS Studio</title>
-  <link rel="stylesheet" href="style.css?v=4">
+  <link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
 
@@ -33,6 +33,42 @@
         <h3 class="section-label">النموذج</h3>
         <div class="model-cards" id="model-cards">
           <!-- Cards rendered by JS -->
+        </div>
+      </section>
+
+      <!-- Auto-compose agent -->
+      <section class="panel-section accordion open" id="acc-compose-agent">
+        <button class="acc-header" data-target="compose-agent-body">
+          <span>✨ التأليف التلقائي (وكيل)</span>
+          <span class="acc-arrow">›</span>
+        </button>
+        <div class="acc-body" id="compose-agent-body">
+          <p class="compose-desc">اختر المهمة واللهجة والجنس والعمر، فيكتب الوكيل النص العربي ويضبط الإعدادات والتعليمات تلقائياً للنموذجين (OmniVoice و VoxCPM2) — ثم راجِع وولّد أو قارِن.</p>
+          <div class="compose-grid">
+            <div class="compose-row">
+              <label class="param-label" for="compose-job" style="padding:0">المهمة</label>
+              <select class="param-select" id="compose-job"></select>
+            </div>
+            <div class="compose-row">
+              <label class="param-label" for="compose-dialect" style="padding:0">اللهجة</label>
+              <select class="param-select" id="compose-dialect"></select>
+            </div>
+            <div class="compose-row">
+              <label class="param-label" for="compose-gender" style="padding:0">الجنس</label>
+              <select class="param-select" id="compose-gender"></select>
+            </div>
+            <div class="compose-row">
+              <label class="param-label" for="compose-age" style="padding:0">العمر</label>
+              <select class="param-select" id="compose-age"></select>
+            </div>
+          </div>
+          <textarea id="compose-brief" class="param-text" rows="2"
+            placeholder="ملاحظات/سياق اختياري: المنتج، اسم العميل، نقطة يجب ذكرها…"
+            style="resize:vertical;margin-top:8px"></textarea>
+          <button class="btn-compose-agent" id="btn-compose-agent">
+            <span id="compose-agent-label">✨ أكمل بالذكاء الاصطناعي</span>
+          </button>
+          <div class="compose-status" id="compose-status"></div>
         </div>
       </section>
 
@@ -156,6 +192,17 @@
         </div>
       </section>
 
+      <!-- Saved comparisons library (hidden until at least one is saved) -->
+      <section class="panel-section saved-compare-card" id="saved-compare-card" hidden>
+        <div class="history-header">
+          <h3 class="section-label">المقارنات المحفوظة</h3>
+          <button class="btn-ghost btn-xs" id="btn-clear-compares">مسح الكل</button>
+        </div>
+        <div class="saved-compare-list" id="saved-compare-list">
+          <!-- saved comparison rows rendered by JS -->
+        </div>
+      </section>
+
       <!-- History -->
       <section class="panel-section history-card">
         <div class="history-header">
@@ -183,6 +230,6 @@
   <!-- Toast notification -->
   <div class="toast hidden" id="toast"></div>
 
-  <script src="app.js?v=8"></script>
+  <script src="app.js?v=11"></script>
 </body>
 </html>

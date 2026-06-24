@@ -2,6 +2,7 @@
 Serves the frontend and proxies synthesis requests to model workers.
 Workers must be started separately (see start.sh).
 """
+import asyncio
 import json
 import os
 import pathlib
@@ -142,6 +143,38 @@ async def serve_audio(model: str, filename: str):
         raise HTTPException(404, "Audio file not found")
     return FileResponse(str(path), media_type="audio/wav",
                         headers={"Cache-Control": "no-store"})
+
+
+@app.post("/api/compose")
+async def compose(request: Request):
+    """Auto-Compose agent: a job + voice prefs -> Arabic script + settings for BOTH engines."""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body")
+    job = (body.get("job") or "").strip()
+    if not job:
+        raise HTTPException(400, "Missing 'job'")
+
+    try:
+        from compose import compose as run_compose
+    except Exception as e:
+        raise HTTPException(503, f"Compose agent unavailable (install deps?): {e}")
+
+    try:
+        result = await asyncio.to_thread(
+            run_compose,
+            job,
+            body.get("gender", ""),
+            body.get("age", ""),
+            body.get("dialect", "msa"),
+            body.get("brief", ""),
+        )
+    except RuntimeError as e:                 # missing OPENAI_API_KEY, etc.
+        raise HTTPException(503, str(e))
+    except Exception as e:                     # OpenAI / validation failure
+        raise HTTPException(502, f"Compose failed: {e}")
+    return JSONResponse(result)
 
 
 # Serve frontend — must be last so API routes take priority

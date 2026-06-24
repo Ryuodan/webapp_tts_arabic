@@ -2,3 +2,8 @@ fastapi>=0.111
 uvicorn[standard]>=0.30
 httpx>=0.27
 python-multipart>=0.0.9
+
+# Auto-Compose agent (✨ التأليف التلقائي) — needs recent versions for GPT-5.x models
+langchain-openai>=1.3
+langchain-core>=1.4
+python-dotenv>=1.0

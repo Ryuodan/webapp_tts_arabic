@@ -38,6 +38,9 @@ const MODELS = {
     ],
     compareNote: 'قارنه عندما تكون الجودة أهم من زمن التوليد.',
     params: [
+      { id: 'style',               label: 'Style cue',        type: 'text',
+        placeholder: 'مثال: calm, formal أو cheerful, energetic', default: '',
+        hint: 'وصف أسلوب/نبرة حر يُحقن كبادئة بين قوسين قبل النص. يضبطه وكيل التأليف تلقائياً؛ اتركه فارغاً للأسلوب الافتراضي.' },
       { id: 'cfg_value',           label: 'CFG Value',        type: 'range',  min: 1.0, max: 5.0, step: 0.1, default: 2.0,
         hint: 'أعلى = اتباع أقوى للوصف أو المرجع، وقد يزيد الحدة أو الاصطناع.' },
       { id: 'inference_timesteps', label: 'Timesteps',        type: 'select', options: [5, 10, 20], default: 10,
@@ -89,6 +92,14 @@ const DIALECT_LANG = {
 const GENDER_EN = { male: 'male', female: 'female' };
 const AGE_EN = { young: 'young adult', middle: 'middle-aged', old: 'elderly' };
 
+// Auto-compose agent: job presets (ids MUST match compose.py JOBS).
+const JOBS = [
+  { id: 'customer_service', label: 'خدمة العملاء' },
+  { id: 'booking',          label: 'وكيل حجوزات' },
+  { id: 'storytelling',     label: 'سرد قصة' },
+  { id: 'announcement',     label: 'إعلان' },
+];
+
 // Reproduces each worker's injection so the user sees the exact string that reaches the model.
 // Returns { text, instruct?, lang? } — `instruct`/`lang` are only present for OmniVoice.
 function buildModelInput(mid, text) {
@@ -98,7 +109,8 @@ function buildModelInput(mid, text) {
   const body = text || '';
 
   if (mid === 'voxcpm2') {
-    const cue = persona ? `${persona}, ${desc}` : desc;
+    const style = (v.style || '').trim();
+    const cue = [style, persona, desc].filter(Boolean).join(', ');
     return { text: `(${cue}) ${body}` };
   }
   if (mid === 'omnivoice') {
@@ -701,6 +713,89 @@ function renderSampleChips() {
   }
 }
 
+// ── Auto-compose agent ────────────────────────────────────────
+// Populate the agent's input selects (job + dialect/gender/age) from the shared lists.
+function renderComposePanel() {
+  const fill = (id, list) => {
+    const sel = $(id);
+    if (sel) sel.innerHTML = list.map(o => `<option value="${o.id}">${escapeHtml(o.label)}</option>`).join('');
+  };
+  fill('compose-job', JOBS);
+  fill('compose-dialect', DIALECTS);
+  fill('compose-gender', GENDERS);
+  fill('compose-age', AGES);
+}
+
+function setComposeStatus(msg, type = '') {
+  const el = $('compose-status');
+  if (el) { el.textContent = msg || ''; el.className = `compose-status ${type}`; }
+}
+
+// Ask the agent to write one Arabic script and configure BOTH engines from the chosen inputs.
+async function composeWithAI() {
+  const btn = $('btn-compose-agent');
+  if (btn.disabled) return;
+
+  btn.disabled = true;
+  $('compose-agent-label').textContent = '… جاري التأليف';
+  setComposeStatus('يكتب الوكيل النص ويضبط إعدادات النموذجين…');
+  try {
+    const r = await fetch('/api/compose', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        job:     $('compose-job').value,
+        dialect: $('compose-dialect').value || 'msa',
+        gender:  $('compose-gender').value || '',
+        age:     $('compose-age').value || '',
+        brief:   $('compose-brief').value.trim(),
+      }),
+    });
+    if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+    const result = await r.json();
+    applyComposed(result);
+    setComposeStatus(result.notes ? `✓ ${result.notes}` : '✓ تم ضبط النموذجين', 'success');
+    showToast('تم تأليف النص وضبط النموذجين ✓', 'success');
+  } catch (e) {
+    setComposeStatus(`خطأ: ${String(e.message).slice(0, 220)}`, 'error');
+    showToast('تعذّر التأليف التلقائي', 'error', 5000);
+  } finally {
+    btn.disabled = false;
+    $('compose-agent-label').textContent = '✨ أكمل بالذكاء الاصطناعي';
+  }
+}
+
+// Write the agent result into BOTH models' controls + the shared script, then refresh the UI.
+function applyComposed(result) {
+  const dialect = DIALECTS.some(d => d.id === result.dialect) ? result.dialect : 'msa';
+  const gender  = ['', 'male', 'female'].includes(result.gender) ? result.gender : '';
+  const age     = ['', 'young', 'middle', 'old'].includes(result.age) ? result.age : '';
+
+  // Shared, per-model voice settings — applied to every model so Compare uses tuned params.
+  for (const mid of Object.keys(MODELS)) {
+    const v = paramValues[mid];
+    v.dialect = dialect; v.gender = gender; v.age = age;
+    if (manualOverride[mid]) manualOverride[mid].enabled = false;
+  }
+  paramValues.omnivoice.speaker = result.omnivoice_instruct || '';
+  paramValues.voxcpm2.style = result.voxcpm2_style || '';
+  if (Number.isFinite(result.cfg_value)) paramValues.voxcpm2.cfg_value = result.cfg_value;
+  if (Number.isFinite(result.inference_timesteps)) paramValues.voxcpm2.inference_timesteps = result.inference_timesteps;
+
+  // One shared plain-Arabic script (each engine applies its own style mechanism).
+  $('text-input').value = result.text || '';
+
+  // Keep the compose-panel selects in sync with what the agent settled on.
+  if ($('compose-dialect')) $('compose-dialect').value = dialect;
+  if ($('compose-gender'))  $('compose-gender').value = gender;
+  if ($('compose-age'))     $('compose-age').value = age;
+
+  renderParams();          // re-render the current model's controls with the new values
+  updateCharCount();
+  updateSynthBtn();
+  updateModelInputPreview();
+}
+
 // ── Select model ──────────────────────────────────────────────
 function selectModel(id) {
   selectedModel = id;
@@ -1196,22 +1291,60 @@ function renderCompareSummary(grid, results) {
   grid.prepend(summary);
 }
 
-// ── Compare persistence ───────────────────────────────────────
-const COMPARE_KEY = 'tts_compare_v1';
+// ── Compare persistence (saved library of comparison runs) ────
+const COMPARE_KEY      = 'tts_compare_v1';        // legacy single-run slot (migrated on load)
+const COMPARE_RUNS_KEY = 'tts_compare_runs_v1';
+const COMPARE_RUNS_MAX = 40;
+let compareRuns = [];
 
-function saveCompare(data) {
-  try { localStorage.setItem(COMPARE_KEY, JSON.stringify(data)); } catch { /* quota */ }
+function loadCompareRuns() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(COMPARE_RUNS_KEY) || '[]');
+    compareRuns = Array.isArray(arr) ? arr : [];
+  } catch { compareRuns = []; }
+  // One-time migration of the old single-slot run into the new list.
+  if (!compareRuns.length) {
+    try {
+      const old = JSON.parse(localStorage.getItem(COMPARE_KEY) || 'null');
+      if (old && Array.isArray(old.items) && old.items.length) {
+        compareRuns = [{ id: `c${old.timestamp || Date.now()}`, text: old.text || '',
+                         timestamp: old.timestamp || Date.now(), items: old.items }];
+        persistCompareRuns();
+      }
+    } catch { /* ignore */ }
+    try { localStorage.removeItem(COMPARE_KEY); } catch { /* ignore */ }
+  }
 }
 
-function loadCompare() {
-  try { return JSON.parse(localStorage.getItem(COMPARE_KEY) || 'null'); } catch { return null; }
+function persistCompareRuns() {
+  try { localStorage.setItem(COMPARE_RUNS_KEY, JSON.stringify(compareRuns.slice(0, COMPARE_RUNS_MAX))); }
+  catch { /* quota */ }
 }
 
-// Re-render the last compare run so the results survive a page reload.
-function renderSavedCompare() {
-  const data = loadCompare();
-  if (!data || !Array.isArray(data.items) || !data.items.length) return;
-  const items = data.items.filter(item => MODELS[item.mid]);
+function addCompareRun(run) {
+  compareRuns.unshift(run);
+  if (compareRuns.length > COMPARE_RUNS_MAX) compareRuns = compareRuns.slice(0, COMPARE_RUNS_MAX);
+  persistCompareRuns();
+  renderCompareLibrary();
+}
+
+function deleteCompareRun(id) {
+  compareRuns = compareRuns.filter(r => r.id !== id);
+  persistCompareRuns();
+  renderCompareLibrary();
+}
+
+function clearCompareRuns() {
+  if (!compareRuns.length) return;
+  if (!confirm('مسح كل المقارنات المحفوظة؟')) return;
+  compareRuns = [];
+  persistCompareRuns();
+  renderCompareLibrary();
+}
+
+// Render one comparison run (live or saved) into the results grid.
+function renderComparisonInto(run) {
+  const items = (run.items || []).filter(item => MODELS[item.mid]);
   if (!items.length) return;
   const grid = $('compare-grid');
   $('compare-results').classList.remove('hidden');
@@ -1224,6 +1357,47 @@ function renderSavedCompare() {
     grid.appendChild(mini);
   }
   renderCompareSummary(grid, items);
+}
+
+function viewSavedComparison(id) {
+  const run = compareRuns.find(r => r.id === id);
+  if (!run) return;
+  renderComparisonInto(run);
+  $('compare-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// The list of saved comparisons (click to re-open, with per-item + clear-all delete).
+function renderCompareLibrary() {
+  const card = $('saved-compare-card');
+  const list = $('saved-compare-list');
+  if (!card || !list) return;
+  if (!compareRuns.length) { card.hidden = true; list.innerHTML = ''; return; }
+  card.hidden = false;
+  list.innerHTML = compareRuns.map(run => {
+    const icons = [...new Set((run.items || []).map(i => (MODELS[i.mid] || {}).icon || ''))].join(' ');
+    const n = (run.items || []).length;
+    const errs = (run.items || []).filter(i => i.error).length;
+    const snippet = (run.text || '').slice(0, 70) || '—';
+    const meta = `${icons} · ${n} نماذج${errs ? ` · ${errs} خطأ` : ''} · ${formatAgo(run.timestamp)}`;
+    return `
+      <div class="saved-compare-item" data-id="${escapeAttr(run.id)}">
+        <div class="sc-info">
+          <div class="sc-snippet">${escapeHtml(snippet)}</div>
+          <div class="sc-meta">${escapeHtml(meta)}</div>
+        </div>
+        <div class="sc-actions">
+          <button class="hi-btn sc-open" title="عرض">↗</button>
+          <button class="hi-btn sc-del" title="حذف">🗑</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  list.querySelectorAll('.saved-compare-item').forEach(el => {
+    const id = el.dataset.id;
+    el.addEventListener('click', e => { if (!e.target.closest('.sc-actions')) viewSavedComparison(id); });
+    el.querySelector('.sc-open').addEventListener('click', () => viewSavedComparison(id));
+    el.querySelector('.sc-del').addEventListener('click', e => { e.stopPropagation(); deleteCompareRun(id); });
+  });
 }
 
 async function compareModels() {
@@ -1290,7 +1464,7 @@ async function compareModels() {
   }
 
   renderCompareSummary(grid, results);
-  saveCompare({ text, timestamp: Date.now(), items: results });
+  addCompareRun({ id: `c${Date.now()}`, text, timestamp: Date.now(), items: results });
   isComparing = false;
   btn.disabled = false;
   updateCompareLabel();
@@ -1330,8 +1504,11 @@ function init() {
   renderClonePanel();
   renderCompareChecks();
   renderSampleChips();
+  renderComposePanel();
   renderHistory();
-  renderSavedCompare();   // restore the last compare run after a reload
+  loadCompareRuns();
+  renderCompareLibrary();                              // saved comparisons list
+  if (compareRuns[0]) renderComparisonInto(compareRuns[0]);  // restore the latest after reload
   setupAccordions();
   setupAudioEvents();
 
@@ -1345,6 +1522,9 @@ function init() {
   // Synth button
   $('btn-synth').addEventListener('click', synthesize);
 
+  // Auto-compose agent
+  $('btn-compose-agent').addEventListener('click', composeWithAI);
+
   // Clear text
   $('btn-clear-text').addEventListener('click', () => {
     $('text-input').value = '';
@@ -1355,6 +1535,9 @@ function init() {
 
   // Clear history
   $('btn-clear-history').addEventListener('click', clearHistory);
+
+  // Clear saved comparisons
+  $('btn-clear-compares').addEventListener('click', clearCompareRuns);
 
   // History filter
   $('history-filter').addEventListener('change', () => renderHistory());

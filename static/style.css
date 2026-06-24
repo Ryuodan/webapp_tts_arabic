@@ -543,6 +543,30 @@ textarea { resize: vertical; }
 .btn-compare:hover { border-color: var(--omni); color: var(--omni); background: var(--omni-dim); }
 .btn-compare:disabled { color: var(--txt3); border-color: var(--border); background: var(--bg3); cursor: not-allowed; }
 
+/* ── Auto-compose agent ─────────────────────────────────────── */
+.compose-desc { font-size: .75rem; color: var(--txt2); line-height: 1.55; margin-bottom: 8px; direction: rtl; }
+.compose-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.compose-row { display: flex; align-items: center; gap: 8px; }
+.compose-row .param-label { white-space: nowrap; }
+.compose-row .param-select { flex: 1; min-width: 0; }
+.btn-compose-agent {
+  width: 100%;
+  margin-top: 8px;
+  padding: 9px;
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, var(--omni-dim), var(--vox-dim));
+  color: var(--txt);
+  font-size: .82rem;
+  font-weight: 700;
+  border: 1px solid var(--border2);
+  transition: var(--transition);
+}
+.btn-compose-agent:hover:not(:disabled) { border-color: var(--omni); color: var(--omni); }
+.btn-compose-agent:disabled { color: var(--txt2); cursor: progress; opacity: .8; }
+.compose-status { margin-top: 6px; font-size: .72rem; color: var(--txt2); line-height: 1.5; direction: rtl; min-height: 1em; }
+.compose-status.success { color: var(--vox); }
+.compose-status.error { color: #f85149; }
+
 /* ── Audio player card ────────────────────────────────────── */
 .player-card { min-height: 140px; }
 .player-empty {
@@ -858,6 +882,27 @@ textarea { resize: vertical; }
 .hi-btn:hover { border-color: var(--border2); color: var(--txt); }
 .hi-btn.play:hover { color: var(--omni); border-color: var(--omni); }
 .hi-btn.dl:hover   { color: var(--green); border-color: var(--green); }
+
+/* ── Saved comparisons library ──────────────────────────────── */
+.saved-compare-list { display: flex; flex-direction: column; gap: 6px; }
+.saved-compare-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  background: var(--bg3);
+  transition: var(--transition);
+  cursor: pointer;
+}
+.saved-compare-item:hover { border-color: var(--omni); background: var(--bg4); }
+.sc-info { flex: 1; min-width: 0; direction: rtl; }
+.sc-snippet { font-size: .74rem; color: var(--txt); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sc-meta { font-size: .66rem; color: var(--txt3); margin-top: 2px; }
+.sc-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.hi-btn.sc-open:hover { color: var(--omni); border-color: var(--omni); }
+.hi-btn.sc-del:hover  { color: #f85149; border-color: #f85149; }
 
 /* ── Generic buttons ──────────────────────────────────────── */
 .btn-ghost {

@@ -13,7 +13,26 @@
       "Bash(~/miniconda3/envs/voxcpm2-tts/bin/python -m py_compile workers/voxcpm2_server.py)",
       "Bash(~/miniconda3/envs/omnivoice-tts/bin/python -m py_compile workers/fish_server.py)",
       "Bash(~/miniconda3/envs/omnivoice-tts/bin/python -)",
-      "Bash(~/miniconda3/envs/omnivoice-tts/bin/python -m py_compile workers/omnivoice_server.py workers/fish_server.py)"
+      "Bash(~/miniconda3/envs/omnivoice-tts/bin/python -m py_compile workers/omnivoice_server.py workers/fish_server.py)",
+      "Bash(curl -s --max-time 420 -X POST http://127.0.0.1:8082/synthesize -F 'text=السلام عليكم' -F dialect=msa)",
+      "Bash(curl -s --max-time 300 -X POST http://127.0.0.1:8082/synthesize -F 'text=كيف حالك اليوم' -F dialect=saudi -F gender=female)",
+      "Bash(curl -s --max-time 300 -X POST http://127.0.0.1:8082/synthesize -F 'text=ازيك عامل ايه' -F dialect=egyptian)",
+      "Bash(curl -s --max-time 540 -X POST http://127.0.0.1:8083/synthesize -F 'text=السلام عليكم' -F dialect=saudi -F inference_timesteps=5)",
+      "Bash(~/miniconda3/envs/arabic-tts-web/bin/pip list *)",
+      "Bash(env)",
+      "Bash(~/miniconda3/envs/arabic-tts-web/bin/pip install *)",
+      "Bash(~/miniconda3/envs/arabic-tts-web/bin/python -)",
+      "Bash(~/miniconda3/envs/arabic-tts-web/bin/python -m py_compile server.py compose.py)",
+      "Bash(curl -s --max-time 8 http://127.0.0.1:8025/api/status)",
+      "Bash(curl -s --max-time 5 \"http://127.0.0.1:8025/app.js?v=9\")",
+      "Bash(curl -s --max-time 90 -X POST http://127.0.0.1:8025/api/compose -H 'content-type: application/json' -d '{\"model\":\"omnivoice\",\"job\":\"booking\",\"gender\":\"male\",\"dialect\":\"saudi\",\"brief\":\"تأكيد حجز فندق ليلتين\"}')",
+      "Bash(curl -s --max-time 120 -X POST http://127.0.0.1:8025/api/omnivoice/synthesize -F 'text=أبشرك، تم تأكيد حجزكم في الفندق لمدة ليلتين.' -F dialect=saudi -F gender=male -F age=middle -F 'speaker=moderate pitch')",
+      "Bash(pkill -9 -f \"webapp_tts_arabic/server.py\")",
+      "Bash(~/miniconda3/envs/arabic-tts-web/bin/python -m json.tool)",
+      "Bash(~/miniconda3/envs/arabic-tts-web/bin/python -c \"import sys,json;d=json.load\\(sys.stdin\\);print\\('model_input:',d.get\\('model_input'\\)\\);print\\('file:',d.get\\('filename'\\),'| dur:',d.get\\('duration_s'\\),'s'\\)\")",
+      "Bash(curl -s --max-time 5 http://127.0.0.1:8025/)",
+      "Bash(curl -s --max-time 5 \"http://127.0.0.1:8025/app.js?v=10\")",
+      "Bash(curl -s --max-time 5 \"http://127.0.0.1:8025/app.js?v=11\")"
     ]
   }
 }

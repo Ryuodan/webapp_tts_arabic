@@ -91,6 +91,7 @@ async def synthesize(
     dialect: str = Form("msa"),
     gender: str = Form(""),
     age: str = Form(""),
+    style: str = Form(""),
     cfg_value: float = Form(2.0),
     inference_timesteps: int = Form(10),
     model_input_override: str = Form(""),
@@ -123,10 +124,10 @@ async def synthesize(
         if override:
             eff_text = override
         else:
-            desc = _arabic_descriptor(dialect)
-            persona = _persona(gender, age)
-            cue = f"{persona}, {desc}" if persona else desc
-            eff_text = f"({cue}) {text}"
+            # Leading parenthetical cue = free style (optional) + persona + forced Arabic dialect.
+            parts = [p for p in ((style or "").strip(), _persona(gender, age),
+                                 _arabic_descriptor(dialect)) if p]
+            eff_text = f"({', '.join(parts)}) {text}"
         kwargs: dict = {
             "text": eff_text,
             "cfg_value": cfg_value,
@@ -169,6 +170,7 @@ async def synthesize(
         "text": text,
         "instruct": prompt_text,      # prompt text / parenthetical instruction
         "params": {
+            "style": style,
             "cfg_value": cfg_value,
             "inference_timesteps": inference_timesteps,
         },
