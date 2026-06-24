@@ -630,6 +630,7 @@ textarea { resize: vertical; }
 .hi-badge { flex-shrink: 0; }
 .hi-info  { flex: 1; min-width: 0; direction: rtl; }
 .hi-filename { font-size: .72rem; color: var(--txt); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hi-instruct { font-size: .66rem; color: var(--txt2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hi-meta { font-size: .65rem; color: var(--txt3); direction: ltr; }
 .hi-actions { display: flex; gap: 4px; flex-shrink: 0; }
 .hi-btn {

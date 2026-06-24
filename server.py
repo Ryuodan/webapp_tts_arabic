@@ -2,6 +2,7 @@
 Serves the frontend and proxies synthesis requests to model workers.
 Workers must be started separately (see start.sh).
 """
+import json
 import pathlib
 from contextlib import asynccontextmanager
 from typing import Optional
@@ -105,15 +106,27 @@ async def history(model: str, limit: int = 100):
     if not out_dir.exists():
         return []
     wavs = sorted(out_dir.glob("*.wav"), key=lambda p: p.stat().st_mtime, reverse=True)
-    return [
-        {
+    items = []
+    for w in wavs[:limit]:
+        item = {
             "filename":   w.name,
             "model":      model,
             "size_bytes": w.stat().st_size,
             "mtime":      w.stat().st_mtime,
         }
-        for w in wavs[:limit]
-    ]
+        sidecar = w.with_suffix(".json")
+        if sidecar.exists():
+            try:
+                meta = json.loads(sidecar.read_text(encoding="utf-8"))
+                # surface the saved inputs alongside file info
+                for k in ("text", "instruct", "params", "reference_text",
+                          "prompt_text", "duration_s", "rtf", "elapsed_s"):
+                    if k in meta:
+                        item[k] = meta[k]
+            except Exception:
+                pass
+        items.append(item)
+    return items
 
 
 @app.get("/audio/{model}/{filename}")

@@ -71,6 +71,10 @@ let cloneFiles    = {};  // { ref_audio: File|null, ref_text: '', ... }
 const $  = id => document.getElementById(id);
 const $$ = sel => document.querySelectorAll(sel);
 
+const escapeHtml = s => String(s).replace(/[&<>"']/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const escapeAttr = escapeHtml;
+
 function formatTime(s) {
   const m = Math.floor(s / 60);
   const sec = Math.floor(s % 60);
@@ -373,6 +377,16 @@ async function pollStatus() {
   updateSynthBtn();
 }
 
+// ── Current "instruct" (voice description / prompt text) ──────
+// What counts as the instruction differs per model:
+//   omnivoice → speaker voice description, voxcpm2 → prompt_text,
+//   fish → emotion tags are inline in the text (no separate field).
+function currentInstruct() {
+  if (selectedModel === 'omnivoice') return (paramValues.omnivoice.speaker || '').trim();
+  if (selectedModel === 'voxcpm2')   return (cloneFiles.prompt_text || '').trim();
+  return '';
+}
+
 // ── Build FormData for synthesis ──────────────────────────────
 function buildFormData() {
   const fd   = new FormData();
@@ -427,7 +441,11 @@ async function synthesize() {
     const audioUrl = `/audio/${selectedModel}/${result.filename}`;
 
     await loadPlayer(audioUrl, result, text);
-    addToHistory({ ...result, text, url: audioUrl, timestamp: Date.now() });
+    addToHistory({
+      ...result, text, url: audioUrl, timestamp: Date.now(),
+      instruct: currentInstruct(),
+      params: { ...paramValues[selectedModel] },
+    });
     showToast('تم توليد الصوت بنجاح ✓', 'success');
 
   } catch (e) {
@@ -619,10 +637,15 @@ function renderHistory(filterModel = 'all') {
     el.dataset.url = item.url;
     const textSnippet = (item.text || item.filename || '').slice(0, 50);
     const ago = formatAgo(item.timestamp);
+    const instruct = (item.instruct || '').trim();
+    const instructRow = instruct
+      ? `<div class="hi-instruct" title="${escapeAttr(instruct)}">🎙 ${escapeHtml(instruct.slice(0, 50))}</div>`
+      : '';
     el.innerHTML = `
       <div class="hi-badge"><span class="model-badge ${item.model}">${MODELS[item.model]?.icon || ''}</span></div>
       <div class="hi-info">
-        <div class="hi-filename">${textSnippet}</div>
+        <div class="hi-filename">${escapeHtml(textSnippet)}</div>
+        ${instructRow}
         <div class="hi-meta">${item.duration_s}s · RTF ${item.rtf} · ${ago}</div>
       </div>
       <div class="hi-actions">
@@ -672,10 +695,14 @@ async function loadServerHistory() {
             filename:   f.filename,
             model:      mid,
             url:        `/audio/${mid}/${f.filename}`,
-            text:       '',
-            duration_s: 0,
-            rtf:        0,
-            elapsed_s:  0,
+            text:       f.text || '',
+            instruct:   f.instruct || '',
+            params:     f.params || null,
+            reference_text: f.reference_text || '',
+            prompt_text:    f.prompt_text || '',
+            duration_s: f.duration_s || 0,
+            rtf:        f.rtf || 0,
+            elapsed_s:  f.elapsed_s || 0,
             timestamp:  f.mtime * 1000,
           });
           existing.add(f.filename);

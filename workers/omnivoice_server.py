@@ -2,6 +2,7 @@
 Model is loaded lazily on first synthesis request.
 """
 import asyncio
+import json
 import os
 import pathlib
 import tempfile
@@ -94,7 +95,7 @@ async def synthesize(
     sf.write(str(out_path), audio[0], SAMPLE_RATE)
     duration = len(audio[0]) / SAMPLE_RATE
 
-    return {
+    result = {
         "filename": out_path.name,
         "model": "omnivoice",
         "elapsed_s": round(elapsed, 2),
@@ -102,6 +103,24 @@ async def synthesize(
         "rtf": round(elapsed / max(duration, 0.01), 3),
         "sample_rate": SAMPLE_RATE,
     }
+    _write_sidecar(out_path, {
+        "text": text,
+        "instruct": speaker,          # voice description / instruction
+        "params": {"speaker": speaker},
+        "reference_text": ref_text,
+        "has_reference_audio": bool(ref_tmp),
+        "created": time.time(),
+        **result,
+    })
+    return result
+
+
+def _write_sidecar(wav_path: pathlib.Path, meta: dict):
+    try:
+        wav_path.with_suffix(".json").write_text(
+            json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        pass  # never fail synthesis over a sidecar write
 
 
 @app.get("/audio/{filename}")

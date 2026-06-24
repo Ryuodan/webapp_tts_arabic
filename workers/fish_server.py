@@ -1,5 +1,6 @@
 """Fish Audio S2 Pro TTS worker — run inside the arabic-tts conda env (port 8081)."""
 import asyncio
+import json
 import os
 import pathlib
 import tempfile
@@ -95,7 +96,7 @@ async def synthesize(
         raise HTTPException(500, "s2 produced no output file")
 
     info = sf.info(str(out_path))
-    return {
+    result = {
         "filename": out_path.name,
         "model": "fish",
         "elapsed_s": round(elapsed, 2),
@@ -103,6 +104,28 @@ async def synthesize(
         "rtf": round(elapsed / max(info.duration, 0.01), 3),
         "sample_rate": info.samplerate,
     }
+    _write_sidecar(out_path, {
+        "text": text,
+        "params": {
+            "temperature": temperature,
+            "top_p": top_p,
+            "top_k": top_k,
+            "max_tokens": max_tokens,
+        },
+        "reference_text": reference_text,
+        "has_reference_audio": bool(ref_tmp),
+        "created": time.time(),
+        **result,
+    })
+    return result
+
+
+def _write_sidecar(wav_path: pathlib.Path, meta: dict):
+    try:
+        wav_path.with_suffix(".json").write_text(
+            json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        pass  # never fail synthesis over a sidecar write
 
 
 @app.get("/audio/{filename}")
