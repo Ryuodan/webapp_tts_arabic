@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python3 -m py_compile server.py workers/fish_server.py workers/omnivoice_server.py workers/voxcpm2_server.py)"
+      "Bash(python3 -m py_compile server.py workers/fish_server.py workers/omnivoice_server.py workers/voxcpm2_server.py)",
+      "Bash(git fetch *)",
+      "Bash(git merge *)",
+      "Bash(grep -rn *)",
+      "Bash(git commit *)"
     ]
   }
 }
