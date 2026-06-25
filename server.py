@@ -177,6 +177,38 @@ async def compose(request: Request):
     return JSONResponse(result)
 
 
+@app.post("/api/prepare")
+async def prepare(request: Request):
+    """Text-Prep agent: rewrite raw Arabic for TTS (normalize numbers/abbrev + optional tashkeel).
+    Operates ONLY on the text string — the workers/models are untouched."""
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON body")
+    text = (body.get("text") or "").strip()
+    if not text:
+        raise HTTPException(400, "Missing 'text'")
+    normalize  = bool(body.get("normalize", True))
+    diacritize = bool(body.get("diacritize", False))
+    if not (normalize or diacritize):                  # nothing to do — skip the LLM call
+        return JSONResponse({"original": text, "normalized": "", "diacritized": "",
+                             "text": text, "notes": "", "normalize": False, "diacritize": False})
+
+    try:
+        from textprep import prepare_text
+    except Exception as e:
+        raise HTTPException(503, f"Text-prep agent unavailable (install deps?): {e}")
+
+    try:
+        result = await asyncio.to_thread(
+            prepare_text, text, body.get("dialect", "msa"), normalize, diacritize)
+    except RuntimeError as e:                 # missing OPENAI_API_KEY, etc.
+        raise HTTPException(503, str(e))
+    except Exception as e:                     # OpenAI / validation failure
+        raise HTTPException(502, f"Prepare failed: {e}")
+    return JSONResponse(result)
+
+
 # Serve frontend — must be last so API routes take priority
 app.mount("/", StaticFiles(directory=str(STATIC), html=True), name="static")
 

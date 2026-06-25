@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Arabic TTS Studio</title>
-  <link rel="stylesheet" href="style.css?v=9">
+  <link rel="stylesheet" href="style.css?v=11">
 </head>
 <body>
 
@@ -88,6 +88,38 @@
           rows="6"
           spellcheck="false"
         ></textarea>
+        <!-- Text-Prep agent: numbers→words + optional tashkeel (models untouched) -->
+        <div class="prep-bar">
+          <button class="prep-toggle active" id="prep-normalize" data-on="1"
+            title="حوّل الأرقام والتواريخ والنِّسب والاختصارات إلى كلمات منطوقة (مثال: 2026 ← ألفين وستة وعشرين)">الأرقام→كلمات</button>
+          <button class="prep-toggle" id="prep-diacritize" data-on="0"
+            title="أضِف التشكيل (الحركات) — جرِّبه وقارن، قد يحسّن النطق أو لا">ـَـُ تشكيل</button>
+          <button class="btn-prep" id="btn-prep">
+            <span id="prep-label">✦ حضّر النص</span>
+          </button>
+          <button class="btn-ghost btn-xs" id="btn-prep-undo" hidden>↶ تراجع</button>
+          <span class="compose-status" id="prep-status"></span>
+        </div>
+
+        <!-- Before/after preview — populated by the prep agent; commit or discard -->
+        <div class="prep-preview" id="prep-preview" hidden>
+          <div class="prep-diff-row" id="prep-row-original">
+            <span class="prep-diff-tag">الأصل</span>
+            <div class="prep-diff-text" id="prep-text-original" dir="rtl"></div>
+          </div>
+          <div class="prep-diff-row" id="prep-row-normalized" hidden>
+            <span class="prep-diff-tag tag-norm">الأرقام→كلمات</span>
+            <div class="prep-diff-text" id="prep-text-normalized" dir="rtl"></div>
+          </div>
+          <div class="prep-diff-row" id="prep-row-diacritized" hidden>
+            <span class="prep-diff-tag tag-tash">تشكيل</span>
+            <div class="prep-diff-text" id="prep-text-diacritized" dir="rtl"></div>
+          </div>
+          <div class="prep-preview-actions">
+            <button class="btn-prep" id="btn-prep-apply">✓ اعتمد في صندوق النص</button>
+            <button class="btn-ghost btn-xs" id="btn-prep-cancel">إلغاء</button>
+          </div>
+        </div>
         <div class="input-footer">
           <button class="btn-ghost btn-xs" id="btn-clear-text">مسح</button>
           <span class="hint-text" id="sample-hint">أمثلة:</span>
@@ -225,6 +257,6 @@
   <!-- Toast notification -->
   <div class="toast hidden" id="toast"></div>
 
-  <script src="app.js?v=13"></script>
+  <script src="app.js?v=15"></script>
 </body>
 </html>

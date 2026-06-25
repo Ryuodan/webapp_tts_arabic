@@ -798,6 +798,121 @@ function applyComposed(result) {
   updateModelInputPreview();
 }
 
+// ── Text-Prep agent ───────────────────────────────────────────
+// Rewrites the text BEFORE synthesis (numbers→words + optional tashkeel). The workers/models
+// are never touched — only the `text` string changes. The agent's result is shown as a
+// before/after preview; nothing reaches the text box until the user clicks «اعتمد».
+let prepBackup = null;       // last pre-apply text, for one-step undo
+let pendingPrepText = null;  // the prepared text awaiting the user's accept/discard
+
+function setPrepStatus(msg, type = '') {
+  const el = $('prep-status');
+  if (el) { el.textContent = msg || ''; el.className = `compose-status ${type}`; }
+}
+
+function togglePrepOption(btn) {
+  const on = btn.dataset.on !== '1';
+  btn.dataset.on = on ? '1' : '0';
+  btn.classList.toggle('active', on);
+}
+
+async function prepareText() {
+  const btn  = $('btn-prep');
+  if (btn.disabled) return;
+  const text = $('text-input').value.trim();
+  if (!text) { showToast('لا يوجد نص لتحضيره', 'error'); return; }
+
+  const normalize  = $('prep-normalize').dataset.on === '1';
+  const diacritize = $('prep-diacritize').dataset.on === '1';
+  if (!normalize && !diacritize) {
+    setPrepStatus('فعِّل «الأرقام→كلمات» أو «تشكيل» أولاً', 'error');
+    return;
+  }
+
+  btn.disabled = true;
+  $('prep-label').textContent = '… جاري التحضير';
+  setPrepStatus('يحضّر الوكيل النص…');
+  try {
+    const r = await fetch('/api/prepare', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text,
+        dialect: (paramValues[selectedModel] && paramValues[selectedModel].dialect) || 'msa',
+        normalize, diacritize,
+      }),
+    });
+    if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+    const result = await r.json();
+
+    showPrepPreview(text, result);
+    setPrepStatus(result.notes ? `✓ ${result.notes}` : '✓ جاهز — راجِع المقارنة ثم اعتمد', 'success');
+  } catch (e) {
+    setPrepStatus(`خطأ: ${String(e.message).slice(0, 220)}`, 'error');
+    showToast('تعذّر تحضير النص', 'error', 5000);
+  } finally {
+    btn.disabled = false;
+    $('prep-label').textContent = '✦ حضّر النص';
+  }
+}
+
+// Render the before/after rows for whichever stages were produced; box stays untouched for now.
+function showPrepPreview(original, result) {
+  $('prep-text-original').textContent = original;
+
+  const normRow = $('prep-row-normalized');
+  if (result.normalized) { $('prep-text-normalized').textContent = result.normalized; normRow.hidden = false; }
+  else normRow.hidden = true;
+
+  const tashRow = $('prep-row-diacritized');
+  if (result.diacritized) { $('prep-text-diacritized').textContent = result.diacritized; tashRow.hidden = false; }
+  else tashRow.hidden = true;
+
+  pendingPrepText = result.text || original;
+  $('prep-preview').hidden = false;
+}
+
+// «اعتمد»: back up the current box (for ↶ undo), drop the prepared text in, hide the preview.
+function applyPrep() {
+  if (pendingPrepText === null) return;
+  prepBackup = $('text-input').value;
+  $('btn-prep-undo').hidden = false;
+  $('text-input').value = pendingPrepText;
+  hidePrepPreview();
+  showToast('تم اعتماد النص ✓ — راجِعه ثم ولّد', 'success');
+  updateCharCount();
+  updateSynthBtn();
+  updateModelInputPreview();
+}
+
+function cancelPrep() {
+  hidePrepPreview();
+  setPrepStatus('');
+}
+
+function hidePrepPreview() {
+  pendingPrepText = null;
+  $('prep-preview').hidden = true;
+}
+
+function undoPrep() {
+  if (prepBackup === null) return;
+  $('text-input').value = prepBackup;
+  prepBackup = null;
+  $('btn-prep-undo').hidden = true;
+  setPrepStatus('');
+  updateCharCount();
+  updateSynthBtn();
+  updateModelInputPreview();
+}
+
+// Drop the saved backup + hide the undo button (manual edit / clear supersedes the last apply).
+function invalidatePrepUndo() {
+  if (prepBackup === null) return;
+  prepBackup = null;
+  $('btn-prep-undo').hidden = true;
+}
+
 // ── Select model ──────────────────────────────────────────────
 function selectModel(id) {
   selectedModel = id;
@@ -1591,6 +1706,7 @@ function init() {
 
   // Text input events
   $('text-input').addEventListener('input', () => {
+    invalidatePrepUndo();   // manual edits supersede the last prepare
     updateCharCount();
     updateSynthBtn();
     updateModelInputPreview();
@@ -1602,9 +1718,19 @@ function init() {
   // Auto-compose agent
   $('btn-compose-agent').addEventListener('click', composeWithAI);
 
+  // Text-Prep agent (numbers→words / tashkeel toggles + prepare + before/after preview + undo)
+  $('prep-normalize').addEventListener('click', e => togglePrepOption(e.currentTarget));
+  $('prep-diacritize').addEventListener('click', e => togglePrepOption(e.currentTarget));
+  $('btn-prep').addEventListener('click', prepareText);
+  $('btn-prep-apply').addEventListener('click', applyPrep);
+  $('btn-prep-cancel').addEventListener('click', cancelPrep);
+  $('btn-prep-undo').addEventListener('click', undoPrep);
+
   // Clear text
   $('btn-clear-text').addEventListener('click', () => {
     $('text-input').value = '';
+    invalidatePrepUndo();
+    setPrepStatus('');
     updateCharCount();
     updateSynthBtn();
     updateModelInputPreview();

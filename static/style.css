@@ -248,6 +248,84 @@ textarea { resize: vertical; }
   padding: 6px 12px;
   flex-wrap: wrap;
 }
+
+/* ── Text-Prep agent bar (normalize / tashkeel) ─────────────── */
+.prep-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px 0;
+  flex-wrap: wrap;
+}
+.prep-toggle {
+  padding: 4px 10px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--bg3);
+  color: var(--txt2);
+  font-size: .72rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: var(--transition);
+  direction: rtl;
+}
+.prep-toggle:hover { border-color: var(--border2); color: var(--txt); }
+.prep-toggle.active {
+  border-color: var(--purple);
+  color: var(--purple);
+  background: rgba(188,140,255,.12);
+}
+.btn-prep {
+  padding: 4px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border2);
+  background: var(--bg4);
+  color: var(--txt);
+  font-size: .72rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: var(--transition);
+  direction: rtl;
+}
+.btn-prep:hover:not(:disabled) { border-color: var(--purple); color: var(--purple); }
+.btn-prep:disabled { color: var(--txt2); cursor: progress; opacity: .8; }
+.prep-bar .compose-status { margin-top: 0; flex: 1 1 100%; }
+
+/* ── Before/after preview ────────────────────────────────────── */
+.prep-preview {
+  margin: 8px 12px 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg3);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.prep-diff-row { display: flex; gap: 8px; align-items: flex-start; }
+.prep-diff-tag {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: .62rem;
+  border: 1px solid var(--border2);
+  background: var(--bg4);
+  color: var(--txt2);
+  white-space: nowrap;
+  margin-top: 2px;
+}
+.prep-diff-tag.tag-norm { border-color: var(--omni); color: var(--omni); background: var(--omni-dim); }
+.prep-diff-tag.tag-tash { border-color: var(--purple); color: var(--purple); background: rgba(188,140,255,.12); }
+.prep-diff-text {
+  flex: 1 1 auto;
+  font-size: .82rem;
+  line-height: 1.9;
+  color: var(--txt);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+#prep-text-original { color: var(--txt2); }
+.prep-preview-actions { display: flex; gap: 6px; align-items: center; padding-top: 2px; }
 .hint-text { font-size: .65rem; color: var(--txt3); white-space: nowrap; }
 .sample-chips { display: flex; gap: 4px; flex-wrap: wrap; }
 .sample-chip {

@@ -33,7 +33,9 @@
       "Bash(curl -s --max-time 5 http://127.0.0.1:8025/)",
       "Bash(curl -s --max-time 5 \"http://127.0.0.1:8025/app.js?v=10\")",
       "Bash(curl -s --max-time 5 \"http://127.0.0.1:8025/app.js?v=11\")",
-      "Bash(curl -s --max-time 5 \"http://127.0.0.1:8025/app.js?v=12\")"
+      "Bash(curl -s --max-time 5 \"http://127.0.0.1:8025/app.js?v=12\")",
+      "WebFetch(domain:arxiv.org)",
+      "Bash(python -m py_compile textprep.py server.py)"
     ]
   }
 }
