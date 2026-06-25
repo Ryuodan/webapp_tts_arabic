@@ -136,6 +136,7 @@ const SAMPLE_SENTENCES = [
 // ── State ─────────────────────────────────────────────────────
 let selectedModel = 'omnivoice';
 let workerStatus  = { omnivoice: 'offline', voxcpm2: 'offline' };
+let loadingModels = new Set();   // models with an in-flight /load request
 let currentAudioUrl = null;
 let isGenerating  = false;
 let isComparing   = false;
@@ -307,6 +308,13 @@ function renderModelCards() {
   container.innerHTML = '';
   for (const m of Object.values(MODELS)) {
     const st = workerStatus[m.id] || 'offline';
+    // 'loading' = worker is up but the model isn't in RAM yet (loads on demand).
+    const isLoading = loadingModels.has(m.id);
+    const statusText = st === 'online'  ? '● متاح'
+                     : st === 'offline' ? '● غير متاح'
+                     : isLoading        ? '● جاري التحميل…'
+                                        : '● غير محمّل';
+    const statusCls = (st === 'loading') ? 'loading' : st;  // keep the blink while up-but-not-loaded
     const card = document.createElement('div');
     card.className = `model-card ${m.id} ${selectedModel === m.id ? 'active' : ''} ${st === 'offline' ? 'offline' : ''}`;
     card.dataset.model = m.id;
@@ -322,10 +330,39 @@ function renderModelCards() {
       <div class="mc-traits">
         ${(m.traits || []).map(t => `<span>${escapeHtml(t)}</span>`).join('')}
       </div>
-      <div class="mc-status ${st}">${st === 'online' ? '● متاح' : st === 'loading' ? '● تحميل' : '● غير متاح'}</div>
+      <div class="mc-footer">
+        <span class="mc-status ${statusCls}">${statusText}</span>
+        ${st === 'loading'
+          ? `<button class="mc-load-btn" data-load="${m.id}" ${isLoading ? 'disabled' : ''}>${isLoading ? 'جاري التحميل…' : 'تحميل النموذج'}</button>`
+          : ''}
+      </div>
     `;
     card.addEventListener('click', () => selectModel(m.id));
+    const loadBtn = card.querySelector('.mc-load-btn');
+    if (loadBtn) loadBtn.addEventListener('click', (e) => { e.stopPropagation(); loadModel(m.id); });
     container.appendChild(card);
+  }
+}
+
+// ── Explicitly load (warm) a model into memory ────────────────
+// Models load lazily on first synth; this lets the user trigger it ahead of time.
+// On this CPU-only host a load takes ~2–3 min and ~6–7 GB RAM per model.
+async function loadModel(id) {
+  if (loadingModels.has(id) || workerStatus[id] === 'online') return;
+  loadingModels.add(id);
+  renderModelCards();
+  const name = (MODELS[id] && MODELS[id].name) || id;
+  showToast(`جاري تحميل ${name}… (قد يستغرق 2–3 دقائق)`, '', 4000);
+  try {
+    const r = await fetch(`/api/${id}/load`, { method: 'POST' });
+    if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+    loadingModels.delete(id);
+    await pollStatus();                 // refresh badges immediately
+    showToast(`✓ تم تحميل ${name}`, 'success');
+  } catch (e) {
+    loadingModels.delete(id);
+    renderModelCards();
+    showToast(`تعذّر تحميل النموذج: ${String(e.message).slice(0, 160)}`, 'warn');
   }
 }
 
