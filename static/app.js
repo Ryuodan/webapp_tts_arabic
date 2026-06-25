@@ -144,7 +144,8 @@ let paramValues   = {};  // { omnivoice: {speaker: '', ...}, ... }
 let manualOverride = {}; // { omnivoice: {enabled, text, instruct}, ... } — verbatim model-input edits
 let cloneFiles    = {};  // { ref_audio: File|null, ref_text: '', ... }
 let compareSelection = {};
-let currentCompareRunId = null;  // id of the comparison run currently shown in the grid (for retry)
+let currentCompareRunId = null;  // id of the comparison run currently being generated (for retry)
+let expandedCompareRuns = new Set();  // ids of saved comparison runs expanded inline
 
 // ── DOM helpers ───────────────────────────────────────────────
 const $  = id => document.getElementById(id);
@@ -1234,13 +1235,13 @@ function miniTitleHtml(mid) {
 }
 
 // Final content for one compare mini-player — used both live and when restoring a saved run.
-function miniPlayerHtml(mid, item) {
+function miniPlayerHtml(mid, item, runId = null) {
   const options = item.options || optionSummary(mid, false);
   if (item.error) {
     return `
       ${miniTitleHtml(mid)}
       <div class="mini-player-meta error">خطأ: ${escapeHtml(String(item.error).slice(0, 120))}</div>
-      <button class="mini-retry" data-mid="${escapeAttr(mid)}" type="button">↻ إعادة المحاولة</button>
+      <button class="mini-retry" data-run-id="${escapeAttr(runId || '')}" data-mid="${escapeAttr(mid)}" type="button">↻ إعادة المحاولة</button>
       ${optionChipsHtml(options)}
     `;
   }
@@ -1317,6 +1318,13 @@ function loadCompareRuns() {
     } catch { /* ignore */ }
     try { localStorage.removeItem(COMPARE_KEY); } catch { /* ignore */ }
   }
+  // A run interrupted by a reload may have left items mid-generation — surface them as
+  // retryable errors instead of a stuck spinner.
+  for (const run of compareRuns) {
+    for (const item of run.items || []) {
+      if (item.pending) { delete item.pending; if (!item.result) item.error = item.error || 'لم تكتمل المقارنة'; }
+    }
+  }
 }
 
 function persistCompareRuns() {
@@ -1345,29 +1353,48 @@ function clearCompareRuns() {
   renderCompareLibrary();
 }
 
-// Render one comparison run (live or saved) into the results grid.
-function renderComparisonInto(run) {
-  const items = (run.items || []).filter(item => MODELS[item.mid]);
-  if (!items.length) return;
-  currentCompareRunId = run.id;   // so retry buttons in the grid target this run
-  const grid = $('compare-grid');
-  $('compare-results').classList.remove('hidden');
-  grid.innerHTML = '';
-  for (const item of items) {
+// Render one run's mini-players + "best of" summary into a container.
+// Handles pending items (still generating) so the same renderer drives a live run.
+function renderRunGrid(container, run) {
+  container.innerHTML = '';
+  for (const item of (run.items || []).filter(i => MODELS[i.mid])) {
     const mini = document.createElement('div');
-    mini.className = `mini-player ${item.mid} done`;
-    mini.id = `mini-${item.mid}`;
-    mini.innerHTML = miniPlayerHtml(item.mid, item);
-    grid.appendChild(mini);
+    mini.className = `mini-player ${item.mid} ${item.pending ? '' : 'done'}`;
+    mini.id = `mini-${run.id}-${item.mid}`;
+    mini.innerHTML = item.pending
+      ? `${miniTitleHtml(item.mid)}<div class="mini-spinner">في الانتظار…</div>${optionChipsHtml(item.options || optionSummary(item.mid, false))}`
+      : miniPlayerHtml(item.mid, item, run.id);
+    container.appendChild(mini);
   }
-  renderCompareSummary(grid, items);
+  renderCompareSummary(container, (run.items || []).filter(i => !i.pending && i.result));
 }
 
-function viewSavedComparison(id) {
-  const run = compareRuns.find(r => r.id === id);
-  if (!run) return;
-  renderComparisonInto(run);
-  $('compare-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+// Replace one mini-player's content in place (used during live generation + retry).
+function setMiniHtml(runId, mid, html) {
+  const mini = $(`mini-${runId}-${mid}`);
+  if (mini) mini.innerHTML = html;
+}
+
+// Rebuild a run's "best of" summary in place without touching its players.
+function refreshRunSummary(run) {
+  const first = (run.items || [])[0];
+  const mini = first && $(`mini-${run.id}-${first.mid}`);
+  const body = mini && mini.closest('.sc-body');
+  if (!body) return;
+  const old = body.querySelector('.compare-summary');
+  if (old) old.remove();
+  renderCompareSummary(body, (run.items || []).filter(i => !i.pending && i.result));
+}
+
+function toggleCompareRun(id) {
+  if (expandedCompareRuns.has(id)) expandedCompareRuns.delete(id);
+  else expandedCompareRuns.add(id);
+  renderCompareLibrary();
+}
+
+function setAllCompareRunsExpanded(expand) {
+  expandedCompareRuns = expand ? new Set(compareRuns.map(r => r.id)) : new Set();
+  renderCompareLibrary();
 }
 
 // Re-run a single failed (or any) model in a comparison, reusing the same text + captured params.
@@ -1380,8 +1407,8 @@ async function retryCompareItem(runId, mid) {
 
   const prev = run.items[idx];
   const options = prev.options || optionSummary(mid, false);
-  const mini = $(`mini-${mid}`);
-  if (mini) mini.innerHTML = `${miniTitleHtml(mid)}<div class="mini-spinner">جاري إعادة المحاولة…</div>${optionChipsHtml(options)}`;
+  expandedCompareRuns.add(runId);   // make sure the run is visible while it retries
+  setMiniHtml(runId, mid, `${miniTitleHtml(mid)}<div class="mini-spinner">جاري إعادة المحاولة…</div>${optionChipsHtml(options)}`);
 
   let item;
   try {
@@ -1399,48 +1426,67 @@ async function retryCompareItem(runId, mid) {
   }
 
   run.items[idx] = item;
-  if (mini) mini.innerHTML = miniPlayerHtml(mid, item);
   persistCompareRuns();
-  renderCompareLibrary();
-  // Refresh the "best of" summary in place.
-  const grid = $('compare-grid');
-  const old = grid.querySelector('.compare-summary');
-  if (old) old.remove();
-  renderCompareSummary(grid, run.items);
+  setMiniHtml(runId, mid, miniPlayerHtml(mid, item, runId));
+  refreshRunSummary(run);
 }
 
-// The list of saved comparisons (click to re-open, with per-item + clear-all delete).
+// The library of comparisons (live + old), each expandable inline so several runs can be
+// opened and listened to against each other.
 function renderCompareLibrary() {
   const card = $('saved-compare-card');
   const list = $('saved-compare-list');
   if (!card || !list) return;
   if (!compareRuns.length) { card.hidden = true; list.innerHTML = ''; return; }
   card.hidden = false;
-  list.innerHTML = compareRuns.map(run => {
+
+  // Toggle-all reflects whether everything is currently open.
+  const toggleAll = $('btn-toggle-compares');
+  if (toggleAll) {
+    const allOpen = compareRuns.every(r => expandedCompareRuns.has(r.id));
+    toggleAll.textContent = allOpen ? 'طيّ الكل' : 'فتح الكل';
+    toggleAll.dataset.expand = allOpen ? '0' : '1';
+  }
+
+  list.innerHTML = '';
+  for (const run of compareRuns) {
+    const expanded = expandedCompareRuns.has(run.id);
     const icons = [...new Set((run.items || []).map(i => (MODELS[i.mid] || {}).icon || ''))].join(' ');
     const n = (run.items || []).length;
     const errs = (run.items || []).filter(i => i.error).length;
     const snippet = (run.text || '').slice(0, 70) || '—';
     const meta = `${icons} · ${n} نماذج${errs ? ` · ${errs} خطأ` : ''} · ${formatAgo(run.timestamp)}`;
-    return `
-      <div class="saved-compare-item" data-id="${escapeAttr(run.id)}">
-        <div class="sc-info">
-          <div class="sc-snippet">${escapeHtml(snippet)}</div>
-          <div class="sc-meta">${escapeHtml(meta)}</div>
-        </div>
-        <div class="sc-actions">
-          <button class="hi-btn sc-open" title="عرض">↗</button>
-          <button class="hi-btn sc-del" title="حذف">🗑</button>
-        </div>
-      </div>`;
-  }).join('');
 
-  list.querySelectorAll('.saved-compare-item').forEach(el => {
-    const id = el.dataset.id;
-    el.addEventListener('click', e => { if (!e.target.closest('.sc-actions')) viewSavedComparison(id); });
-    el.querySelector('.sc-open').addEventListener('click', () => viewSavedComparison(id));
-    el.querySelector('.sc-del').addEventListener('click', e => { e.stopPropagation(); deleteCompareRun(id); });
-  });
+    const itemEl = document.createElement('div');
+    itemEl.className = `saved-compare-item ${expanded ? 'expanded' : ''}`;
+    itemEl.dataset.id = run.id;
+
+    const head = document.createElement('div');
+    head.className = 'sc-head';
+    head.innerHTML = `
+      <span class="sc-caret">${expanded ? '▾' : '▸'}</span>
+      <div class="sc-info">
+        <div class="sc-snippet">${escapeHtml(snippet)}</div>
+        <div class="sc-meta">${escapeHtml(meta)}</div>
+      </div>
+      <div class="sc-actions">
+        <button class="hi-btn sc-del" title="حذف">🗑</button>
+      </div>`;
+    head.addEventListener('click', e => {
+      if (e.target.closest('.sc-actions')) return;
+      toggleCompareRun(run.id);
+    });
+    head.querySelector('.sc-del').addEventListener('click', e => { e.stopPropagation(); deleteCompareRun(run.id); });
+    itemEl.appendChild(head);
+
+    if (expanded) {
+      const body = document.createElement('div');
+      body.className = 'sc-body compare-grid';
+      renderRunGrid(body, run);
+      itemEl.appendChild(body);
+    }
+    list.appendChild(itemEl);
+  }
 }
 
 async function compareModels() {
@@ -1454,67 +1500,52 @@ async function compareModels() {
   isComparing = true;
   const btn = $('btn-compare');
   btn.disabled = true;
-  $('compare-results').classList.remove('hidden');
-  $('compare-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
-  const grid = $('compare-grid');
-  grid.innerHTML = '';
 
-  // Create mini-player placeholders
-  const players = {};
-  for (const mid of selected) {
-    const mini = document.createElement('div');
-    mini.className = `mini-player ${mid}`;
-    mini.id = `mini-${mid}`;
-    mini.innerHTML = `
-      ${miniTitleHtml(mid)}
-      <div class="mini-spinner">في الانتظار…</div>
-      ${optionChipsHtml(optionSummary(mid, false))}
-    `;
-    grid.appendChild(mini);
-    players[mid] = mini;
-  }
+  // Create the run up front and show it expanded at the top of the library, so the live
+  // generation streams into the same card the user will keep and compare against later.
+  // params snapshot per item lets a later retry reproduce these exact inputs.
+  const run = {
+    id: `c${Date.now()}`,
+    text,
+    timestamp: Date.now(),
+    items: selected.map(mid => ({ mid, pending: true, options: optionSummary(mid, false), params: { ...paramValues[mid] } })),
+  };
+  currentCompareRunId = run.id;
+  expandedCompareRuns.add(run.id);
+  addCompareRun(run);   // unshift + persist + renderCompareLibrary → renders the pending card
+  $('saved-compare-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-  const results = [];
   for (let i = 0; i < selected.length; i++) {
     const mid = selected[i];
+    const idx = run.items.findIndex(it => it.mid === mid);
+    const options = run.items[idx].options;
     $('compare-label').textContent = `جاري المقارنة ${i + 1}/${selected.length}`;
-    const options = optionSummary(mid, false);
-    players[mid].innerHTML = `
-      ${miniTitleHtml(mid)}
-      <div class="mini-spinner">جاري التوليد…</div>
-      ${optionChipsHtml(options)}
-    `;
+    setMiniHtml(run.id, mid, `${miniTitleHtml(mid)}<div class="mini-spinner">جاري التوليد…</div>${optionChipsHtml(options)}`);
 
-    const params = { ...paramValues[mid] };   // snapshot so a retry reproduces these exact inputs
+    let item;
     try {
       const fd = buildFormDataForModel(mid, text, false);
-
       const r = await fetch(`/api/${mid}/synthesize`, { method: 'POST', body: fd });
       if (!r.ok) throw new Error(await r.text());
       const result = await r.json();
       const url = `/audio/${mid}/${result.filename}`;
       addToHistory({ ...result, text, url, options, timestamp: Date.now() });
-
-      const item = { mid, result, options, url, params };
-      players[mid].innerHTML = miniPlayerHtml(mid, item);
-      results.push(item);
+      item = { mid, result, options, url, params: run.items[idx].params };
     } catch (e) {
-      const item = { mid, error: e.message, options, params };
-      players[mid].innerHTML = miniPlayerHtml(mid, item);
-      results.push(item);
+      item = { mid, error: e.message, options, params: run.items[idx].params };
     }
 
-    players[mid].classList.add('done');
+    run.items[idx] = item;
+    persistCompareRuns();
+    setMiniHtml(run.id, mid, miniPlayerHtml(mid, item, run.id));
+    refreshRunSummary(run);
   }
 
-  renderCompareSummary(grid, results);
-  const run = { id: `c${Date.now()}`, text, timestamp: Date.now(), items: results };
-  addCompareRun(run);
-  currentCompareRunId = run.id;   // grid now shows this run; retry buttons target it
   isComparing = false;
   btn.disabled = false;
   updateCompareLabel();
-  showToast(results.some(r => r.error) ? 'اكتملت المقارنة مع أخطاء' : 'اكتملت المقارنة', results.some(r => r.error) ? 'warn' : 'success');
+  const hadErr = run.items.some(r => r.error);
+  showToast(hadErr ? 'اكتملت المقارنة مع أخطاء' : 'اكتملت المقارنة', hadErr ? 'warn' : 'success');
 }
 
 // ── Accordion toggle ──────────────────────────────────────────
@@ -1553,8 +1584,8 @@ function init() {
   renderComposePanel();
   renderHistory();
   loadCompareRuns();
-  renderCompareLibrary();                              // saved comparisons list
-  if (compareRuns[0]) renderComparisonInto(compareRuns[0]);  // restore the latest after reload
+  if (compareRuns[0]) expandedCompareRuns.add(compareRuns[0].id);  // open the latest after reload
+  renderCompareLibrary();                              // comparisons library (live + old)
   setupAccordions();
   setupAudioEvents();
 
@@ -1585,16 +1616,21 @@ function init() {
   // Clear saved comparisons
   $('btn-clear-compares').addEventListener('click', clearCompareRuns);
 
+  // Expand / collapse all saved comparisons
+  $('btn-toggle-compares').addEventListener('click', e => {
+    setAllCompareRunsExpanded(e.currentTarget.dataset.expand === '1');
+  });
+
   // History filter
   $('history-filter').addEventListener('change', () => renderHistory());
 
   // Compare
   $('btn-compare').addEventListener('click', compareModels);
 
-  // Retry a failed model inside a comparison (event-delegated on the results grid)
-  $('compare-grid').addEventListener('click', e => {
+  // Retry a failed model inside any comparison (event-delegated on the library)
+  $('saved-compare-list').addEventListener('click', e => {
     const btn = e.target.closest('.mini-retry');
-    if (btn) retryCompareItem(currentCompareRunId, btn.dataset.mid);
+    if (btn) { e.stopPropagation(); retryCompareItem(btn.dataset.runId, btn.dataset.mid); }
   });
 
   // Initial status poll + periodic refresh

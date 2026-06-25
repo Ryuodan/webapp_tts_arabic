@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Arabic TTS Studio</title>
-  <link rel="stylesheet" href="style.css?v=8">
+  <link rel="stylesheet" href="style.css?v=9">
 </head>
 <body>
 
@@ -184,22 +184,17 @@
         </div>
       </section>
 
-      <!-- Compare results (hidden until compare run) -->
-      <section class="panel-section compare-results hidden" id="compare-results">
-        <h3 class="section-label">نتائج المقارنة</h3>
-        <div class="compare-grid" id="compare-grid">
-          <!-- mini-players rendered by JS -->
-        </div>
-      </section>
-
-      <!-- Saved comparisons library (hidden until at least one is saved) -->
+      <!-- Comparisons library: live + old runs, each expandable inline (hidden until one exists) -->
       <section class="panel-section saved-compare-card" id="saved-compare-card" hidden>
         <div class="history-header">
-          <h3 class="section-label">المقارنات المحفوظة</h3>
-          <button class="btn-ghost btn-xs" id="btn-clear-compares">مسح الكل</button>
+          <h3 class="section-label">المقارنات</h3>
+          <div class="history-controls">
+            <button class="btn-ghost btn-xs" id="btn-toggle-compares" data-expand="1">فتح الكل</button>
+            <button class="btn-ghost btn-xs" id="btn-clear-compares">مسح الكل</button>
+          </div>
         </div>
         <div class="saved-compare-list" id="saved-compare-list">
-          <!-- saved comparison rows rendered by JS -->
+          <!-- comparison cards (expandable) rendered by JS -->
         </div>
       </section>
 
@@ -230,6 +225,6 @@
   <!-- Toast notification -->
   <div class="toast hidden" id="toast"></div>
 
-  <script src="app.js?v=12"></script>
+  <script src="app.js?v=13"></script>
 </body>
 </html>
