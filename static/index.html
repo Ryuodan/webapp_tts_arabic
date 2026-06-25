@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Arabic TTS Studio</title>
-  <link rel="stylesheet" href="style.css?v=11">
+  <link rel="stylesheet" href="style.css?v=12">
 </head>
 <body>
 
@@ -235,6 +235,7 @@
         <div class="history-header">
           <h3 class="section-label">السجل</h3>
           <div class="history-controls">
+            <button class="btn-ghost btn-xs" id="btn-toggle-history" aria-expanded="true" aria-controls="history-list">طي</button>
             <select class="filter-select" id="history-filter">
               <option value="all">كل النماذج</option>
               <option value="omnivoice">OmniVoice</option>
@@ -257,6 +258,6 @@
   <!-- Toast notification -->
   <div class="toast hidden" id="toast"></div>
 
-  <script src="app.js?v=15"></script>
+  <script src="app.js?v=16"></script>
 </body>
 </html>

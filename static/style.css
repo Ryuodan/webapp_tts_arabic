@@ -918,6 +918,10 @@ textarea { resize: vertical; }
 
 /* ── History ──────────────────────────────────────────────── */
 .history-card { flex: 1; min-height: 200px; }
+.history-card.history-collapsed {
+  flex: 0 0 auto;
+  min-height: 0;
+}
 .history-header {
   display: flex;
   align-items: center;
@@ -936,7 +940,15 @@ textarea { resize: vertical; }
   cursor: pointer;
   direction: rtl;
 }
-.history-list { padding: 0 8px 8px; display: flex; flex-direction: column; gap: 4px; }
+.history-list {
+  padding: 0 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: min(42vh, 520px);
+  overflow-y: auto;
+}
+.history-card.history-collapsed .history-list { display: none; }
 .history-empty { padding: 20px; text-align: center; color: var(--txt3); font-size: .78rem; }
 
 .history-item {

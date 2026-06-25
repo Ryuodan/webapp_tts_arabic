@@ -1210,7 +1210,9 @@ function setupAudioEvents() {
 
 // ── History ───────────────────────────────────────────────────
 const HISTORY_KEY = 'tts_history_v2';
+const HISTORY_COLLAPSED_KEY = 'tts_history_collapsed_v1';
 let historyItems = [];
+let historyCollapsed = false;
 
 function loadHistory() {
   try {
@@ -1219,10 +1221,44 @@ function loadHistory() {
   } catch { historyItems = []; }
 }
 
+function loadHistoryCollapsed() {
+  try {
+    historyCollapsed = localStorage.getItem(HISTORY_COLLAPSED_KEY) === '1';
+  } catch {
+    historyCollapsed = false;
+  }
+  applyHistoryCollapsedState();
+}
+
 function saveHistory() {
   // Keep last 200 items
   const trimmed = historyItems.slice(0, 200);
   localStorage.setItem(HISTORY_KEY, JSON.stringify(trimmed));
+}
+
+function setHistoryCollapsed(collapsed) {
+  historyCollapsed = Boolean(collapsed);
+  try {
+    localStorage.setItem(HISTORY_COLLAPSED_KEY, historyCollapsed ? '1' : '0');
+  } catch {}
+  applyHistoryCollapsedState();
+}
+
+function applyHistoryCollapsedState() {
+  const card = document.querySelector('.history-card');
+  const list = $('history-list');
+  const btn = $('btn-toggle-history');
+  if (!card || !list || !btn) return;
+
+  card.classList.toggle('history-collapsed', historyCollapsed);
+  list.setAttribute('aria-hidden', String(historyCollapsed));
+  btn.setAttribute('aria-expanded', String(!historyCollapsed));
+  btn.textContent = historyCollapsed ? 'فتح' : 'طي';
+  btn.title = historyCollapsed ? 'فتح السجل' : 'طي السجل';
+}
+
+function toggleHistoryCollapsed() {
+  setHistoryCollapsed(!historyCollapsed);
 }
 
 function addToHistory(item) {
@@ -1688,6 +1724,7 @@ function clearHistory() {
 function init() {
   initParamValues();
   loadHistory();
+  loadHistoryCollapsed();
 
   renderModelCards();
   renderStatusBadges();
@@ -1738,6 +1775,9 @@ function init() {
 
   // Clear history
   $('btn-clear-history').addEventListener('click', clearHistory);
+
+  // Collapse / expand history
+  $('btn-toggle-history').addEventListener('click', toggleHistoryCollapsed);
 
   // Clear saved comparisons
   $('btn-clear-compares').addEventListener('click', clearCompareRuns);
