@@ -20,15 +20,27 @@ STATIC    = BASE_DIR / "static"
 WORKDIR   = pathlib.Path(os.getenv("TTS_WORKDIR", "~/tts-05172026")).expanduser()
 
 OUTPUT_DIRS = {
-    # Keep old Fish/S2 Pro recordings serveable, but do not expose it as an active worker.
+    # Keep old Fish/VoxCPM2 recordings serveable, but they are no longer active workers.
     "fish":      WORKDIR / "outputs",
-    "omnivoice": WORKDIR / "outputs_omnivoice",
     "voxcpm2":   WORKDIR / "outputs_voxcpm2",
+    # The two interface models are OmniVoice variants sharing one worker + output dir.
+    "omnivoice":      WORKDIR / "outputs_omnivoice",
+    "omnivoice_ft":   WORKDIR / "outputs_omnivoice",
+    "omnivoice_base": WORKDIR / "outputs_omnivoice",
 }
 
+_OMNIVOICE_URL = "http://127.0.0.1:8082"
 WORKER_URLS = {
-    "omnivoice": "http://127.0.0.1:8082",
-    "voxcpm2":   "http://127.0.0.1:8083",
+    # Aliases for the SAME worker; the frontend fixes the `variant` form field per model.
+    "omnivoice":      _OMNIVOICE_URL,
+    "omnivoice_ft":   _OMNIVOICE_URL,
+    "omnivoice_base": _OMNIVOICE_URL,
+}
+
+# Which worker-side model variant each alias warms on /load ("" = worker default).
+MODEL_VARIANT = {
+    "omnivoice_ft":   "finetuned",
+    "omnivoice_base": "base",
 }
 
 SINGLE_MODEL_MODE = os.getenv("TTS_SINGLE_MODEL", "1").lower() not in {"0", "false", "no", "off"}
@@ -56,8 +68,9 @@ async def _read_limited_body(request: Request) -> bytes:
 async def _unload_other_models(active_model: str):
     if not SINGLE_MODEL_MODE:
         return
+    active_url = WORKER_URLS[active_model]
     for model, url in WORKER_URLS.items():
-        if model == active_model:
+        if url == active_url:       # aliases of the active worker included
             continue
         try:
             await _client.post(f"{url}/unload", timeout=60.0)
@@ -78,13 +91,21 @@ app = FastAPI(title="Arabic TTS Studio", lifespan=lifespan, docs_url=None, redoc
 
 @app.get("/api/status")
 async def status():
-    results = {}
-    for model, url in WORKER_URLS.items():
+    # One health call per unique worker URL; aliases reuse the same payload.
+    by_url = {}
+    for url in set(WORKER_URLS.values()):
         try:
             r = await _client.get(f"{url}/health", timeout=3.0)
-            results[model] = r.json()
+            by_url[url] = r.json()
         except Exception:
+            by_url[url] = None
+    results = {}
+    for model, url in WORKER_URLS.items():
+        health = by_url[url]
+        if health is None:
             results[model] = {"model": model, "status": "offline", "ready": False, "model_loaded": False}
+        else:
+            results[model] = health
     results["_memory_policy"] = {
         "single_model_mode": SINGLE_MODEL_MODE,
         "max_request_mb": MAX_REQUEST_BYTES // (1024 * 1024),
@@ -122,7 +143,10 @@ async def load_model(model: str):
     async with _model_gate:
         await _unload_other_models(model)
         try:
-            r = await _client.post(f"{WORKER_URLS[model]}/load", timeout=900.0)
+            variant = MODEL_VARIANT.get(model, "")
+            r = await _client.post(f"{WORKER_URLS[model]}/load",
+                                   params={"variant": variant} if variant else None,
+                                   timeout=900.0)
             return JSONResponse(r.json())
         except httpx.ConnectError:
             raise HTTPException(503, f"{model} worker is not running")

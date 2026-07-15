@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Arabic TTS Studio</title>
-  <link rel="stylesheet" href="style.css?v=13">
+  <link rel="stylesheet" href="style.css?v=14">
 </head>
 <body>
 
@@ -43,7 +43,7 @@
           <span class="acc-arrow">›</span>
         </button>
         <div class="acc-body" id="compose-agent-body">
-          <p class="compose-desc">اختر المهمة واللهجة والجنس والعمر، فيكتب الوكيل النص العربي ويضبط الإعدادات والتعليمات تلقائياً للنموذجين (OmniVoice و VoxCPM2) — ثم راجِع وولّد أو قارِن.</p>
+          <p class="compose-desc">اختر المهمة واللهجة والجنس والعمر، فيكتب الوكيل النص العربي ويضبط الإعدادات والتعليمات تلقائياً لنسختي OmniVoice (المحسّنة والأصلية) — ثم راجِع وولّد أو قارِن.</p>
           <div class="compose-grid">
             <div class="compose-row">
               <label class="param-label" for="compose-job" style="padding:0">المهمة</label>
@@ -238,8 +238,8 @@
             <button class="btn-ghost btn-xs" id="btn-toggle-history" aria-expanded="true" aria-controls="history-list">طي</button>
             <select class="filter-select" id="history-filter">
               <option value="all">كل النماذج</option>
-              <option value="omnivoice">OmniVoice</option>
-              <option value="voxcpm2">VoxCPM2</option>
+              <option value="omnivoice_ft">OmniVoice المحسّن</option>
+              <option value="omnivoice_base">OmniVoice الأصلي</option>
             </select>
             <button class="btn-ghost btn-xs" id="btn-clear-history">مسح الكل</button>
           </div>
@@ -258,6 +258,6 @@
   <!-- Toast notification -->
   <div class="toast hidden" id="toast"></div>
 
-  <script src="app.js?v=17"></script>
+  <script src="app.js?v=18"></script>
 </body>
 </html>

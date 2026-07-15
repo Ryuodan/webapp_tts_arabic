@@ -1,20 +1,26 @@
 # OmniVoice fine-tuned model
 
-The webapp's OmniVoice worker automatically loads the best Saudi-HQ fine-tuned
-checkpoint when it is present on disk. The checkpoint weights are too large for
-Git (2.45 GB `model.safetensors`), so only the selection metadata is versioned
-here; the paths inside `BEST_FINETUNED_CHECKPOINT.md` are relative to the TTS
-work directory (`TTS_WORKDIR`, default `~/tts-05172026`).
+The best Saudi-HQ fine-tuned checkpoint (`saudi_hq_ft/checkpoint-2500`,
+eval/loss 4.4111) ships WITH the repo in `best_finetuned/`. GitHub rejects
+files over 100 MB, so the 2.45 GB `model.safetensors` is committed as split
+`model.safetensors.part-*` chunks. After cloning or pulling, assemble it once:
 
-`workers/omnivoice_server.py` exposes two selectable variants (the UI's
-"نسخة النموذج" select, sent as the `variant` form field; only one is kept in
-memory at a time):
+```bash
+bash scripts/assemble_omnivoice_checkpoint.sh
+```
 
-- `finetuned` — `OMNIVOICE_FINETUNED_MODEL_ID` env var if set, otherwise
-  `$TTS_WORKDIR/omnivoice/checkpoints/best_finetuned`, a symlink maintained in
-  the training project pointing at the best available checkpoint (currently
-  `saudi_hq_ft/checkpoint-2500`, eval/loss 4.4111). The variant is offered only
-  when the weights exist; it is the default when available.
+The script concatenates the parts and verifies the SHA-256 recorded in
+`best_finetuned_checkpoint.json`. The assembled `model.safetensors` stays
+gitignored; the config/tokenizer files next to the parts are committed as-is.
+
+The interface exposes the two model versions as separate cards ("OmniVoice
+المحسّن" and "OmniVoice الأصلي"); both ride the same worker on port 8082, which
+keeps one variant in memory at a time and swaps on demand:
+
+- `finetuned` — resolved in order: `OMNIVOICE_FINETUNED_MODEL_ID` env var →
+  repo-local `models/omnivoice/best_finetuned/` (after assembly) →
+  `$TTS_WORKDIR/omnivoice/checkpoints/best_finetuned` (training-project
+  symlink). Offered only when weights exist; the default when available.
 - `base` — the stock model (`OMNIVOICE_BASE_MODEL_ID`, default
   `k2-fsa/OmniVoice` from Hugging Face).
 

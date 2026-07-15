@@ -19,10 +19,12 @@ from fastapi.responses import FileResponse
 WORKDIR = pathlib.Path(os.getenv("TTS_WORKDIR", "~/tts-05172026")).expanduser()
 OUT_DIR = pathlib.Path(os.getenv("OMNIVOICE_OUT_DIR", str(WORKDIR / "outputs_omnivoice"))).expanduser()
 OUT_DIR.mkdir(parents=True, exist_ok=True)
+REPO_DIR = pathlib.Path(__file__).resolve().parents[1]
 OMNIVOICE_BASE_MODEL_ID = os.getenv("OMNIVOICE_BASE_MODEL_ID", "k2-fsa/OmniVoice")
 # Best Saudi-HQ fine-tuned checkpoint (see models/omnivoice/BEST_FINETUNED_CHECKPOINT.md).
-# The weights live outside the repo; the training project keeps this symlink pointing
-# at the best available checkpoint (currently saudi_hq_ft/checkpoint-2500).
+# The repo ships it as split parts — run scripts/assemble_omnivoice_checkpoint.sh once after
+# pulling to produce model.safetensors. The training-project symlink is the fallback source.
+REPO_CHECKPOINT = REPO_DIR / "models" / "omnivoice" / "best_finetuned"
 FINETUNED_CHECKPOINT = WORKDIR / "omnivoice" / "checkpoints" / "best_finetuned"
 
 
@@ -30,8 +32,9 @@ def _finetuned_model_id() -> str | None:
     env = os.getenv("OMNIVOICE_FINETUNED_MODEL_ID")
     if env:
         return env
-    if (FINETUNED_CHECKPOINT / "model.safetensors").exists():
-        return str(FINETUNED_CHECKPOINT)
+    for candidate in (REPO_CHECKPOINT, FINETUNED_CHECKPOINT):
+        if (candidate / "model.safetensors").exists():
+            return str(candidate)
     return None
 
 
@@ -64,8 +67,7 @@ def _dialect_language(dialect: str) -> str:
 
 
 # Built-in cloned voices bundled with the repo: voices/<id>/voice.json + reference wav.
-VOICES_DIR = pathlib.Path(os.getenv("TTS_VOICES_DIR",
-                                    str(pathlib.Path(__file__).resolve().parents[1] / "voices"))).expanduser()
+VOICES_DIR = pathlib.Path(os.getenv("TTS_VOICES_DIR", str(REPO_DIR / "voices"))).expanduser()
 
 
 def _load_builtin_voices() -> dict:
@@ -181,11 +183,11 @@ def _do_load(variant: str = ""):
     _model_variant = variant
 
 
-async def _ensure_loaded():
+async def _ensure_loaded(variant: str = ""):
     global _last_used
     async with _lock:
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, _do_load)
+        await loop.run_in_executor(None, _do_load, variant)
         _last_used = time.monotonic()
 
 
@@ -239,9 +241,13 @@ async def health():
 
 
 @app.post("/load")
-async def load_endpoint():
-    await _ensure_loaded()
-    return {"status": "loaded", "rss_mb": _rss_mb()}
+async def load_endpoint(variant: str = ""):
+    variant = (variant or "").strip().lower()
+    if variant and variant not in MODEL_VARIANTS:
+        raise HTTPException(400, f"Model variant '{variant}' is not available on this server "
+                                 f"(available: {', '.join(sorted(MODEL_VARIANTS))})")
+    await _ensure_loaded(variant)
+    return {"status": "loaded", "variant": _model_variant, "rss_mb": _rss_mb()}
 
 
 @app.post("/unload")

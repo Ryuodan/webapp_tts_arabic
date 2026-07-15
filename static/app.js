@@ -1,72 +1,59 @@
 'use strict';
 
 // ── Model definitions ────────────────────────────────────────
+// The interface exposes exactly two models: the Saudi-HQ fine-tuned OmniVoice and the
+// stock one. Both ride the SAME worker (gateway aliases -> port 8082); fixedParams.variant
+// tells the worker which checkpoint to load. VoxCPM2/Fish are retired from the interface.
+const OMNI_SHARED = {
+  params: [
+    { id: 'voice', label: 'صوت جاهز (مستنسخ)', type: 'select', default: '',
+      options: [
+        { value: '',      label: 'بدون — صوت النموذج' },
+        { value: 'abeer', label: 'عبير — سعودية' },
+        { value: 'ahmed', label: 'أحمد — فصحى' },
+      ],
+      hint: 'أصوات مرجعية مضمّنة في السيرفر تُستنسخ تلقائياً (voices/). رفع صوت مرجعي يدوياً من لوحة الاستنساخ يتجاوز هذا الاختيار.' },
+    { id: 'speaker', label: 'Voice / Style Prompt', type: 'text',
+      placeholder: 'e.g. female, young adult, whisper', default: '',
+      hint: 'وصف الصوت بمفردات OmniVoice الإنجليزية فقط: الجنس (male/female)، العمر (young adult/middle-aged/elderly)، النبرة (low/high pitch)، الأسلوب (whisper). لا يقبل وصفاً عربياً حراً. اللهجة العربية تُضبط تلقائياً عبر لغة النموذج، وليست جزءاً من هذا الوصف. اتركه فارغاً للصوت الافتراضي.' },
+  ],
+  emotionTags: ['[laughter]'],   // base model only documents [laughter]; [applause] is unsupported
+  cloneFields: ['ref_audio', 'ref_text'],
+  formFields: { ref_audio: 'ref_audio', ref_text: 'ref_text' },
+};
+
 const MODELS = {
-  omnivoice: {
-    id: 'omnivoice',
-    name: 'OmniVoice',
+  omnivoice_ft: {
+    ...OMNI_SHARED,
+    id: 'omnivoice_ft',
+    name: 'OmniVoice المحسّن',
+    icon: '⭐',
+    specs: '0.6B · 24kHz · Saudi HQ FT',
+    role: 'أفضل نسخة — بعد الضبط الدقيق على بيانات سعودية عالية الجودة (saudi_hq_ft/checkpoint-2500). الخيار الافتراضي.',
+    traits: ['Saudi fine-tune', 'الأفضل للعربية', 'Voice cloning', '24kHz'],
+    profile: [
+      { label: 'أفضل استخدام', value: 'الإنتاج: نطق عربي/سعودي أفضل من الأصل، مع استنساخ الأصوات المضمّنة (عبير/أحمد).' },
+      { label: 'التحكم', value: 'اللهجة عبر لغة النموذج تلقائياً؛ الجنس/العمر/الأسلوب عبر instruct الإنجليزي + صوت مرجعي اختياري.' },
+      { label: 'ملاحظة', value: 'يتطلب أوزان الـ checkpoint على السيرفر (models/omnivoice/best_finetuned).' },
+    ],
+    compareNote: 'النسخة المحسّنة — قارِنها بالأصلية.',
+    fixedParams: { variant: 'finetuned' },
+  },
+  omnivoice_base: {
+    ...OMNI_SHARED,
+    id: 'omnivoice_base',
+    name: 'OmniVoice الأصلي',
     icon: '🌐',
     specs: '0.6B · 24kHz · 600+ lang',
-    role: 'أوسع تغطية لغات (600+) وجيد للعربية؛ لكن وصف الصوت (instruct) مُدرَّب على الإنجليزية/الصينية فقط.',
+    role: 'النموذج الأصلي k2-fsa/OmniVoice بدون ضبط — خط أساس للمقارنة، وأوسع تغطية لغات (600+).',
     traits: ['600+ لغة', 'Arabic-ready', 'Voice design', '24kHz'],
     profile: [
-      { label: 'أفضل استخدام', value: 'كخط أساس للنطق العربي أو نقل صوت مرجعي بين اللغات.' },
-      { label: 'التحكم', value: 'اللهجة تُختار عبر لغة النموذج العربية تلقائياً؛ الجنس/العمر/الأسلوب عبر instruct الإنجليزي + صوت مرجعي اختياري.' },
-      { label: 'الأداء محلياً', value: 'عادةً أسرع من VoxCPM2 على CPU في هذا السيرفر.' },
+      { label: 'أفضل استخدام', value: 'خط أساس للمقارنة مع النسخة المحسّنة، أو نقل صوت مرجعي بين اللغات.' },
+      { label: 'التحكم', value: 'اللهجة عبر لغة النموذج تلقائياً؛ الجنس/العمر/الأسلوب عبر instruct الإنجليزي + صوت مرجعي اختياري.' },
+      { label: 'ملاحظة', value: 'يشارك نفس العامل (worker)؛ التبديل بين النسختين يعيد تحميل النموذج (دقائق على CPU).' },
     ],
-    compareNote: 'استخدمه كخط أساس للنطق والتغطية اللغوية.',
-    params: [
-      { id: 'variant', label: 'نسخة النموذج', type: 'select', default: 'finetuned',
-        options: [
-          { value: 'finetuned', label: 'المحسّنة — Saudi HQ (الأفضل)' },
-          { value: 'base',      label: 'الأصلية — k2-fsa/OmniVoice' },
-        ],
-        hint: 'المحسّنة = أفضل checkpoint من الضبط السعودي (saudi_hq_ft). إن لم تكن أوزانها متوفرة على السيرفر يرجع طلبها بخطأ واضح — اختر الأصلية حينها.' },
-      { id: 'voice', label: 'صوت جاهز (مستنسخ)', type: 'select', default: '',
-        options: [
-          { value: '',      label: 'بدون — صوت النموذج' },
-          { value: 'abeer', label: 'عبير — سعودية' },
-          { value: 'ahmed', label: 'أحمد — فصحى' },
-        ],
-        hint: 'أصوات مرجعية مضمّنة في السيرفر تُستنسخ تلقائياً (voices/). رفع صوت مرجعي يدوياً من لوحة الاستنساخ يتجاوز هذا الاختيار.' },
-      { id: 'speaker', label: 'Voice / Style Prompt', type: 'text',
-        placeholder: 'e.g. female, young adult, whisper', default: '',
-        hint: 'وصف الصوت بمفردات OmniVoice الإنجليزية فقط: الجنس (male/female)، العمر (young adult/middle-aged/elderly)، النبرة (low/high pitch)، الأسلوب (whisper). لا يقبل وصفاً عربياً حراً. اللهجة العربية تُضبط تلقائياً عبر لغة النموذج، وليست جزءاً من هذا الوصف. اتركه فارغاً للصوت الافتراضي.' },
-    ],
-    emotionTags: ['[laughter]'],   // base model only documents [laughter]; [applause] is unsupported
-    cloneFields: ['ref_audio', 'ref_text'],
-    formFields: { ref_audio: 'ref_audio', ref_text: 'ref_text' },
-  },
-  voxcpm2: {
-    id: 'voxcpm2',
-    name: 'VoxCPM2',
-    icon: '🔊',
-    specs: '2B · 48kHz · Diffusion',
-    role: 'جودة إخراج أعلى واستنساخ صوت مرن (30 لغة)؛ العربية مدعومة لكن بدقة أقل (WER ~13%)، وأثقل نموذج على CPU.',
-    traits: ['30 لغة', '48kHz', 'Voice design', 'Cloning'],
-    profile: [
-      { label: 'أفضل استخدام', value: 'المقاطع النهائية عالية الجودة أو اختبار تصميم/استنساخ صوت متقدم.' },
-      { label: 'التحكم', value: 'CFG + timesteps + صوت مرجعي. اللهجة تُحقن كبادئة (Arabic) قبل النص؛ المرجع يثبّتها أكثر.' },
-      { label: 'الأداء محلياً', value: 'الأبطأ على CPU؛ استخدم 5 timesteps للمسودات و20 للجودة.' },
-    ],
-    compareNote: 'قارنه عندما تكون الجودة أهم من زمن التوليد.',
-    params: [
-      { id: 'style',               label: 'Style cue',        type: 'text',
-        placeholder: 'مثال: calm, formal أو cheerful, energetic', default: '',
-        hint: 'وصف أسلوب/نبرة حر يُحقن كبادئة بين قوسين قبل النص. يضبطه وكيل التأليف تلقائياً؛ اتركه فارغاً للأسلوب الافتراضي.' },
-      { id: 'cfg_value',           label: 'CFG Value',        type: 'range',  min: 1.0, max: 5.0, step: 0.1, default: 2.0,
-        hint: 'أعلى = اتباع أقوى للوصف أو المرجع، وقد يزيد الحدة أو الاصطناع.' },
-      { id: 'inference_timesteps', label: 'Timesteps',        type: 'select', options: [5, 10, 20], default: 10,
-        hint: '5 أسرع للمسودات، 10 متوازن، 20 أفضل جودة لكنه أبطأ.' },
-    ],
-    emotionTags: ['(calm)', '(excited)', '(sad)', '(whisper)', '(cheerful)'],
-    cloneFields: ['ref_wav', 'prompt_wav', 'prompt_text'],
-    formFields: {
-      reference_wav: 'ref_wav',
-      prompt_wav:    'prompt_wav',
-      prompt_text:   'prompt_text',
-    },
-    cloneHint: 'تلميح: أضف وصفاً في أقواس أمام النص: (calm and slow) النص هنا',
+    compareNote: 'الأصل بدون ضبط — خط الأساس.',
+    fixedParams: { variant: 'base' },
   },
 };
 
@@ -94,10 +81,6 @@ const AGES = [
 ];
 const attrLabel = (list, id) => (list.find(o => o.id === id) || list[0]).label;
 
-// English descriptors for VoxCPM2's leading-parenthetical cue — MUST match its worker map.
-const DIALECT_EN = {
-  msa: 'Modern Standard Arabic', saudi: 'Saudi (Najdi) Arabic', egyptian: 'Egyptian Arabic',
-};
 // OmniVoice picks the dialect via its native ISO 639-3 language code — MUST match the worker map.
 const DIALECT_LANG = {
   msa: 'arb', saudi: 'ars', egyptian: 'arz',
@@ -117,25 +100,16 @@ const JOBS = [
 // Returns { text, instruct?, lang? } — `instruct`/`lang` are only present for OmniVoice.
 function buildModelInput(mid, text) {
   const v = paramValues[mid] || {};
-  const desc = DIALECT_EN[v.dialect || 'msa'] || DIALECT_EN.msa;
-  const persona = [GENDER_EN[v.gender] || '', AGE_EN[v.age] || ''].filter(Boolean).join(' ');
   const body = text || '';
 
-  if (mid === 'voxcpm2') {
-    const style = (v.style || '').trim();
-    const cue = [style, persona, desc].filter(Boolean).join(', ');
-    return { text: `(${cue}) ${body}` };
-  }
-  if (mid === 'omnivoice') {
-    // Dialect → language code (not instruct); instruct carries only valid EN voice-design tokens.
-    const attrs = [];
-    const sp = (v.speaker || '').trim();
-    if (sp) attrs.push(sp);
-    if (GENDER_EN[v.gender]) attrs.push(GENDER_EN[v.gender]);
-    if (AGE_EN[v.age]) attrs.push(AGE_EN[v.age]);
-    return { text: body, instruct: attrs.join(', '), lang: DIALECT_LANG[v.dialect || 'msa'] || DIALECT_LANG.msa };
-  }
-  return { text: body };
+  // Both interface models are OmniVoice variants and share the same injection:
+  // dialect → language code (not instruct); instruct carries only valid EN voice-design tokens.
+  const attrs = [];
+  const sp = (v.speaker || '').trim();
+  if (sp) attrs.push(sp);
+  if (GENDER_EN[v.gender]) attrs.push(GENDER_EN[v.gender]);
+  if (AGE_EN[v.age]) attrs.push(AGE_EN[v.age]);
+  return { text: body, instruct: attrs.join(', '), lang: DIALECT_LANG[v.dialect || 'msa'] || DIALECT_LANG.msa };
 }
 
 const SAMPLE_SENTENCES = [
@@ -147,8 +121,8 @@ const SAMPLE_SENTENCES = [
 ];
 
 // ── State ─────────────────────────────────────────────────────
-let selectedModel = 'omnivoice';
-let workerStatus  = { omnivoice: 'offline', voxcpm2: 'offline' };
+let selectedModel = 'omnivoice_ft';
+let workerStatus  = { omnivoice_ft: 'offline', omnivoice_base: 'offline' };
 let loadingModels = new Set();   // models with an in-flight /load request
 let currentAudioUrl = null;
 let isGenerating  = false;
@@ -314,7 +288,7 @@ function showToast(msg, type = '', duration = 3000) {
 // ── Init param values ─────────────────────────────────────────
 function initParamValues() {
   for (const [mid, m] of Object.entries(MODELS)) {
-    paramValues[mid] = { dialect: 'msa', gender: '', age: '' };   // Arabic forced; persona auto
+    paramValues[mid] = { dialect: 'msa', gender: '', age: '', ...(m.fixedParams || {}) };   // Arabic forced; persona auto
     for (const p of m.params) {
       paramValues[mid][p.id] = p.default;
     }
@@ -675,16 +649,9 @@ function renderClonePanel() {
     body.appendChild(hint);
   }
 
-  if (model.id === 'omnivoice') {
-    body.appendChild(makeFileZone('ref_audio', 'الصوت المرجعي (WAV 5–30 ثانية)', 'audio/wav,audio/*'));
-    body.appendChild(makeTextRow('ref_text', 'نص الصوت المرجعي (اختياري)', 'النص المنطوق في الصوت المرجعي…'));
-  }
-
-  if (model.id === 'voxcpm2') {
-    body.appendChild(makeFileZone('ref_wav',    'الصوت المرجعي (Basic cloning)', 'audio/wav,audio/*'));
-    body.appendChild(makeFileZone('prompt_wav', 'صوت البروميبت (Ultimate cloning)', 'audio/wav,audio/*'));
-    body.appendChild(makeTextRow('prompt_text', 'نص البروميبت (Ultimate)', 'النص المنطوق في صوت البروميبت…'));
-  }
+  // Both interface models are OmniVoice variants with the same cloning fields.
+  body.appendChild(makeFileZone('ref_audio', 'الصوت المرجعي (WAV 5–30 ثانية)', 'audio/wav,audio/*'));
+  body.appendChild(makeTextRow('ref_text', 'نص الصوت المرجعي (اختياري)', 'النص المنطوق في الصوت المرجعي…'));
 }
 
 function makeFileZone(key, label, accept) {
@@ -841,10 +808,9 @@ function applyComposed(result) {
     v.dialect = dialect; v.gender = gender; v.age = age;
     if (manualOverride[mid]) manualOverride[mid].enabled = false;
   }
-  paramValues.omnivoice.speaker = result.omnivoice_instruct || '';
-  paramValues.voxcpm2.style = result.voxcpm2_style || '';
-  if (Number.isFinite(result.cfg_value)) paramValues.voxcpm2.cfg_value = result.cfg_value;
-  if (Number.isFinite(result.inference_timesteps)) paramValues.voxcpm2.inference_timesteps = result.inference_timesteps;
+  // Same instruct for both OmniVoice variants (compose's voxcpm2 fields are unused now).
+  paramValues.omnivoice_ft.speaker = result.omnivoice_instruct || '';
+  paramValues.omnivoice_base.speaker = result.omnivoice_instruct || '';
 
   // One shared plain-Arabic script (each engine applies its own style mechanism).
   $('text-input').value = result.text || '';
@@ -1015,11 +981,16 @@ async function pollStatus() {
     const data = await r.json();
     for (const [mid, info] of Object.entries(data)) {
       if (!MODELS[mid]) continue;
+      const want = (MODELS[mid].fixedParams || {}).variant || '';
       if (info.status === 'offline') {
         workerStatus[mid] = 'offline';
-      } else if (info.model_loaded) {
+      } else if (want && info.variants && !(want in info.variants)) {
+        // Worker is up but this variant's weights are missing server-side.
+        workerStatus[mid] = 'offline';
+      } else if (info.model_loaded && (!want || !info.loaded_variant || info.loaded_variant === want)) {
         workerStatus[mid] = 'online';
       } else {
+        // Worker up; this variant loads on demand (or another variant currently holds the RAM).
         workerStatus[mid] = 'loading';
       }
     }
@@ -1031,13 +1002,10 @@ async function pollStatus() {
 }
 
 // ── Current "instruct" (voice description / prompt text) ──────
-// What counts as the instruction differs per model:
-//   omnivoice → speaker voice description, voxcpm2 → prompt_text,
-//   fish → emotion tags are inline in the text (no separate field).
+// The instruction for both OmniVoice variants is the speaker voice description.
 function currentInstruct() {
-  if (selectedModel === 'omnivoice') return (paramValues.omnivoice.speaker || '').trim();
-  if (selectedModel === 'voxcpm2')   return (cloneFiles.prompt_text || '').trim();
-  return '';
+  const v = paramValues[selectedModel];
+  return v ? (v.speaker || '').trim() : '';
 }
 
 // ── Build FormData for synthesis ──────────────────────────────
@@ -1056,7 +1024,7 @@ function buildFormDataForModel(mid, text, includeClone = true, paramsOverride = 
   const ov = manualOverride[mid];
   if (ov && ov.enabled) {
     fd.append('model_input_override', ov.text);
-    if (mid === 'omnivoice') fd.append('model_instruct_override', ov.instruct);
+    fd.append('model_instruct_override', ov.instruct);
   }
 
   // Clone files/text
@@ -1109,7 +1077,8 @@ async function synthesize() {
 
     await loadPlayer(audioUrl, { ...result, options }, text);
     addToHistory({
-      ...result, text, url: audioUrl, options, timestamp: Date.now(),
+      ...result, model: selectedModel,   // interface id, not the worker's "omnivoice"
+      text, url: audioUrl, options, timestamp: Date.now(),
       instruct: currentInstruct(),
       params: { ...paramValues[selectedModel] },
     });
@@ -1163,7 +1132,7 @@ async function loadPlayer(url, meta, text) {
 
   // Player button color
   const playBtn = $('btn-play');
-  playBtn.className = `btn-play ${meta.model === 'voxcpm2' ? 'vox' : meta.model}`;
+  playBtn.className = `btn-play ${meta.model}`;
 
   // Reset time
   $('cur-time').textContent = '0:00';
@@ -1215,7 +1184,7 @@ async function drawWaveform(url, mid = selectedModel) {
     ctx.fillRect(0, 0, W, H);
 
     // Color based on model
-    const color = mid === 'voxcpm2' ? '#3fb950' : '#58a6ff';
+    const color = mid === 'omnivoice_base' ? '#3fb950' : '#58a6ff';
     ctx.fillStyle = color + '90';
 
     for (let i = 0; i < W; i++) {
@@ -1412,6 +1381,10 @@ async function loadServerHistory() {
       if (!r.ok) continue;
       const files = await r.json();
       for (const f of files) {
+        // Both interface models share one output dir; assign each clip to the card whose
+        // variant generated it. Clips predating variant tracking ran the fine-tuned default.
+        const variant = (f.params && f.params.variant) || 'finetuned';
+        if (variant !== MODELS[mid].fixedParams.variant) continue;
         if (!existing.has(f.filename)) {
           historyItems.push({
             filename:   f.filename,
@@ -1631,7 +1604,7 @@ async function retryCompareItem(runId, mid) {
     if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
     const result = await r.json();
     const url = `/audio/${mid}/${result.filename}`;
-    addToHistory({ ...result, text: run.text, url, options, timestamp: Date.now() });
+    addToHistory({ ...result, model: mid, text: run.text, url, options, timestamp: Date.now() });
     item = { mid, result, options, url, params: prev.params };
     showToast('تمت إعادة التوليد ✓', 'success');
   } catch (e) {
@@ -1743,7 +1716,7 @@ async function compareModels() {
       if (!r.ok) throw new Error(await r.text());
       const result = await r.json();
       const url = `/audio/${mid}/${result.filename}`;
-      addToHistory({ ...result, text, url, options, timestamp: Date.now() });
+      addToHistory({ ...result, model: mid, text, url, options, timestamp: Date.now() });
       item = { mid, result, options, url, params: run.items[idx].params };
     } catch (e) {
       item = { mid, error: e.message, options, params: run.items[idx].params };
