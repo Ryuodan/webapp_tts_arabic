@@ -19,20 +19,28 @@ from fastapi.responses import FileResponse
 WORKDIR = pathlib.Path(os.getenv("TTS_WORKDIR", "~/tts-05172026")).expanduser()
 OUT_DIR = pathlib.Path(os.getenv("OMNIVOICE_OUT_DIR", str(WORKDIR / "outputs_omnivoice"))).expanduser()
 OUT_DIR.mkdir(parents=True, exist_ok=True)
-OMNIVOICE_BASE_MODEL_ID = "k2-fsa/OmniVoice"
+OMNIVOICE_BASE_MODEL_ID = os.getenv("OMNIVOICE_BASE_MODEL_ID", "k2-fsa/OmniVoice")
 # Best Saudi-HQ fine-tuned checkpoint (see models/omnivoice/BEST_FINETUNED_CHECKPOINT.md).
 # The weights live outside the repo; the training project keeps this symlink pointing
 # at the best available checkpoint (currently saudi_hq_ft/checkpoint-2500).
 FINETUNED_CHECKPOINT = WORKDIR / "omnivoice" / "checkpoints" / "best_finetuned"
 
 
-def _default_model_id() -> str:
+def _finetuned_model_id() -> str | None:
+    env = os.getenv("OMNIVOICE_FINETUNED_MODEL_ID")
+    if env:
+        return env
     if (FINETUNED_CHECKPOINT / "model.safetensors").exists():
         return str(FINETUNED_CHECKPOINT)
-    return OMNIVOICE_BASE_MODEL_ID
+    return None
 
 
-OMNIVOICE_MODEL_ID = os.getenv("OMNIVOICE_MODEL_ID") or _default_model_id()
+# Selectable model variants; "finetuned" is present only when its weights exist.
+MODEL_VARIANTS = {"base": OMNIVOICE_BASE_MODEL_ID}
+_ft_id = _finetuned_model_id()
+if _ft_id:
+    MODEL_VARIANTS["finetuned"] = _ft_id
+DEFAULT_VARIANT = "finetuned" if "finetuned" in MODEL_VARIANTS else "base"
 OMNIVOICE_DEVICE = os.getenv("OMNIVOICE_DEVICE", "auto")
 MODEL_IDLE_SECONDS = int(os.getenv("TTS_MODEL_IDLE_SECONDS", "900"))
 MAX_TEXT_CHARS = int(os.getenv("TTS_MAX_TEXT_CHARS", "8000"))
@@ -87,6 +95,7 @@ def _attr(mapping: dict, value: str) -> str:
 
 app = FastAPI(title="OmniVoice Worker", docs_url=None, redoc_url=None)
 _model = None
+_model_variant = ""     # variant currently loaded ("" = none)
 _lock = asyncio.Lock()
 _idle_task: asyncio.Task | None = None
 _last_used = 0.0
@@ -116,9 +125,10 @@ def _cleanup_runtime_memory():
 
 
 def _do_unload(reason: str = "manual") -> bool:
-    global _model, _last_unload_reason
+    global _model, _model_variant, _last_unload_reason
     was_loaded = _model is not None
     _model = None
+    _model_variant = ""
     _last_unload_reason = reason
     if was_loaded:
         _cleanup_runtime_memory()
@@ -154,17 +164,21 @@ async def _save_upload_tmp(upload: UploadFile | None) -> str | None:
     return path
 
 
-def _do_load():
-    global _model
-    if _model is not None:
+def _do_load(variant: str = ""):
+    global _model, _model_variant
+    variant = variant or DEFAULT_VARIANT
+    if _model is not None and _model_variant == variant:
         return
+    if _model is not None:                      # keep only one variant in memory
+        _do_unload(f"switch:{variant}")
     import torch
     from omnivoice import OmniVoice
     device = "cuda:0" if OMNIVOICE_DEVICE == "auto" and torch.cuda.is_available() else (
         "cpu" if OMNIVOICE_DEVICE == "auto" else OMNIVOICE_DEVICE
     )
     dtype  = torch.float16 if torch.cuda.is_available() else torch.float32
-    _model = OmniVoice.from_pretrained(OMNIVOICE_MODEL_ID, device_map=device, dtype=dtype)
+    _model = OmniVoice.from_pretrained(MODEL_VARIANTS[variant], device_map=device, dtype=dtype)
+    _model_variant = variant
 
 
 async def _ensure_loaded():
@@ -208,8 +222,11 @@ async def health():
     idle_seconds = round(time.monotonic() - _last_used, 1) if _model is not None and _last_used else 0
     return {
         "model": "OmniVoice",
-        "model_id": OMNIVOICE_MODEL_ID,
-        "finetuned": OMNIVOICE_MODEL_ID != OMNIVOICE_BASE_MODEL_ID,
+        "variants": MODEL_VARIANTS,
+        "default_variant": DEFAULT_VARIANT,
+        "loaded_variant": _model_variant or None,
+        "model_id": MODEL_VARIANTS[_model_variant or DEFAULT_VARIANT],
+        "finetuned_available": "finetuned" in MODEL_VARIANTS,
         "voices": sorted(_BUILTIN_VOICES),
         "status": "ok",
         "ready": _model is not None,
@@ -242,6 +259,7 @@ async def synthesize(
     age: str = Form(""),
     speaker: str = Form(""),
     voice: str = Form(""),
+    variant: str = Form(""),
     model_input_override: str = Form(""),
     model_instruct_override: str = Form(""),
     ref_audio: UploadFile | None = File(None),
@@ -255,6 +273,12 @@ async def synthesize(
     builtin = _BUILTIN_VOICES.get(voice_id) if voice_id else None
     if voice_id and not builtin:
         raise HTTPException(400, f"Unknown built-in voice: {voice_id}")
+
+    req_variant = (variant or "").strip().lower() or DEFAULT_VARIANT
+    if req_variant not in MODEL_VARIANTS:
+        available = ", ".join(sorted(MODEL_VARIANTS))
+        raise HTTPException(400, f"Model variant '{req_variant}' is not available on this server "
+                                 f"(available: {available})")
 
     ref_tmp = await _save_upload_tmp(ref_audio)
 
@@ -294,7 +318,7 @@ async def synthesize(
     try:
         async with _lock:
             loop = asyncio.get_running_loop()
-            await loop.run_in_executor(None, _do_load)
+            await loop.run_in_executor(None, _do_load, req_variant)
             t0 = time.perf_counter()
             audio = await loop.run_in_executor(None, lambda: _model.generate(**kwargs))
             elapsed = time.perf_counter() - t0
@@ -313,7 +337,8 @@ async def synthesize(
     result = {
         "filename": out_path.name,
         "model": "omnivoice",
-        "model_id": OMNIVOICE_MODEL_ID,
+        "model_id": MODEL_VARIANTS[req_variant],
+        "model_variant": req_variant,
         "voice": voice_id,
         "model_input": eff_text,
         "model_instruct": kwargs.get("instruct", ""),
@@ -326,7 +351,7 @@ async def synthesize(
     _write_sidecar(out_path, {
         "text": text,
         "instruct": speaker,          # voice description / instruction
-        "params": {"speaker": speaker, "voice": voice_id},
+        "params": {"speaker": speaker, "voice": voice_id, "variant": req_variant},
         "reference_text": kwargs.get("ref_text", ref_text),
         "has_reference_audio": "ref_audio" in kwargs,
         "created": time.time(),

@@ -16,10 +16,17 @@ const MODELS = {
     ],
     compareNote: 'استخدمه كخط أساس للنطق والتغطية اللغوية.',
     params: [
+      { id: 'variant', label: 'نسخة النموذج', type: 'select', default: 'finetuned',
+        options: [
+          { value: 'finetuned', label: 'المحسّنة — Saudi HQ (الأفضل)' },
+          { value: 'base',      label: 'الأصلية — k2-fsa/OmniVoice' },
+        ],
+        hint: 'المحسّنة = أفضل checkpoint من الضبط السعودي (saudi_hq_ft). إن لم تكن أوزانها متوفرة على السيرفر يرجع طلبها بخطأ واضح — اختر الأصلية حينها.' },
       { id: 'voice', label: 'صوت جاهز (مستنسخ)', type: 'select', default: '',
         options: [
           { value: '',      label: 'بدون — صوت النموذج' },
           { value: 'abeer', label: 'عبير — سعودية' },
+          { value: 'ahmed', label: 'أحمد — فصحى' },
         ],
         hint: 'أصوات مرجعية مضمّنة في السيرفر تُستنسخ تلقائياً (voices/). رفع صوت مرجعي يدوياً من لوحة الاستنساخ يتجاوز هذا الاختيار.' },
       { id: 'speaker', label: 'Voice / Style Prompt', type: 'text',

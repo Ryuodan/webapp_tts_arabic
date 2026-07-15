@@ -6,13 +6,17 @@ Git (2.45 GB `model.safetensors`), so only the selection metadata is versioned
 here; the paths inside `BEST_FINETUNED_CHECKPOINT.md` are relative to the TTS
 work directory (`TTS_WORKDIR`, default `~/tts-05172026`).
 
-Resolution order in `workers/omnivoice_server.py`:
+`workers/omnivoice_server.py` exposes two selectable variants (the UI's
+"نسخة النموذج" select, sent as the `variant` form field; only one is kept in
+memory at a time):
 
-1. `OMNIVOICE_MODEL_ID` env var, if set (HF id or local checkpoint path).
-2. `$TTS_WORKDIR/omnivoice/checkpoints/best_finetuned` — a symlink maintained
-   in the training project pointing at the best available checkpoint
-   (currently `saudi_hq_ft/checkpoint-2500`, eval/loss 4.4111).
-3. Fallback: the stock `k2-fsa/OmniVoice` from Hugging Face.
+- `finetuned` — `OMNIVOICE_FINETUNED_MODEL_ID` env var if set, otherwise
+  `$TTS_WORKDIR/omnivoice/checkpoints/best_finetuned`, a symlink maintained in
+  the training project pointing at the best available checkpoint (currently
+  `saudi_hq_ft/checkpoint-2500`, eval/loss 4.4111). The variant is offered only
+  when the weights exist; it is the default when available.
+- `base` — the stock model (`OMNIVOICE_BASE_MODEL_ID`, default
+  `k2-fsa/OmniVoice` from Hugging Face).
 
-Verify which model is active via the worker's `/health` endpoint
-(`model_id` + `finetuned` fields).
+Verify what the worker sees via its `/health` endpoint (`variants`,
+`default_variant`, `loaded_variant` fields).
