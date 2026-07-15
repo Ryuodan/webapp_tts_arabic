@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Arabic TTS Studio</title>
-  <link rel="stylesheet" href="style.css?v=15">
+  <link rel="stylesheet" href="style.css?v=16">
 </head>
 <body>
 
@@ -45,6 +45,15 @@
           <label class="param-label" for="voice-select">الصوت</label>
           <select class="param-select" id="voice-select"></select>
         </div>
+      </section>
+
+      <!-- Compare mode -->
+      <section class="panel-section">
+        <label class="compare-toggle">
+          <input type="checkbox" id="use-all-models">
+          <span>استخدم كل النماذج وقارن النتائج</span>
+        </label>
+        <div class="compare-checks hidden" id="compare-checks"></div>
       </section>
 
       <!-- Text input -->
@@ -113,6 +122,20 @@
         </div>
       </section>
 
+      <!-- Comparisons library: live + old runs, each expandable inline (hidden until one exists) -->
+      <section class="panel-section saved-compare-card" id="saved-compare-card" hidden>
+        <div class="history-header">
+          <h3 class="section-label">المقارنة</h3>
+          <div class="history-controls">
+            <button class="btn-ghost btn-xs" id="btn-toggle-compares" data-expand="1">فتح الكل</button>
+            <button class="btn-ghost btn-xs" id="btn-clear-compares">مسح الكل</button>
+          </div>
+        </div>
+        <div class="saved-compare-list" id="saved-compare-list">
+          <!-- comparison cards (expandable) rendered by JS -->
+        </div>
+      </section>
+
       <!-- History -->
       <section class="panel-section history-card">
         <div class="history-header">
@@ -141,6 +164,6 @@
   <!-- Toast notification -->
   <div class="toast hidden" id="toast"></div>
 
-  <script src="app.js?v=19"></script>
+  <script src="app.js?v=22"></script>
 </body>
 </html>

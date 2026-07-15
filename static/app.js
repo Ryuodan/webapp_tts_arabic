@@ -118,7 +118,7 @@ const SAMPLE_SENTENCES = [
 
 // ── State ─────────────────────────────────────────────────────
 let selectedModel = 'omnivoice_ft';
-let workerStatus  = { omnivoice_ft: 'offline', omnivoice_base: 'offline' };
+let workerStatus  = { omnivoice_ft: 'checking', omnivoice_base: 'checking' };
 let loadingModels = new Set();   // models with an in-flight /load request
 let currentAudioUrl = null;
 let isGenerating  = false;
@@ -284,9 +284,10 @@ function renderModelCards() {
     const isLoading = loadingModels.has(m.id);
     const statusText = st === 'online'  ? '● متاح'
                      : st === 'offline' ? '● غير متاح'
+                     : st === 'checking' ? '● جاري التحقق…'
                      : isLoading        ? '● جاري التحميل…'
-                                        : '● غير محمّل';
-    const statusCls = (st === 'loading') ? 'loading' : st;  // keep the blink while up-but-not-loaded
+                                        : '● متاح - غير محمّل';
+    const statusCls = (st === 'loading' || st === 'checking') ? 'loading' : st;  // keep the blink while up-but-not-loaded
     const card = document.createElement('div');
     card.className = `model-card ${m.id} ${selectedModel === m.id ? 'active' : ''} ${st === 'offline' ? 'offline' : ''}`;
     card.dataset.model = m.id;
@@ -305,7 +306,7 @@ function renderModelCards() {
       <div class="mc-footer">
         <span class="mc-status ${statusCls}">${statusText}</span>
         ${st === 'loading'
-          ? `<button class="mc-load-btn" data-load="${m.id}" ${isLoading ? 'disabled' : ''}>${isLoading ? 'جاري التحميل…' : 'تحميل'}</button>`
+          ? `<button class="mc-load-btn" data-load="${m.id}" ${isLoading ? 'disabled' : ''}>${isLoading ? 'جاري التحميل…' : 'تحميل النموذج'}</button>`
           : ''}
       </div>
     `;
@@ -345,7 +346,7 @@ function renderStatusBadges() {
   for (const m of Object.values(MODELS)) {
     const st = workerStatus[m.id] || 'offline';
     const badge = document.createElement('div');
-    badge.className = `status-badge ${st}`;
+    badge.className = `status-badge ${st === 'checking' ? 'loading' : st}`;
     badge.innerHTML = `<span class="status-dot"></span>${m.name}`;
     row.appendChild(badge);
   }
@@ -959,6 +960,7 @@ function selectModel(id) {
   cloneFiles = {};
   renderModelCards();
   renderVoicePicker();
+  renderCompareChecks();
   updateSynthBtn();
 
   // Update synth button color
@@ -976,10 +978,19 @@ function updateCharCount() {
 
 function updateSynthBtn() {
   const hasText = $('text-input').value.trim().length > 0;
-  const available = workerStatus[selectedModel] !== 'offline';
-  $('btn-synth').disabled = !hasText || isGenerating || !available;
-  $('synth-label').textContent = !available ? 'النموذج غير متاح' :
-    isGenerating ? 'جاري التوليد…' : 'توليد الصوت';
+  const useAll = Boolean($('use-all-models') && $('use-all-models').checked);
+  const states = Object.keys(MODELS).map(mid => workerStatus[mid]);
+  const checking = useAll
+    ? states.every(st => st === 'checking')
+    : workerStatus[selectedModel] === 'checking';
+  const available = useAll
+    ? Object.keys(MODELS).some(mid => !['offline', 'checking'].includes(workerStatus[mid]))
+    : !['offline', 'checking'].includes(workerStatus[selectedModel]);
+  $('btn-synth').disabled = !hasText || isGenerating || isComparing || !available;
+  $('synth-label').textContent = checking ? 'جاري التحقق…' :
+    !available ? 'النموذج غير متاح' :
+    isGenerating || isComparing ? 'جاري التوليد…' :
+    useAll ? 'قارن النماذج' : 'توليد الصوت';
 }
 
 // ── Poll worker health ────────────────────────────────────────
@@ -996,7 +1007,9 @@ async function pollStatus() {
       } else if (want && info.variants && !(want in info.variants)) {
         // Worker is up but this variant's weights are missing server-side.
         workerStatus[mid] = 'offline';
-      } else if (info.model_loaded && (!want || !info.loaded_variant || info.loaded_variant === want)) {
+      } else if (info.model_loaded && (!want ||
+                 (Array.isArray(info.loaded_variants) && info.loaded_variants.includes(want)) ||
+                 info.loaded_variant === want)) {
         workerStatus[mid] = 'online';
       } else {
         // Worker up; this variant loads on demand (or another variant currently holds the RAM).
@@ -1006,6 +1019,7 @@ async function pollStatus() {
   } catch { /* server not yet up */ }
   renderStatusBadges();
   renderModelCards();
+  renderCompareChecks();
   updateSynthBtn();
 }
 
@@ -1054,6 +1068,9 @@ function buildFormData() {
 
 // ── Synthesize ────────────────────────────────────────────────
 async function synthesize() {
+  if ($('use-all-models') && $('use-all-models').checked) {
+    return compareModels();
+  }
   if (isGenerating) return;
   const text = $('text-input').value.trim();
   if (!text) return;
@@ -1687,12 +1704,16 @@ async function compareModels() {
   const text = $('text-input').value.trim();
   if (!text) { showToast('أدخل نصاً أولاً', 'warn'); return; }
 
-  const selected = Array.from($$('#compare-checks input:checked')).map(e => e.value);
+  const useAll = Boolean($('use-all-models') && $('use-all-models').checked);
+  const selected = useAll
+    ? Object.keys(MODELS).filter(mid => workerStatus[mid] !== 'offline')
+    : Array.from($$('#compare-checks input:checked')).map(e => e.value);
   if (!selected.length) { showToast('اختر نموذجاً واحداً على الأقل', 'warn'); return; }
 
   isComparing = true;
   const btn = $('btn-compare');
-  btn.disabled = true;
+  if (btn) btn.disabled = true;
+  updateSynthBtn();
 
   // Create the run up front and show it expanded at the top of the library, so the live
   // generation streams into the same card the user will keep and compare against later.
@@ -1706,13 +1727,14 @@ async function compareModels() {
   currentCompareRunId = run.id;
   expandedCompareRuns.add(run.id);
   addCompareRun(run);   // unshift + persist + renderCompareLibrary → renders the pending card
-  $('saved-compare-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if ($('saved-compare-card')) $('saved-compare-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   for (let i = 0; i < selected.length; i++) {
     const mid = selected[i];
     const idx = run.items.findIndex(it => it.mid === mid);
     const options = run.items[idx].options;
-    $('compare-label').textContent = `جاري المقارنة ${i + 1}/${selected.length}`;
+    if ($('compare-label')) $('compare-label').textContent = `جاري المقارنة ${i + 1}/${selected.length}`;
+    $('synth-label').textContent = `جاري المقارنة ${i + 1}/${selected.length}`;
     setMiniHtml(run.id, mid, `${miniTitleHtml(mid)}<div class="mini-spinner">جاري التوليد…</div>${optionChipsHtml(options)}`);
 
     let item;
@@ -1735,8 +1757,9 @@ async function compareModels() {
   }
 
   isComparing = false;
-  btn.disabled = false;
+  if (btn) btn.disabled = false;
   updateCompareLabel();
+  updateSynthBtn();
   const hadErr = run.items.some(r => r.error);
   showToast(hadErr ? 'اكتملت المقارنة مع أخطاء' : 'اكتملت المقارنة', hadErr ? 'warn' : 'success');
 }
@@ -1771,7 +1794,11 @@ function init() {
   renderModelCards();
   renderStatusBadges();
   renderVoicePicker();
+  renderCompareChecks();
   renderHistory();
+  loadCompareRuns();
+  if (compareRuns[0]) expandedCompareRuns.add(compareRuns[0].id);
+  renderCompareLibrary();
   setupAudioEvents();
 
   // Text input events
@@ -1782,6 +1809,8 @@ function init() {
 
   // Synth button
   $('btn-synth').addEventListener('click', synthesize);
+
+  if ($('use-all-models')) $('use-all-models').addEventListener('change', updateSynthBtn);
 
   // Clear text
   $('btn-clear-text').addEventListener('click', () => {
@@ -1796,8 +1825,23 @@ function init() {
   // Collapse / expand history
   $('btn-toggle-history').addEventListener('click', toggleHistoryCollapsed);
 
+  if ($('btn-clear-compares')) $('btn-clear-compares').addEventListener('click', clearCompareRuns);
+
+  if ($('btn-toggle-compares')) {
+    $('btn-toggle-compares').addEventListener('click', e => {
+      setAllCompareRunsExpanded(e.currentTarget.dataset.expand === '1');
+    });
+  }
+
   // History filter
   $('history-filter').addEventListener('change', () => renderHistory());
+
+  if ($('saved-compare-list')) {
+    $('saved-compare-list').addEventListener('click', e => {
+      const btn = e.target.closest('.mini-retry');
+      if (btn) { e.stopPropagation(); retryCompareItem(btn.dataset.runId, btn.dataset.mid); }
+    });
+  }
 
   // Initial status poll + periodic refresh
   pollStatus();

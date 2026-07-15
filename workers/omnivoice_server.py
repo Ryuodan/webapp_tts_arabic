@@ -96,11 +96,11 @@ def _attr(mapping: dict, value: str) -> str:
     return mapping.get((value or "").strip().lower(), "")
 
 app = FastAPI(title="OmniVoice Worker", docs_url=None, redoc_url=None)
-_model = None
-_model_variant = ""     # variant currently loaded ("" = none)
+_models = {}            # variant -> OmniVoice instance
+_active_variant = ""    # most recently loaded/used variant ("" = none)
 _lock = asyncio.Lock()
 _idle_task: asyncio.Task | None = None
-_last_used = 0.0
+_last_used_by_variant = {}
 _last_unload_reason = ""
 SAMPLE_RATE = 24_000
 
@@ -126,11 +126,19 @@ def _cleanup_runtime_memory():
         ctypes.CDLL("libc.so.6").malloc_trim(0)
 
 
-def _do_unload(reason: str = "manual") -> bool:
-    global _model, _model_variant, _last_unload_reason
-    was_loaded = _model is not None
-    _model = None
-    _model_variant = ""
+def _do_unload(reason: str = "manual", variant: str | None = None) -> bool:
+    global _active_variant, _last_unload_reason
+    if variant:
+        was_loaded = variant in _models
+        _models.pop(variant, None)
+        _last_used_by_variant.pop(variant, None)
+        if _active_variant == variant:
+            _active_variant = next(iter(_models), "")
+    else:
+        was_loaded = bool(_models)
+        _models.clear()
+        _last_used_by_variant.clear()
+        _active_variant = ""
     _last_unload_reason = reason
     if was_loaded:
         _cleanup_runtime_memory()
@@ -167,41 +175,49 @@ async def _save_upload_tmp(upload: UploadFile | None) -> str | None:
 
 
 def _do_load(variant: str = ""):
-    global _model, _model_variant
+    global _active_variant
     variant = variant or DEFAULT_VARIANT
-    if _model is not None and _model_variant == variant:
-        return
-    if _model is not None:                      # keep only one variant in memory
-        _do_unload(f"switch:{variant}")
+    if variant in _models:
+        _active_variant = variant
+        return _models[variant]
     import torch
     from omnivoice import OmniVoice
     device = "cuda:0" if OMNIVOICE_DEVICE == "auto" and torch.cuda.is_available() else (
         "cpu" if OMNIVOICE_DEVICE == "auto" else OMNIVOICE_DEVICE
     )
     dtype  = torch.float16 if torch.cuda.is_available() else torch.float32
-    _model = OmniVoice.from_pretrained(MODEL_VARIANTS[variant], device_map=device, dtype=dtype)
-    _model_variant = variant
+    model = OmniVoice.from_pretrained(MODEL_VARIANTS[variant], device_map=device, dtype=dtype)
+    _models[variant] = model
+    _active_variant = variant
+    return model
 
 
 async def _ensure_loaded(variant: str = ""):
-    global _last_used
     async with _lock:
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, _do_load, variant)
-        _last_used = time.monotonic()
+        loaded = await loop.run_in_executor(None, _do_load, variant)
+        _last_used_by_variant[variant or _active_variant or DEFAULT_VARIANT] = time.monotonic()
+        return loaded
 
 
 async def _idle_unload_loop():
     sleep_s = min(60, max(5, MODEL_IDLE_SECONDS // 3 if MODEL_IDLE_SECONDS else 60))
     while True:
         await asyncio.sleep(sleep_s)
-        if MODEL_IDLE_SECONDS <= 0 or _model is None or _last_used <= 0:
+        if MODEL_IDLE_SECONDS <= 0 or not _models:
             continue
-        if time.monotonic() - _last_used < MODEL_IDLE_SECONDS:
+        now = time.monotonic()
+        stale = [
+            variant for variant in list(_models)
+            if now - _last_used_by_variant.get(variant, now) >= MODEL_IDLE_SECONDS
+        ]
+        if not stale:
             continue
         async with _lock:
-            if _model is not None and time.monotonic() - _last_used >= MODEL_IDLE_SECONDS:
-                await asyncio.to_thread(_do_unload, "idle")
+            now = time.monotonic()
+            for variant in list(_models):
+                if now - _last_used_by_variant.get(variant, now) >= MODEL_IDLE_SECONDS:
+                    await asyncio.to_thread(_do_unload, "idle", variant)
 
 
 @app.on_event("startup")
@@ -221,18 +237,23 @@ async def shutdown():
 
 @app.get("/health")
 async def health():
-    idle_seconds = round(time.monotonic() - _last_used, 1) if _model is not None and _last_used else 0
+    loaded_variants = sorted(_models)
+    active_variant = _active_variant if _active_variant in _models else ""
+    idle_seconds = 0
+    if active_variant and _last_used_by_variant.get(active_variant):
+        idle_seconds = round(time.monotonic() - _last_used_by_variant[active_variant], 1)
     return {
         "model": "OmniVoice",
         "variants": MODEL_VARIANTS,
         "default_variant": DEFAULT_VARIANT,
-        "loaded_variant": _model_variant or None,
-        "model_id": MODEL_VARIANTS[_model_variant or DEFAULT_VARIANT],
+        "loaded_variant": active_variant or None,
+        "loaded_variants": loaded_variants,
+        "model_id": MODEL_VARIANTS[active_variant or DEFAULT_VARIANT],
         "finetuned_available": "finetuned" in MODEL_VARIANTS,
         "voices": sorted(_BUILTIN_VOICES),
         "status": "ok",
-        "ready": _model is not None,
-        "model_loaded": _model is not None,
+        "ready": bool(_models),
+        "model_loaded": bool(_models),
         "rss_mb": _rss_mb(),
         "idle_seconds": idle_seconds,
         "idle_timeout_s": MODEL_IDLE_SECONDS,
@@ -247,7 +268,12 @@ async def load_endpoint(variant: str = ""):
         raise HTTPException(400, f"Model variant '{variant}' is not available on this server "
                                  f"(available: {', '.join(sorted(MODEL_VARIANTS))})")
     await _ensure_loaded(variant)
-    return {"status": "loaded", "variant": _model_variant, "rss_mb": _rss_mb()}
+    return {
+        "status": "loaded",
+        "variant": _active_variant,
+        "loaded_variants": sorted(_models),
+        "rss_mb": _rss_mb(),
+    }
 
 
 @app.post("/unload")
@@ -324,12 +350,11 @@ async def synthesize(
     try:
         async with _lock:
             loop = asyncio.get_running_loop()
-            await loop.run_in_executor(None, _do_load, req_variant)
+            model = await loop.run_in_executor(None, _do_load, req_variant)
             t0 = time.perf_counter()
-            audio = await loop.run_in_executor(None, lambda: _model.generate(**kwargs))
+            audio = await loop.run_in_executor(None, lambda: model.generate(**kwargs))
             elapsed = time.perf_counter() - t0
-            global _last_used
-            _last_used = time.monotonic()
+            _last_used_by_variant[req_variant] = time.monotonic()
     except Exception as e:
         raise HTTPException(500, str(e))
     finally:

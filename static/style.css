@@ -238,6 +238,26 @@ textarea { resize: vertical; }
   justify-content: flex-start;
 }
 
+.compare-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  color: var(--txt);
+  font-size: .82rem;
+  cursor: pointer;
+  user-select: none;
+}
+.compare-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--omni);
+  cursor: pointer;
+}
+.compare-toggle span {
+  line-height: 1.4;
+}
+
 /* ── Emotion tag strip ────────────────────────────────────── */
 .tag-strip {
   display: flex;
