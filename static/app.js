@@ -1,5 +1,15 @@
 'use strict';
 
+// Resolve requests from the directory that served this script. The production UI lives
+// below /arabic-tts/, so root-relative /api and /audio URLs bypassed the reverse proxy and
+// left the status badges stuck on "checking". This also keeps local / development serving
+// from / working without a separate configuration value.
+const APP_BASE_URL = new URL('.', (document.currentScript && document.currentScript.src) || document.baseURI);
+const appUrl = path => new URL(String(path || '').replace(/^\/+/, ''), APP_BASE_URL).toString();
+const modelAudioUrl = (mid, filename) => appUrl(
+  `audio/${encodeURIComponent(mid)}/${encodeURIComponent(filename)}`
+);
+
 // ── Model definitions ────────────────────────────────────────
 // The interface exposes exactly two models: the Saudi-HQ fine-tuned OmniVoice and the
 // stock one. Both ride the SAME worker (gateway aliases -> port 8082); fixedParams.variant
@@ -120,6 +130,7 @@ const SAMPLE_SENTENCES = [
 let selectedModel = 'omnivoice_ft';
 let workerStatus  = { omnivoice_ft: 'checking', omnivoice_base: 'checking' };
 let loadingModels = new Set();   // models with an in-flight /load request
+let statusPollInFlight = false;
 let currentAudioUrl = null;
 let isGenerating  = false;
 let isComparing   = false;
@@ -327,7 +338,7 @@ async function loadModel(id) {
   const name = (MODELS[id] && MODELS[id].name) || id;
   showToast(`جاري تحميل ${name}… (قد يستغرق 2–3 دقائق)`, '', 4000);
   try {
-    const r = await fetch(`/api/${id}/load`, { method: 'POST' });
+    const r = await fetch(appUrl(`api/${id}/load`), { method: 'POST' });
     if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
     loadingModels.delete(id);
     await pollStatus();                 // refresh badges immediately
@@ -784,7 +795,7 @@ async function composeWithAI() {
   $('compose-agent-label').textContent = '… جاري التأليف';
   setComposeStatus('يكتب الوكيل النص ويضبط إعدادات النموذجين…');
   try {
-    const r = await fetch('/api/compose', {
+    const r = await fetch(appUrl('api/compose'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -874,7 +885,7 @@ async function prepareText() {
   $('prep-label').textContent = '… جاري التحضير';
   setPrepStatus('يحضّر الوكيل النص…');
   try {
-    const r = await fetch('/api/prepare', {
+    const r = await fetch(appUrl('api/prepare'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -995,12 +1006,24 @@ function updateSynthBtn() {
 
 // ── Poll worker health ────────────────────────────────────────
 async function pollStatus() {
+  if (statusPollInFlight) return;
+  statusPollInFlight = true;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 6000);
   try {
-    const r = await fetch('/api/status');
-    if (!r.ok) return;
+    const r = await fetch(appUrl('api/status'), {
+      cache: 'no-store',
+      signal: controller.signal,
+    });
+    if (!r.ok) throw new Error(`Status request failed: HTTP ${r.status}`);
     const data = await r.json();
-    for (const [mid, info] of Object.entries(data)) {
-      if (!MODELS[mid]) continue;
+    if (!data || typeof data !== 'object') throw new Error('Invalid status response');
+    for (const mid of Object.keys(MODELS)) {
+      const info = data[mid];
+      if (!info || typeof info !== 'object') {
+        workerStatus[mid] = 'offline';
+        continue;
+      }
       const want = (MODELS[mid].fixedParams || {}).variant || '';
       if (info.status === 'offline') {
         workerStatus[mid] = 'offline';
@@ -1016,11 +1039,17 @@ async function pollStatus() {
         workerStatus[mid] = 'loading';
       }
     }
-  } catch { /* server not yet up */ }
-  renderStatusBadges();
-  renderModelCards();
-  renderCompareChecks();
-  updateSynthBtn();
+  } catch {
+    // A failed gateway request is a completed check, not an indefinitely pending one.
+    for (const mid of Object.keys(MODELS)) workerStatus[mid] = 'offline';
+  } finally {
+    clearTimeout(timeout);
+    statusPollInFlight = false;
+    renderStatusBadges();
+    renderModelCards();
+    renderCompareChecks();
+    updateSynthBtn();
+  }
 }
 
 // ── Current "instruct" (voice description / prompt text) ──────
@@ -1089,7 +1118,7 @@ async function synthesize() {
 
   try {
     const fd = buildFormData();
-    const r  = await fetch(`/api/${selectedModel}/synthesize`, { method: 'POST', body: fd });
+    const r  = await fetch(appUrl(`api/${selectedModel}/synthesize`), { method: 'POST', body: fd });
 
     if (!r.ok) {
       const err = await r.text();
@@ -1097,7 +1126,7 @@ async function synthesize() {
     }
 
     const result = await r.json();
-    const audioUrl = `/audio/${selectedModel}/${result.filename}`;
+    const audioUrl = modelAudioUrl(selectedModel, result.filename);
     const options = optionSummary(selectedModel, true);
 
     await loadPlayer(audioUrl, { ...result, options }, text);
@@ -1272,7 +1301,11 @@ let historyCollapsed = false;
 function loadHistory() {
   try {
     const saved = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
-    historyItems = Array.isArray(saved) ? saved.filter(i => MODELS[i.model]) : [];
+    historyItems = Array.isArray(saved) ? saved.filter(i => MODELS[i.model]).map(item => ({
+      ...item,
+      // Repair URLs saved by older builds that pointed at the domain-root /audio route.
+      url: item.filename ? modelAudioUrl(item.model, item.filename) : item.url,
+    })) : [];
   } catch { historyItems = []; }
 }
 
@@ -1400,7 +1433,7 @@ async function loadServerHistory() {
   const existing = new Set(historyItems.map(i => i.filename));
   for (const mid of Object.keys(MODELS)) {
     try {
-      const r = await fetch(`/api/${mid}/history?limit=30`);
+      const r = await fetch(appUrl(`api/${mid}/history?limit=30`));
       if (!r.ok) continue;
       const files = await r.json();
       for (const f of files) {
@@ -1412,7 +1445,7 @@ async function loadServerHistory() {
           historyItems.push({
             filename:   f.filename,
             model:      mid,
-            url:        `/audio/${mid}/${f.filename}`,
+            url:        modelAudioUrl(mid, f.filename),
             text:       f.text || '',
             instruct:   f.instruct || '',
             params:     f.params || null,
@@ -1455,7 +1488,9 @@ function miniPlayerHtml(mid, item, runId = null) {
       ${optionChipsHtml(options)}
     `;
   }
-  const url = item.url || `/audio/${mid}/${item.result.filename}`;
+  const url = item.result && item.result.filename
+    ? modelAudioUrl(mid, item.result.filename)
+    : item.url;
   return `
     ${miniTitleHtml(mid)}
     <audio controls preload="metadata" src="${escapeHtml(url)}"></audio>
@@ -1623,10 +1658,10 @@ async function retryCompareItem(runId, mid) {
   let item;
   try {
     const fd = buildFormDataForModel(mid, run.text, false, prev.params || null);
-    const r = await fetch(`/api/${mid}/synthesize`, { method: 'POST', body: fd });
+    const r = await fetch(appUrl(`api/${mid}/synthesize`), { method: 'POST', body: fd });
     if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
     const result = await r.json();
-    const url = `/audio/${mid}/${result.filename}`;
+    const url = modelAudioUrl(mid, result.filename);
     addToHistory({ ...result, model: mid, text: run.text, url, options, timestamp: Date.now() });
     item = { mid, result, options, url, params: prev.params };
     showToast('تمت إعادة التوليد ✓', 'success');
@@ -1740,10 +1775,10 @@ async function compareModels() {
     let item;
     try {
       const fd = buildFormDataForModel(mid, text, false);
-      const r = await fetch(`/api/${mid}/synthesize`, { method: 'POST', body: fd });
+      const r = await fetch(appUrl(`api/${mid}/synthesize`), { method: 'POST', body: fd });
       if (!r.ok) throw new Error(await r.text());
       const result = await r.json();
-      const url = `/audio/${mid}/${result.filename}`;
+      const url = modelAudioUrl(mid, result.filename);
       addToHistory({ ...result, model: mid, text, url, options, timestamp: Date.now() });
       item = { mid, result, options, url, params: run.items[idx].params };
     } catch (e) {
