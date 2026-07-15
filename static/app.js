@@ -1612,8 +1612,10 @@ function loadCompareRuns() {
     try {
       const old = JSON.parse(localStorage.getItem(COMPARE_KEY) || 'null');
       if (old && Array.isArray(old.items) && old.items.length) {
+        const items = old.items.filter(item => item && typeof item === 'object' && MODELS[item.mid]);
+        if (!items.length) throw new Error('Legacy comparison data is invalid');
         compareRuns = [{ id: `c${old.timestamp || Date.now()}`, text: old.text || '',
-                         timestamp: old.timestamp || Date.now(), items: old.items }];
+                         timestamp: old.timestamp || Date.now(), items }];
         persistCompareRuns();
       }
     } catch { /* ignore */ }
@@ -1901,6 +1903,42 @@ function clearHistory() {
   renderHistory();
 }
 
+function setupPrimaryActions() {
+  const textInput = $('text-input');
+  if (!textInput || textInput.dataset.primaryActionsBound === '1') return;
+  textInput.dataset.primaryActionsBound = '1';
+
+  textInput.addEventListener('input', () => {
+    updateCharCount();
+    updateSynthBtn();
+  });
+
+  const synthBtn = $('btn-synth');
+  if (synthBtn) synthBtn.addEventListener('click', synthesize);
+
+  const compareBtn = $('btn-compare');
+  if (compareBtn) compareBtn.addEventListener('click', () => compareModels(true));
+
+  const compareToggle = $('use-all-models');
+  if (compareToggle) {
+    compareToggle.addEventListener('change', () => {
+      updateCompareMode();
+      updateSynthBtn();
+    });
+  }
+
+  const clearBtn = $('btn-clear-text');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      textInput.value = '';
+      updateCharCount();
+      updateSynthBtn();
+    });
+  }
+
+  updateCompareMode();
+}
+
 // ── Init ──────────────────────────────────────────────────────
 function init() {
   initParamValues();
@@ -1914,37 +1952,22 @@ function init() {
   // unrelated panel must not prevent the model cards from leaving their initial state.
   startStatusPolling();
 
-  renderVoicePicker();
-  renderCompareChecks();
-  renderHistory();
-  loadCompareRuns();
-  if (compareRuns[0]) expandedCompareRuns.add(compareRuns[0].id);
-  renderCompareLibrary();
-  setupAudioEvents();
+  // Primary actions must remain usable even if optional history/local-storage restoration
+  // encounters stale data from an older frontend version.
+  setupPrimaryActions();
 
-  // Text input events
-  $('text-input').addEventListener('input', () => {
-    updateCharCount();
-    updateSynthBtn();
-  });
-
-  // Synth button
-  $('btn-synth').addEventListener('click', synthesize);
-
-  if ($('use-all-models')) {
-    $('use-all-models').addEventListener('change', () => {
-      updateCompareMode();
-      updateSynthBtn();
-    });
+  try {
+    renderVoicePicker();
+    renderCompareChecks();
+    renderHistory();
+    loadCompareRuns();
+    if (compareRuns[0]) expandedCompareRuns.add(compareRuns[0].id);
+    renderCompareLibrary();
+    setupAudioEvents();
+  } catch (e) {
+    console.error('Optional UI initialization failed', e);
+    showToast('تم تشغيل الأزرار، لكن تعذّر استعادة بعض بيانات المتصفح القديمة', 'warn', 6000);
   }
-  if ($('btn-compare')) $('btn-compare').addEventListener('click', compareModels);
-
-  // Clear text
-  $('btn-clear-text').addEventListener('click', () => {
-    $('text-input').value = '';
-    updateCharCount();
-    updateSynthBtn();
-  });
 
   // Clear history
   $('btn-clear-history').addEventListener('click', clearHistory);
