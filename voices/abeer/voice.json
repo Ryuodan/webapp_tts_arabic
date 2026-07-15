@@ -1,0 +1,12 @@
+{
+  "id": "abeer",
+  "label": "عبير — سعودية",
+  "gender": "female",
+  "language": "ars",
+  "ref_audio": "abeer_ref_6s.wav",
+  "ref_text": "عند الانتهاء من مساعدتك، سيتم تحويل مكالمتكم لتقييم مدى رضاكم",
+  "sample_rate": 24000,
+  "duration_s": 6.0,
+  "source": "tts-05172026/cloneVoice/abeer_ref_6s.wav (cut from 'Saudi Voice Artist Abeer Female Audio Sample.wav')",
+  "notes": "Saudi female voice-artist reference clip for OmniVoice cloning. Best results with the saudi_hq_ft fine-tuned checkpoint (see models/omnivoice/best_finetuned_checkpoint.json)."
+}

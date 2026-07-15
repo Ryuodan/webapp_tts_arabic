@@ -16,6 +16,12 @@ const MODELS = {
     ],
     compareNote: 'استخدمه كخط أساس للنطق والتغطية اللغوية.',
     params: [
+      { id: 'voice', label: 'صوت جاهز (مستنسخ)', type: 'select', default: '',
+        options: [
+          { value: '',      label: 'بدون — صوت النموذج' },
+          { value: 'abeer', label: 'عبير — سعودية' },
+        ],
+        hint: 'أصوات مرجعية مضمّنة في السيرفر تُستنسخ تلقائياً (voices/). رفع صوت مرجعي يدوياً من لوحة الاستنساخ يتجاوز هذا الاختيار.' },
       { id: 'speaker', label: 'Voice / Style Prompt', type: 'text',
         placeholder: 'e.g. female, young adult, whisper', default: '',
         hint: 'وصف الصوت بمفردات OmniVoice الإنجليزية فقط: الجنس (male/female)، العمر (young adult/middle-aged/elderly)، النبرة (low/high pitch)، الأسلوب (whisper). لا يقبل وصفاً عربياً حراً. اللهجة العربية تُضبط تلقائياً عبر لغة النموذج، وليست جزءاً من هذا الوصف. اتركه فارغاً للصوت الافتراضي.' },
@@ -239,12 +245,18 @@ function cloneLabel(key) {
   }[key] || key;
 }
 
+const selectOptionValue = o => (o && typeof o === 'object') ? o.value : o;
+
 function optionSummary(mid, includeClone = true) {
   const model = MODELS[mid];
   const vals = paramValues[mid] || {};
   const entries = (model.params || []).map(p => {
     const raw = Object.prototype.hasOwnProperty.call(vals, p.id) ? vals[p.id] : p.default;
-    const value = typeof raw === 'string' && !raw.trim() ? 'افتراضي' : raw;
+    let value = typeof raw === 'string' && !raw.trim() ? 'افتراضي' : raw;
+    if (p.type === 'select') {
+      const match = (p.options || []).find(o => selectOptionValue(o) == raw);
+      if (match && typeof match === 'object') value = match.label;
+    }
     return { label: p.label, value };
   });
 
@@ -571,7 +583,13 @@ function renderParams() {
 
     } else if (p.type === 'select') {
       row.className = 'param-row';
-      const opts = p.options.map(o => `<option value="${o}" ${o == val ? 'selected' : ''}>${o}</option>`).join('');
+      // Options are either primitives (numeric params) or {value, label} objects (string params).
+      const numeric = typeof selectOptionValue(p.options[0]) === 'number';
+      const opts = p.options.map(o => {
+        const ov = selectOptionValue(o);
+        const ol = (o && typeof o === 'object') ? o.label : o;
+        return `<option value="${escapeHtml(String(ov))}" ${ov == val ? 'selected' : ''}>${escapeHtml(String(ol))}</option>`;
+      }).join('');
       row.innerHTML = `
         <label class="param-label" for="p-${p.id}">${p.label}</label>
         <select class="param-select" id="p-${p.id}">${opts}</select>
@@ -579,7 +597,7 @@ function renderParams() {
       `;
       body.appendChild(row);
       row.querySelector('select').addEventListener('change', e => {
-        paramValues[selectedModel][p.id] = parseInt(e.target.value);
+        paramValues[selectedModel][p.id] = numeric ? parseInt(e.target.value) : e.target.value;
       });
 
     } else if (p.type === 'text') {

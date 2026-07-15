@@ -19,7 +19,20 @@ from fastapi.responses import FileResponse
 WORKDIR = pathlib.Path(os.getenv("TTS_WORKDIR", "~/tts-05172026")).expanduser()
 OUT_DIR = pathlib.Path(os.getenv("OMNIVOICE_OUT_DIR", str(WORKDIR / "outputs_omnivoice"))).expanduser()
 OUT_DIR.mkdir(parents=True, exist_ok=True)
-OMNIVOICE_MODEL_ID = os.getenv("OMNIVOICE_MODEL_ID", "k2-fsa/OmniVoice")
+OMNIVOICE_BASE_MODEL_ID = "k2-fsa/OmniVoice"
+# Best Saudi-HQ fine-tuned checkpoint (see models/omnivoice/BEST_FINETUNED_CHECKPOINT.md).
+# The weights live outside the repo; the training project keeps this symlink pointing
+# at the best available checkpoint (currently saudi_hq_ft/checkpoint-2500).
+FINETUNED_CHECKPOINT = WORKDIR / "omnivoice" / "checkpoints" / "best_finetuned"
+
+
+def _default_model_id() -> str:
+    if (FINETUNED_CHECKPOINT / "model.safetensors").exists():
+        return str(FINETUNED_CHECKPOINT)
+    return OMNIVOICE_BASE_MODEL_ID
+
+
+OMNIVOICE_MODEL_ID = os.getenv("OMNIVOICE_MODEL_ID") or _default_model_id()
 OMNIVOICE_DEVICE = os.getenv("OMNIVOICE_DEVICE", "auto")
 MODEL_IDLE_SECONDS = int(os.getenv("TTS_MODEL_IDLE_SECONDS", "900"))
 MAX_TEXT_CHARS = int(os.getenv("TTS_MAX_TEXT_CHARS", "8000"))
@@ -40,6 +53,28 @@ _ARABIC_DIALECT_LANG = {
 
 def _dialect_language(dialect: str) -> str:
     return _ARABIC_DIALECT_LANG.get((dialect or "msa").strip().lower(), _ARABIC_DIALECT_LANG["msa"])
+
+
+# Built-in cloned voices bundled with the repo: voices/<id>/voice.json + reference wav.
+VOICES_DIR = pathlib.Path(os.getenv("TTS_VOICES_DIR",
+                                    str(pathlib.Path(__file__).resolve().parents[1] / "voices"))).expanduser()
+
+
+def _load_builtin_voices() -> dict:
+    voices = {}
+    for meta_path in sorted(VOICES_DIR.glob("*/voice.json")):
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            wav = meta_path.parent / meta["ref_audio"]
+            if wav.is_file():
+                meta["ref_audio_path"] = str(wav)
+                voices[str(meta.get("id", meta_path.parent.name)).lower()] = meta
+        except Exception:
+            continue  # a broken voice dir must not take the worker down
+    return voices
+
+
+_BUILTIN_VOICES = _load_builtin_voices()
 
 
 # gender + age are native OmniVoice voice-design attributes; empty = model's choice.
@@ -173,6 +208,9 @@ async def health():
     idle_seconds = round(time.monotonic() - _last_used, 1) if _model is not None and _last_used else 0
     return {
         "model": "OmniVoice",
+        "model_id": OMNIVOICE_MODEL_ID,
+        "finetuned": OMNIVOICE_MODEL_ID != OMNIVOICE_BASE_MODEL_ID,
+        "voices": sorted(_BUILTIN_VOICES),
         "status": "ok",
         "ready": _model is not None,
         "model_loaded": _model is not None,
@@ -203,6 +241,7 @@ async def synthesize(
     gender: str = Form(""),
     age: str = Form(""),
     speaker: str = Form(""),
+    voice: str = Form(""),
     model_input_override: str = Form(""),
     model_instruct_override: str = Form(""),
     ref_audio: UploadFile | None = File(None),
@@ -212,16 +251,26 @@ async def synthesize(
     _validate_text(model_input_override, "model_input_override")
     _validate_text(ref_text or "", "ref_text")
 
+    voice_id = (voice or "").strip().lower()
+    builtin = _BUILTIN_VOICES.get(voice_id) if voice_id else None
+    if voice_id and not builtin:
+        raise HTTPException(400, f"Unknown built-in voice: {voice_id}")
+
     ref_tmp = await _save_upload_tmp(ref_audio)
 
     out_path = OUT_DIR / f"omnivoice_{uuid.uuid4().hex[:12]}.wav"
     # Non-empty overrides are used verbatim (frontend manual-edit mode).
     eff_text = (model_input_override or "").strip() or text
     kwargs: dict = {"text": eff_text}
+    # A user-uploaded reference always wins over a built-in voice.
     if ref_tmp:
         kwargs["ref_audio"] = ref_tmp
+    elif builtin:
+        kwargs["ref_audio"] = builtin["ref_audio_path"]
     if ref_text and ref_text.strip():
         kwargs["ref_text"] = ref_text.strip()
+    elif not ref_tmp and builtin and builtin.get("ref_text"):
+        kwargs["ref_text"] = builtin["ref_text"]
 
     # The Arabic dialect rides OmniVoice's language code — never the instruct field.
     kwargs["language"] = _dialect_language(dialect)
@@ -264,6 +313,8 @@ async def synthesize(
     result = {
         "filename": out_path.name,
         "model": "omnivoice",
+        "model_id": OMNIVOICE_MODEL_ID,
+        "voice": voice_id,
         "model_input": eff_text,
         "model_instruct": kwargs.get("instruct", ""),
         "model_language": kwargs.get("language", ""),
@@ -275,9 +326,9 @@ async def synthesize(
     _write_sidecar(out_path, {
         "text": text,
         "instruct": speaker,          # voice description / instruction
-        "params": {"speaker": speaker},
-        "reference_text": ref_text,
-        "has_reference_audio": bool(ref_tmp),
+        "params": {"speaker": speaker, "voice": voice_id},
+        "reference_text": kwargs.get("ref_text", ref_text),
+        "has_reference_audio": "ref_audio" in kwargs,
         "created": time.time(),
         **result,
     })

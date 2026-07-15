@@ -35,6 +35,8 @@ outputs_voxcpm2/
 *.wav
 *.flac
 *.mp3
+# ...except the small bundled voice-clone references (versioned assets)
+!voices/**/*.wav
 
 # Models / weights (large binaries)
 *.gguf
