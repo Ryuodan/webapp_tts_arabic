@@ -49,11 +49,13 @@
 
       <!-- Compare mode -->
       <section class="panel-section">
-        <label class="compare-toggle">
-          <input type="checkbox" id="use-all-models">
-          <span>استخدم كل النماذج وقارن النتائج</span>
-        </label>
+        <div class="compare-toggle">
+          <span>قارن نفس النص باستخدام كل النماذج المتاحة</span>
+        </div>
         <div class="compare-checks hidden" id="compare-checks"></div>
+        <button class="btn-compare" id="btn-compare" type="button" disabled>
+          <span id="compare-label">قارن الآن</span>
+        </button>
       </section>
 
       <!-- Text input -->
@@ -164,6 +166,6 @@
   <!-- Toast notification -->
   <div class="toast hidden" id="toast"></div>
 
-  <script src="app.js?v=23"></script>
+  <script src="app.js?v=27"></script>
 </body>
 </html>

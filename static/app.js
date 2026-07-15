@@ -131,6 +131,7 @@ let selectedModel = 'omnivoice_ft';
 let workerStatus  = { omnivoice_ft: 'checking', omnivoice_base: 'checking' };
 let loadingModels = new Set();   // models with an in-flight /load request
 let statusPollInFlight = false;
+let statusPollTimer = null;
 let currentAudioUrl = null;
 let isGenerating  = false;
 let isComparing   = false;
@@ -742,10 +743,24 @@ function renderCompareChecks() {
 function updateCompareLabel() {
   if (isComparing) return;
   if (!$('compare-checks') || !$('btn-compare')) return;
-  const n = $$('#compare-checks input:checked').length;
+  const toggle = $('use-all-models');
+  const useAll = !toggle || toggle.checked;
+  const n = useAll
+    ? Object.keys(MODELS).filter(mid => !['offline', 'checking'].includes(workerStatus[mid])).length
+    : $$('#compare-checks input:checked').length;
   const label = $('compare-label');
-  if (label) label.textContent = n ? `قارن الآن (${n})` : 'اختر نماذج للمقارنة';
-  $('btn-compare').disabled = n === 0;
+  if (label) label.textContent = n ? `قارن الآن (${n})` : 'لا توجد نماذج متاحة';
+  // Keep the button clickable with empty text so the user gets an explanatory toast
+  // instead of an inert control that looks broken.
+  $('btn-compare').disabled = n === 0 || isGenerating || isComparing;
+}
+
+function updateCompareMode() {
+  const toggle = $('use-all-models');
+  const enabled = !toggle || toggle.checked;
+  const btn = $('btn-compare');
+  if (btn) btn.hidden = !enabled;
+  updateCompareLabel();
 }
 
 // ── Render sample chips ───────────────────────────────────────
@@ -1002,19 +1017,36 @@ function updateSynthBtn() {
     !available ? 'النموذج غير متاح' :
     isGenerating || isComparing ? 'جاري التوليد…' :
     useAll ? 'قارن النماذج' : 'توليد الصوت';
+  updateCompareLabel();
 }
 
 // ── Poll worker health ────────────────────────────────────────
+function renderWorkerStatus() {
+  renderStatusBadges();
+  renderModelCards();
+  renderCompareChecks();
+  updateSynthBtn();
+}
+
 async function pollStatus() {
   if (statusPollInFlight) return;
   statusPollInFlight = true;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 6000);
+  let timeout = null;
   try {
-    const r = await fetch(appUrl('api/status'), {
+    // Promise.race keeps the check bounded even in browsers without AbortController.
+    // Abort the underlying request too when that API is available.
+    const controller = typeof AbortController === 'function' ? new AbortController() : null;
+    const request = fetch(appUrl('api/status'), {
       cache: 'no-store',
-      signal: controller.signal,
+      ...(controller ? { signal: controller.signal } : {}),
     });
+    const deadline = new Promise((_, reject) => {
+      timeout = setTimeout(() => {
+        if (controller) controller.abort();
+        reject(new Error('Status request timed out'));
+      }, 15_000);
+    });
+    const r = await Promise.race([request, deadline]);
     if (!r.ok) throw new Error(`Status request failed: HTTP ${r.status}`);
     const data = await r.json();
     if (!data || typeof data !== 'object') throw new Error('Invalid status response');
@@ -1045,11 +1077,26 @@ async function pollStatus() {
   } finally {
     clearTimeout(timeout);
     statusPollInFlight = false;
-    renderStatusBadges();
-    renderModelCards();
-    renderCompareChecks();
-    updateSynthBtn();
+    renderWorkerStatus();
   }
+}
+
+function startStatusPolling() {
+  void pollStatus();
+  if (!statusPollTimer) statusPollTimer = setInterval(pollStatus, 10_000);
+
+  // Never leave the initial state spinning indefinitely, even if a browser extension,
+  // compatibility issue, or a later optional UI initializer interrupts normal startup.
+  setTimeout(() => {
+    let changed = false;
+    for (const mid of Object.keys(MODELS)) {
+      if (workerStatus[mid] === 'checking') {
+        workerStatus[mid] = 'offline';
+        changed = true;
+      }
+    }
+    if (changed) renderWorkerStatus();
+  }, 16_000);
 }
 
 // ── Current "instruct" (voice description / prompt text) ──────
@@ -1549,7 +1596,16 @@ let compareRuns = [];
 function loadCompareRuns() {
   try {
     const arr = JSON.parse(localStorage.getItem(COMPARE_RUNS_KEY) || '[]');
-    compareRuns = Array.isArray(arr) ? arr : [];
+    compareRuns = Array.isArray(arr) ? arr
+      .filter(run => run && typeof run === 'object' && Array.isArray(run.items))
+      .map(run => ({
+        ...run,
+        id: String(run.id || `c${run.timestamp || Date.now()}`),
+        text: String(run.text || ''),
+        timestamp: Number(run.timestamp) || Date.now(),
+        items: run.items.filter(item => item && typeof item === 'object' && MODELS[item.mid]),
+      }))
+      .filter(run => run.items.length) : [];
   } catch { compareRuns = []; }
   // One-time migration of the old single-slot run into the new list.
   if (!compareRuns.length) {
@@ -1734,12 +1790,13 @@ function renderCompareLibrary() {
   }
 }
 
-async function compareModels() {
+async function compareModels(compareAll = false) {
   if (isComparing) return;
   const text = $('text-input').value.trim();
   if (!text) { showToast('أدخل نصاً أولاً', 'warn'); return; }
 
-  const useAll = Boolean($('use-all-models') && $('use-all-models').checked);
+  const toggle = $('use-all-models');
+  const useAll = compareAll || !toggle || toggle.checked;
   const selected = useAll
     ? Object.keys(MODELS).filter(mid => workerStatus[mid] !== 'offline')
     : Array.from($$('#compare-checks input:checked')).map(e => e.value);
@@ -1749,6 +1806,8 @@ async function compareModels() {
   const btn = $('btn-compare');
   if (btn) btn.disabled = true;
   updateSynthBtn();
+  $('synth-progress').classList.remove('hidden');
+  $('progress-hint').textContent = `جاري تحضير مقارنة ${selected.length} نماذج…`;
 
   // Create the run up front and show it expanded at the top of the library, so the live
   // generation streams into the same card the user will keep and compare against later.
@@ -1761,42 +1820,64 @@ async function compareModels() {
   };
   currentCompareRunId = run.id;
   expandedCompareRuns.add(run.id);
-  addCompareRun(run);   // unshift + persist + renderCompareLibrary → renders the pending card
-  if ($('saved-compare-card')) $('saved-compare-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-  for (let i = 0; i < selected.length; i++) {
-    const mid = selected[i];
-    const idx = run.items.findIndex(it => it.mid === mid);
-    const options = run.items[idx].options;
-    if ($('compare-label')) $('compare-label').textContent = `جاري المقارنة ${i + 1}/${selected.length}`;
-    $('synth-label').textContent = `جاري المقارنة ${i + 1}/${selected.length}`;
-    setMiniHtml(run.id, mid, `${miniTitleHtml(mid)}<div class="mini-spinner">جاري التوليد…</div>${optionChipsHtml(options)}`);
-
-    let item;
-    try {
-      const fd = buildFormDataForModel(mid, text, false);
-      const r = await fetch(appUrl(`api/${mid}/synthesize`), { method: 'POST', body: fd });
-      if (!r.ok) throw new Error(await r.text());
-      const result = await r.json();
-      const url = modelAudioUrl(mid, result.filename);
-      addToHistory({ ...result, model: mid, text, url, options, timestamp: Date.now() });
-      item = { mid, result, options, url, params: run.items[idx].params };
-    } catch (e) {
-      item = { mid, error: e.message, options, params: run.items[idx].params };
+  try {
+    addCompareRun(run);   // unshift + persist + renderCompareLibrary → renders the pending card
+    const compareCard = $('saved-compare-card');
+    if (compareCard && typeof compareCard.scrollIntoView === 'function') {
+      compareCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
-    run.items[idx] = item;
-    persistCompareRuns();
-    setMiniHtml(run.id, mid, miniPlayerHtml(mid, item, run.id));
-    refreshRunSummary(run);
-  }
+    for (let i = 0; i < selected.length; i++) {
+      const mid = selected[i];
+      const idx = run.items.findIndex(it => it.mid === mid);
+      const options = run.items[idx].options;
+      const progress = `جاري المقارنة ${i + 1}/${selected.length}`;
+      if ($('compare-label')) $('compare-label').textContent = progress;
+      $('synth-label').textContent = progress;
+      $('progress-hint').textContent = `${progress} — قد يحتاج النموذج غير المحمّل عدة دقائق`;
+      setMiniHtml(run.id, mid, `${miniTitleHtml(mid)}<div class="mini-spinner">جاري التوليد…</div>${optionChipsHtml(options)}`);
 
-  isComparing = false;
-  if (btn) btn.disabled = false;
-  updateCompareLabel();
-  updateSynthBtn();
-  const hadErr = run.items.some(r => r.error);
-  showToast(hadErr ? 'اكتملت المقارنة مع أخطاء' : 'اكتملت المقارنة', hadErr ? 'warn' : 'success');
+      let item;
+      try {
+        const fd = buildFormDataForModel(mid, text, false);
+        const r = await fetch(appUrl(`api/${mid}/synthesize`), { method: 'POST', body: fd });
+        if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+        const result = await r.json();
+        const url = modelAudioUrl(mid, result.filename);
+        addToHistory({ ...result, model: mid, text, url, options, timestamp: Date.now() });
+        item = { mid, result, options, url, params: run.items[idx].params };
+      } catch (e) {
+        item = { mid, error: e.message || String(e), options, params: run.items[idx].params };
+      }
+
+      run.items[idx] = item;
+      persistCompareRuns();
+      setMiniHtml(run.id, mid, miniPlayerHtml(mid, item, run.id));
+      refreshRunSummary(run);
+    }
+
+    const hadErr = run.items.some(r => r.error);
+    showToast(hadErr ? 'اكتملت المقارنة مع أخطاء' : 'اكتملت المقارنة', hadErr ? 'warn' : 'success');
+  } catch (e) {
+    const message = String(e.message || e).slice(0, 120);
+    for (const item of run.items) {
+      if (item.pending) {
+        delete item.pending;
+        item.error = message;
+      }
+    }
+    try {
+      persistCompareRuns();
+      renderCompareLibrary();
+    } catch { /* the progress controls are still reset below */ }
+    showToast(`تعذّر بدء المقارنة: ${message}`, 'error', 6000);
+  } finally {
+    isComparing = false;
+    currentCompareRunId = null;
+    $('synth-progress').classList.add('hidden');
+    updateCompareMode();
+    updateSynthBtn();
+  }
 }
 
 // ── Accordion toggle ──────────────────────────────────────────
@@ -1828,6 +1909,11 @@ function init() {
 
   renderModelCards();
   renderStatusBadges();
+
+  // Start health synchronization before initializing optional controls. A problem in an
+  // unrelated panel must not prevent the model cards from leaving their initial state.
+  startStatusPolling();
+
   renderVoicePicker();
   renderCompareChecks();
   renderHistory();
@@ -1845,7 +1931,13 @@ function init() {
   // Synth button
   $('btn-synth').addEventListener('click', synthesize);
 
-  if ($('use-all-models')) $('use-all-models').addEventListener('change', updateSynthBtn);
+  if ($('use-all-models')) {
+    $('use-all-models').addEventListener('change', () => {
+      updateCompareMode();
+      updateSynthBtn();
+    });
+  }
+  if ($('btn-compare')) $('btn-compare').addEventListener('click', compareModels);
 
   // Clear text
   $('btn-clear-text').addEventListener('click', () => {
@@ -1877,10 +1969,6 @@ function init() {
       if (btn) { e.stopPropagation(); retryCompareItem(btn.dataset.runId, btn.dataset.mid); }
     });
   }
-
-  // Initial status poll + periodic refresh
-  pollStatus();
-  setInterval(pollStatus, 10_000);
 
   // Load server-side history after status check
   setTimeout(loadServerHistory, 1500);

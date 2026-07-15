@@ -89,6 +89,18 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Arabic TTS Studio", lifespan=lifespan, docs_url=None, redoc_url=None)
 
 
+@app.middleware("http")
+async def frontend_cache_policy(request: Request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if request.method == "GET" and not path.startswith(("/api/", "/audio/")):
+        # The UI uses query-versioned assets, but the HTML itself must not pin an old
+        # bundle reference in browser/proxy caches after a frontend deployment.
+        response.headers["Cache-Control"] = "no-store, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+    return response
+
+
 @app.get("/api/status")
 async def status():
     # One health call per unique worker URL; aliases reuse the same payload.
