@@ -6,20 +6,16 @@
 // tells the worker which checkpoint to load. VoxCPM2/Fish are retired from the interface.
 const OMNI_SHARED = {
   params: [
-    { id: 'voice', label: 'صوت جاهز (مستنسخ)', type: 'select', default: '',
+    { id: 'voice', label: 'الصوت', type: 'select', default: '',
       options: [
-        { value: '',      label: 'بدون — صوت النموذج' },
+        { value: '',      label: 'بدون استنساخ' },
         { value: 'abeer', label: 'عبير — سعودية' },
         { value: 'ahmed', label: 'أحمد — فصحى' },
-      ],
-      hint: 'أصوات مرجعية مضمّنة في السيرفر تُستنسخ تلقائياً (voices/). رفع صوت مرجعي يدوياً من لوحة الاستنساخ يتجاوز هذا الاختيار.' },
-    { id: 'speaker', label: 'Voice / Style Prompt', type: 'text',
-      placeholder: 'e.g. female, young adult, whisper', default: '',
-      hint: 'وصف الصوت بمفردات OmniVoice الإنجليزية فقط: الجنس (male/female)، العمر (young adult/middle-aged/elderly)، النبرة (low/high pitch)، الأسلوب (whisper). لا يقبل وصفاً عربياً حراً. اللهجة العربية تُضبط تلقائياً عبر لغة النموذج، وليست جزءاً من هذا الوصف. اتركه فارغاً للصوت الافتراضي.' },
+      ] },
   ],
   emotionTags: ['[laughter]'],   // base model only documents [laughter]; [applause] is unsupported
-  cloneFields: ['ref_audio', 'ref_text'],
-  formFields: { ref_audio: 'ref_audio', ref_text: 'ref_text' },
+  cloneFields: [],
+  formFields: {},
 };
 
 const MODELS = {
@@ -241,23 +237,6 @@ function optionSummary(mid, includeClone = true) {
     return { label: p.label, value };
   });
 
-  // Forced language + chosen dialect/persona lead the summary.
-  const lead = [{ label: 'اللهجة', value: `العربية · ${dialectLabel(vals.dialect || 'msa')}` }];
-  if (vals.gender) lead.push({ label: 'الجنس', value: attrLabel(GENDERS, vals.gender) });
-  if (vals.age)    lead.push({ label: 'العمر', value: attrLabel(AGES, vals.age) });
-  entries.unshift(...lead);
-
-  if (includeClone) {
-    const usedClone = [];
-    for (const stateKey of Object.values(model.formFields || {})) {
-      const val = cloneFiles[stateKey];
-      if (val instanceof File) usedClone.push({ label: cloneLabel(stateKey), value: val.name });
-      else if (typeof val === 'string' && val.trim()) usedClone.push({ label: cloneLabel(stateKey), value: 'موجود' });
-    }
-    entries.push(...usedClone);
-    if (!usedClone.length && model.formFields) entries.push({ label: 'استنساخ', value: 'بدون مرجع' });
-  }
-
   return entries;
 }
 
@@ -326,7 +305,7 @@ function renderModelCards() {
       <div class="mc-footer">
         <span class="mc-status ${statusCls}">${statusText}</span>
         ${st === 'loading'
-          ? `<button class="mc-load-btn" data-load="${m.id}" ${isLoading ? 'disabled' : ''}>${isLoading ? 'جاري التحميل…' : 'تحميل النموذج'}</button>`
+          ? `<button class="mc-load-btn" data-load="${m.id}" ${isLoading ? 'disabled' : ''}>${isLoading ? 'جاري التحميل…' : 'تحميل'}</button>`
           : ''}
       </div>
     `;
@@ -533,6 +512,7 @@ function sentInputHtml(meta) {
 
 function renderParams() {
   const body = $('params-body');
+  if (!body) return;
   const model = MODELS[selectedModel];
   body.innerHTML = renderModelInsights(model);
   renderLanguageBar(body);
@@ -601,9 +581,37 @@ function renderParams() {
   }
 }
 
+function renderVoicePicker() {
+  const select = $('voice-select');
+  if (!select) return;
+
+  const model = MODELS[selectedModel];
+  const voiceParam = (model.params || []).find(p => p.id === 'voice');
+  if (!voiceParam) {
+    select.innerHTML = '<option value="">بدون استنساخ</option>';
+    select.disabled = true;
+    return;
+  }
+
+  const current = (paramValues[selectedModel] && paramValues[selectedModel].voice) || '';
+  select.disabled = false;
+  select.innerHTML = voiceParam.options.map(o => `
+    <option value="${escapeHtml(String(o.value))}" ${o.value === current ? 'selected' : ''}>
+      ${escapeHtml(o.label)}
+    </option>
+  `).join('');
+
+  select.onchange = e => {
+    for (const mid of Object.keys(MODELS)) {
+      if (paramValues[mid]) paramValues[mid].voice = e.target.value;
+    }
+  };
+}
+
 // ── Render emotion tags ───────────────────────────────────────
 function renderTags() {
   const strip = $('tag-strip');
+  if (!strip) return;
   const model = MODELS[selectedModel];
   if (!model.emotionTags || !model.emotionTags.length) {
     strip.className = 'tag-strip empty';
@@ -639,6 +647,7 @@ function insertTag(tag) {
 // ── Render voice-cloning panel ────────────────────────────────
 function renderClonePanel() {
   const body = $('clone-body');
+  if (!body) return;
   const model = MODELS[selectedModel];
   body.innerHTML = '';
 
@@ -694,6 +703,7 @@ function makeTextRow(key, label, placeholder) {
 // ── Render compare checkboxes ─────────────────────────────────
 function renderCompareChecks() {
   const container = $('compare-checks');
+  if (!container) return;
   container.innerHTML = '';
   for (const m of Object.values(MODELS)) {
     const label = document.createElement('label');
@@ -719,6 +729,7 @@ function renderCompareChecks() {
 // Reflect the number of selected models on the compare button
 function updateCompareLabel() {
   if (isComparing) return;
+  if (!$('compare-checks') || !$('btn-compare')) return;
   const n = $$('#compare-checks input:checked').length;
   const label = $('compare-label');
   if (label) label.textContent = n ? `قارن الآن (${n})` : 'اختر نماذج للمقارنة';
@@ -728,6 +739,7 @@ function updateCompareLabel() {
 // ── Render sample chips ───────────────────────────────────────
 function renderSampleChips() {
   const container = $('sample-chips');
+  if (!container) return;
   container.innerHTML = '';
   for (const s of SAMPLE_SENTENCES) {
     const chip = document.createElement('button');
@@ -946,10 +958,7 @@ function selectModel(id) {
   selectedModel = id;
   cloneFiles = {};
   renderModelCards();
-  renderParams();
-  renderTags();
-  renderClonePanel();
-  renderCompareChecks();
+  renderVoicePicker();
   updateSynthBtn();
 
   // Update synth button color
@@ -967,9 +976,9 @@ function updateCharCount() {
 
 function updateSynthBtn() {
   const hasText = $('text-input').value.trim().length > 0;
-  const online  = workerStatus[selectedModel] === 'online';
-  $('btn-synth').disabled = !hasText || isGenerating;
-  $('synth-label').textContent = !online ? 'النموذج غير متاح' :
+  const available = workerStatus[selectedModel] !== 'offline';
+  $('btn-synth').disabled = !hasText || isGenerating || !available;
+  $('synth-label').textContent = !available ? 'النموذج غير متاح' :
     isGenerating ? 'جاري التوليد…' : 'توليد الصوت';
 }
 
@@ -997,7 +1006,6 @@ async function pollStatus() {
   } catch { /* server not yet up */ }
   renderStatusBadges();
   renderModelCards();
-  renderCompareChecks();
   updateSynthBtn();
 }
 
@@ -1118,10 +1126,8 @@ async function loadPlayer(url, meta, text) {
   if (insights) {
     const options = meta.options || optionSummary(meta.model, false);
     insights.innerHTML = `
-      <p class="player-model-note">${escapeHtml(model.role || '')}</p>
       ${metricGridHtml(meta)}
       ${optionChipsHtml(options)}
-      ${sentInputHtml(meta)}
     `;
   }
 
@@ -1764,49 +1770,24 @@ function init() {
 
   renderModelCards();
   renderStatusBadges();
-  renderParams();
-  renderTags();
-  renderClonePanel();
-  renderCompareChecks();
-  renderSampleChips();
-  renderComposePanel();
+  renderVoicePicker();
   renderHistory();
-  loadCompareRuns();
-  if (compareRuns[0]) expandedCompareRuns.add(compareRuns[0].id);  // open the latest after reload
-  renderCompareLibrary();                              // comparisons library (live + old)
-  setupAccordions();
   setupAudioEvents();
 
   // Text input events
   $('text-input').addEventListener('input', () => {
-    invalidatePrepUndo();   // manual edits supersede the last prepare
     updateCharCount();
     updateSynthBtn();
-    updateModelInputPreview();
   });
 
   // Synth button
   $('btn-synth').addEventListener('click', synthesize);
 
-  // Auto-compose agent
-  $('btn-compose-agent').addEventListener('click', composeWithAI);
-
-  // Text-Prep agent (numbers→words / tashkeel toggles + prepare + before/after preview + undo)
-  $('prep-normalize').addEventListener('click', e => togglePrepOption(e.currentTarget));
-  $('prep-diacritize').addEventListener('click', e => togglePrepOption(e.currentTarget));
-  $('btn-prep').addEventListener('click', prepareText);
-  $('btn-prep-apply').addEventListener('click', applyPrep);
-  $('btn-prep-cancel').addEventListener('click', cancelPrep);
-  $('btn-prep-undo').addEventListener('click', undoPrep);
-
   // Clear text
   $('btn-clear-text').addEventListener('click', () => {
     $('text-input').value = '';
-    invalidatePrepUndo();
-    setPrepStatus('');
     updateCharCount();
     updateSynthBtn();
-    updateModelInputPreview();
   });
 
   // Clear history
@@ -1815,25 +1796,8 @@ function init() {
   // Collapse / expand history
   $('btn-toggle-history').addEventListener('click', toggleHistoryCollapsed);
 
-  // Clear saved comparisons
-  $('btn-clear-compares').addEventListener('click', clearCompareRuns);
-
-  // Expand / collapse all saved comparisons
-  $('btn-toggle-compares').addEventListener('click', e => {
-    setAllCompareRunsExpanded(e.currentTarget.dataset.expand === '1');
-  });
-
   // History filter
   $('history-filter').addEventListener('change', () => renderHistory());
-
-  // Compare
-  $('btn-compare').addEventListener('click', compareModels);
-
-  // Retry a failed model inside any comparison (event-delegated on the library)
-  $('saved-compare-list').addEventListener('click', e => {
-    const btn = e.target.closest('.mini-retry');
-    if (btn) { e.stopPropagation(); retryCompareItem(btn.dataset.runId, btn.dataset.mid); }
-  });
 
   // Initial status poll + periodic refresh
   pollStatus();

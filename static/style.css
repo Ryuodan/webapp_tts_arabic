@@ -200,7 +200,7 @@ textarea { resize: vertical; }
   font-size: .62rem;
   white-space: nowrap;
 }
-.mc-status  { font-size: .65rem; font-weight: 600; }
+.mc-status  { display: block; margin-top: 3px; font-size: .68rem; font-weight: 600; }
 .mc-status.online  { color: var(--green); }
 .mc-status.offline { color: var(--txt3); }
 .mc-status.loading { color: var(--yellow); }
@@ -217,6 +217,26 @@ textarea { resize: vertical; }
 .model-card.omnivoice_ft   .mc-load-btn:hover:not(:disabled) { border-color: var(--omni); color: var(--omni); }
 .model-card.omnivoice_base .mc-load-btn:hover:not(:disabled) { border-color: var(--vox);  color: var(--vox);  }
 .mc-load-btn:disabled { opacity: .65; cursor: default; animation: blink .8s infinite; }
+
+/* ── Simple voice picker ───────────────────────────────────── */
+.voice-picker {
+  display: grid;
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+.voice-picker .param-label {
+  direction: rtl;
+  text-align: right;
+}
+.voice-picker .param-select {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: .82rem;
+  direction: rtl;
+}
+.simple-footer {
+  justify-content: flex-start;
+}
 
 /* ── Emotion tag strip ────────────────────────────────────── */
 .tag-strip {
