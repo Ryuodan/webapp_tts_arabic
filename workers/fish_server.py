@@ -1,5 +1,6 @@
 """Fish Audio S2 Pro TTS worker — run inside the arabic-tts conda env (port 8081)."""
 import asyncio
+from contextlib import suppress
 import json
 import os
 import pathlib
@@ -19,6 +20,8 @@ OUT_DIR   = pathlib.Path(os.getenv("FISH_OUT_DIR", str(WORKDIR / "outputs"))).ex
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 S2_CUDA_DEVICE = os.getenv("S2_CUDA_DEVICE", "-1")
 S2_THREADS = os.getenv("S2_THREADS", str(os.cpu_count() or 4))
+MAX_TEXT_CHARS = int(os.getenv("TTS_MAX_TEXT_CHARS", "8000"))
+MAX_UPLOAD_BYTES = int(os.getenv("TTS_MAX_UPLOAD_BYTES", str(25 * 1024 * 1024)))
 
 # Arabic is forced for every request; the dialect steers the in-text [tag] S2 reads.
 _ARABIC_DIALECTS = {
@@ -61,6 +64,35 @@ app = FastAPI(title="Fish S2 Pro Worker", docs_url=None, redoc_url=None)
 _lock = asyncio.Lock()
 
 
+def _validate_text(value: str, field: str = "text"):
+    if len(value or "") > MAX_TEXT_CHARS:
+        raise HTTPException(413, f"{field} is too long; max {MAX_TEXT_CHARS} characters")
+
+
+async def _save_upload_tmp(upload: UploadFile | None) -> str | None:
+    if not upload or not upload.filename:
+        return None
+
+    fd, path = tempfile.mkstemp(suffix=".wav")
+    size = 0
+    try:
+        while True:
+            chunk = await upload.read(1024 * 1024)
+            if not chunk:
+                break
+            size += len(chunk)
+            if size > MAX_UPLOAD_BYTES:
+                raise HTTPException(413, f"Uploaded audio is too large; max {MAX_UPLOAD_BYTES // (1024 * 1024)} MB")
+            os.write(fd, chunk)
+    except Exception:
+        with suppress(Exception):
+            os.unlink(path)
+        raise
+    finally:
+        os.close(fd)
+    return path
+
+
 @app.get("/health")
 async def health():
     return {
@@ -86,6 +118,8 @@ async def synthesize(
     reference_audio: UploadFile | None = File(None),
     reference_text: str | None = Form(None),
 ):
+    _validate_text(text)
+    _validate_text(reference_text or "", "reference_text")
     if not S2_BIN.exists():
         raise HTTPException(503, "s2 binary not built — run create_env.sh first")
     if not MODEL.exists():
@@ -100,11 +134,7 @@ async def synthesize(
     tag = f"{persona} voice speaking in {desc}" if persona else f"speak in {desc}"
     eff_text = f"[{tag}] {text}"
 
-    if reference_audio and reference_audio.filename:
-        data = await reference_audio.read()
-        fd, ref_tmp = tempfile.mkstemp(suffix=".wav")
-        os.write(fd, data)
-        os.close(fd)
+    ref_tmp = await _save_upload_tmp(reference_audio)
 
     cmd = [
         str(S2_BIN),

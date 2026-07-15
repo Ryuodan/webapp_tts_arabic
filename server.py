@@ -31,7 +31,38 @@ WORKER_URLS = {
     "voxcpm2":   "http://127.0.0.1:8083",
 }
 
+SINGLE_MODEL_MODE = os.getenv("TTS_SINGLE_MODEL", "1").lower() not in {"0", "false", "no", "off"}
+MAX_REQUEST_BYTES = int(os.getenv("TTS_MAX_REQUEST_BYTES", str(32 * 1024 * 1024)))
+
 _client: Optional[httpx.AsyncClient] = None
+_model_gate = asyncio.Lock()
+
+
+async def _read_limited_body(request: Request) -> bytes:
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > MAX_REQUEST_BYTES:
+                raise HTTPException(413, f"Request is too large; max {MAX_REQUEST_BYTES // (1024 * 1024)} MB")
+        except ValueError:
+            pass
+
+    body = await request.body()
+    if len(body) > MAX_REQUEST_BYTES:
+        raise HTTPException(413, f"Request is too large; max {MAX_REQUEST_BYTES // (1024 * 1024)} MB")
+    return body
+
+
+async def _unload_other_models(active_model: str):
+    if not SINGLE_MODEL_MODE:
+        return
+    for model, url in WORKER_URLS.items():
+        if model == active_model:
+            continue
+        try:
+            await _client.post(f"{url}/unload", timeout=60.0)
+        except Exception:
+            pass
 
 
 @asynccontextmanager
@@ -54,6 +85,10 @@ async def status():
             results[model] = r.json()
         except Exception:
             results[model] = {"model": model, "status": "offline", "ready": False, "model_loaded": False}
+    results["_memory_policy"] = {
+        "single_model_mode": SINGLE_MODEL_MODE,
+        "max_request_mb": MAX_REQUEST_BYTES // (1024 * 1024),
+    }
     return results
 
 
@@ -62,16 +97,18 @@ async def synthesize(model: str, request: Request):
     if model not in WORKER_URLS:
         raise HTTPException(404, f"Unknown model: {model}")
 
-    body    = await request.body()
+    body    = await _read_limited_body(request)
     headers = {k: v for k, v in request.headers.items()
                if k.lower() not in ("host", "content-length")}
-    try:
-        r = await _client.post(f"{WORKER_URLS[model]}/synthesize",
-                               content=body, headers=headers)
-    except httpx.ConnectError:
-        raise HTTPException(503, f"{model} worker is not running — check start.sh")
-    except httpx.ReadTimeout:
-        raise HTTPException(504, f"{model} synthesis timed out (>5 min)")
+    async with _model_gate:
+        await _unload_other_models(model)
+        try:
+            r = await _client.post(f"{WORKER_URLS[model]}/synthesize",
+                                   content=body, headers=headers)
+        except httpx.ConnectError:
+            raise HTTPException(503, f"{model} worker is not running — check start.sh")
+        except httpx.ReadTimeout:
+            raise HTTPException(504, f"{model} synthesis timed out (>5 min)")
 
     if r.status_code != 200:
         raise HTTPException(r.status_code, r.text)
@@ -82,13 +119,29 @@ async def synthesize(model: str, request: Request):
 async def load_model(model: str):
     if model not in WORKER_URLS:
         raise HTTPException(404, f"Unknown model: {model}")
-    try:
-        r = await _client.post(f"{WORKER_URLS[model]}/load", timeout=900.0)
-        return JSONResponse(r.json())
-    except httpx.ConnectError:
-        raise HTTPException(503, f"{model} worker is not running")
-    except httpx.ReadTimeout:
-        raise HTTPException(504, f"{model} model load timed out (>15 min)")
+    async with _model_gate:
+        await _unload_other_models(model)
+        try:
+            r = await _client.post(f"{WORKER_URLS[model]}/load", timeout=900.0)
+            return JSONResponse(r.json())
+        except httpx.ConnectError:
+            raise HTTPException(503, f"{model} worker is not running")
+        except httpx.ReadTimeout:
+            raise HTTPException(504, f"{model} model load timed out (>15 min)")
+
+
+@app.post("/api/{model}/unload")
+async def unload_model(model: str):
+    if model not in WORKER_URLS:
+        raise HTTPException(404, f"Unknown model: {model}")
+    async with _model_gate:
+        try:
+            r = await _client.post(f"{WORKER_URLS[model]}/unload", timeout=60.0)
+            return JSONResponse(r.json())
+        except httpx.ConnectError:
+            raise HTTPException(503, f"{model} worker is not running")
+        except httpx.ReadTimeout:
+            raise HTTPException(504, f"{model} model unload timed out")
 
 
 @app.get("/api/{model}/status")

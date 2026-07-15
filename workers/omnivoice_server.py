@@ -2,6 +2,8 @@
 Model is loaded lazily on first synthesis request.
 """
 import asyncio
+from contextlib import suppress
+import gc
 import json
 import os
 import pathlib
@@ -19,6 +21,10 @@ OUT_DIR = pathlib.Path(os.getenv("OMNIVOICE_OUT_DIR", str(WORKDIR / "outputs_omn
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 OMNIVOICE_MODEL_ID = os.getenv("OMNIVOICE_MODEL_ID", "k2-fsa/OmniVoice")
 OMNIVOICE_DEVICE = os.getenv("OMNIVOICE_DEVICE", "auto")
+MODEL_IDLE_SECONDS = int(os.getenv("TTS_MODEL_IDLE_SECONDS", "900"))
+MAX_TEXT_CHARS = int(os.getenv("TTS_MAX_TEXT_CHARS", "8000"))
+MAX_UPLOAD_BYTES = int(os.getenv("TTS_MAX_UPLOAD_BYTES", str(25 * 1024 * 1024)))
+CLEANUP_AFTER_SYNTH = os.getenv("TTS_CLEANUP_AFTER_SYNTH", "1").lower() not in {"0", "false", "no", "off"}
 
 # Arabic is forced for every request. OmniVoice selects the dialect via its NATIVE language
 # code (ISO 639-3), not the instruct field: instruct is a closed EN/ZH voice-design vocab
@@ -47,7 +53,70 @@ def _attr(mapping: dict, value: str) -> str:
 app = FastAPI(title="OmniVoice Worker", docs_url=None, redoc_url=None)
 _model = None
 _lock = asyncio.Lock()
+_idle_task: asyncio.Task | None = None
+_last_used = 0.0
+_last_unload_reason = ""
 SAMPLE_RATE = 24_000
+
+
+def _rss_mb() -> float | None:
+    try:
+        for line in pathlib.Path("/proc/self/status").read_text(encoding="utf-8").splitlines():
+            if line.startswith("VmRSS:"):
+                return round(int(line.split()[1]) / 1024, 1)
+    except Exception:
+        return None
+    return None
+
+
+def _cleanup_runtime_memory():
+    gc.collect()
+    with suppress(Exception):
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    with suppress(Exception):
+        import ctypes
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+
+
+def _do_unload(reason: str = "manual") -> bool:
+    global _model, _last_unload_reason
+    was_loaded = _model is not None
+    _model = None
+    _last_unload_reason = reason
+    if was_loaded:
+        _cleanup_runtime_memory()
+    return was_loaded
+
+
+def _validate_text(value: str, field: str = "text"):
+    if len(value or "") > MAX_TEXT_CHARS:
+        raise HTTPException(413, f"{field} is too long; max {MAX_TEXT_CHARS} characters")
+
+
+async def _save_upload_tmp(upload: UploadFile | None) -> str | None:
+    if not upload or not upload.filename:
+        return None
+
+    fd, path = tempfile.mkstemp(suffix=".wav")
+    size = 0
+    try:
+        while True:
+            chunk = await upload.read(1024 * 1024)
+            if not chunk:
+                break
+            size += len(chunk)
+            if size > MAX_UPLOAD_BYTES:
+                raise HTTPException(413, f"Uploaded audio is too large; max {MAX_UPLOAD_BYTES // (1024 * 1024)} MB")
+            os.write(fd, chunk)
+    except Exception:
+        with suppress(Exception):
+            os.unlink(path)
+        raise
+    finally:
+        os.close(fd)
+    return path
 
 
 def _do_load():
@@ -64,24 +133,67 @@ def _do_load():
 
 
 async def _ensure_loaded():
-    loop = asyncio.get_event_loop()
-    await loop.run_in_executor(None, _do_load)
+    global _last_used
+    async with _lock:
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, _do_load)
+        _last_used = time.monotonic()
+
+
+async def _idle_unload_loop():
+    sleep_s = min(60, max(5, MODEL_IDLE_SECONDS // 3 if MODEL_IDLE_SECONDS else 60))
+    while True:
+        await asyncio.sleep(sleep_s)
+        if MODEL_IDLE_SECONDS <= 0 or _model is None or _last_used <= 0:
+            continue
+        if time.monotonic() - _last_used < MODEL_IDLE_SECONDS:
+            continue
+        async with _lock:
+            if _model is not None and time.monotonic() - _last_used >= MODEL_IDLE_SECONDS:
+                await asyncio.to_thread(_do_unload, "idle")
+
+
+@app.on_event("startup")
+async def startup():
+    global _idle_task
+    if MODEL_IDLE_SECONDS > 0:
+        _idle_task = asyncio.create_task(_idle_unload_loop())
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    if _idle_task:
+        _idle_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await _idle_task
 
 
 @app.get("/health")
 async def health():
+    idle_seconds = round(time.monotonic() - _last_used, 1) if _model is not None and _last_used else 0
     return {
         "model": "OmniVoice",
         "status": "ok",
         "ready": _model is not None,
         "model_loaded": _model is not None,
+        "rss_mb": _rss_mb(),
+        "idle_seconds": idle_seconds,
+        "idle_timeout_s": MODEL_IDLE_SECONDS,
+        "last_unload_reason": _last_unload_reason,
     }
 
 
 @app.post("/load")
 async def load_endpoint():
     await _ensure_loaded()
-    return {"status": "loaded"}
+    return {"status": "loaded", "rss_mb": _rss_mb()}
+
+
+@app.post("/unload")
+async def unload_endpoint():
+    async with _lock:
+        unloaded = await asyncio.to_thread(_do_unload, "manual")
+    return {"status": "unloaded" if unloaded else "not_loaded", "rss_mb": _rss_mb()}
 
 
 @app.post("/synthesize")
@@ -96,14 +208,11 @@ async def synthesize(
     ref_audio: UploadFile | None = File(None),
     ref_text: str | None = Form(None),
 ):
-    await _ensure_loaded()
+    _validate_text(text)
+    _validate_text(model_input_override, "model_input_override")
+    _validate_text(ref_text or "", "ref_text")
 
-    ref_tmp: str | None = None
-    if ref_audio and ref_audio.filename:
-        data = await ref_audio.read()
-        fd, ref_tmp = tempfile.mkstemp(suffix=".wav")
-        os.write(fd, data)
-        os.close(fd)
+    ref_tmp = await _save_upload_tmp(ref_audio)
 
     out_path = OUT_DIR / f"omnivoice_{uuid.uuid4().hex[:12]}.wav"
     # Non-empty overrides are used verbatim (frontend manual-edit mode).
@@ -135,18 +244,22 @@ async def synthesize(
 
     try:
         async with _lock:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, _do_load)
             t0 = time.perf_counter()
             audio = await loop.run_in_executor(None, lambda: _model.generate(**kwargs))
             elapsed = time.perf_counter() - t0
+            global _last_used
+            _last_used = time.monotonic()
     except Exception as e:
         raise HTTPException(500, str(e))
     finally:
         if ref_tmp:
             os.unlink(ref_tmp)
 
-    sf.write(str(out_path), audio[0], SAMPLE_RATE)
-    duration = len(audio[0]) / SAMPLE_RATE
+    audio_data = audio[0]
+    sf.write(str(out_path), audio_data, SAMPLE_RATE)
+    duration = len(audio_data) / SAMPLE_RATE
 
     result = {
         "filename": out_path.name,
@@ -168,6 +281,9 @@ async def synthesize(
         "created": time.time(),
         **result,
     })
+    del audio, audio_data
+    if CLEANUP_AFTER_SYNTH:
+        _cleanup_runtime_memory()
     return result
 
 

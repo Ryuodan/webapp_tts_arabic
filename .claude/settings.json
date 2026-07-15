@@ -47,7 +47,10 @@
       "Bash(dmesg)",
       "Bash(curl -s --max-time 5 \"http://127.0.0.1:8025/app.js?v=17\")",
       "Bash(curl -s --max-time 5 \"http://127.0.0.1:8025/style.css?v=13\")",
-      "Bash(curl -s --max-time 5 \"http://127.0.0.1:8025/\")"
+      "Bash(curl -s --max-time 5 \"http://127.0.0.1:8025/\")",
+      "Bash(ps -eo pid,ppid,pgid,etime,cmd)",
+      "Bash(curl -s -o /dev/null -w \"gateway 8025 -> HTTP %{http_code}\\\\n\" http://127.0.0.1:8025/)",
+      "Bash(bash stop.sh)"
     ]
   }
 }

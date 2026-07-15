@@ -2,6 +2,8 @@
 Model is loaded lazily on first synthesis request.
 """
 import asyncio
+from contextlib import suppress
+import gc
 import json
 import os
 import pathlib
@@ -20,6 +22,10 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 VOXCPM2_MODEL_ID = os.getenv("VOXCPM2_MODEL_ID", "openbmb/VoxCPM2")
 VOXCPM2_DEVICE = os.getenv("VOXCPM2_DEVICE", "auto")
 VOXCPM2_OPTIMIZE = os.getenv("VOXCPM2_OPTIMIZE", "0").lower() in {"1", "true", "yes", "on"}
+MODEL_IDLE_SECONDS = int(os.getenv("TTS_MODEL_IDLE_SECONDS", "900"))
+MAX_TEXT_CHARS = int(os.getenv("TTS_MAX_TEXT_CHARS", "8000"))
+MAX_UPLOAD_BYTES = int(os.getenv("TTS_MAX_UPLOAD_BYTES", str(25 * 1024 * 1024)))
+CLEANUP_AFTER_SYNTH = os.getenv("TTS_CLEANUP_AFTER_SYNTH", "1").lower() not in {"0", "false", "no", "off"}
 
 # Arabic is forced for every request; the dialect rides VoxCPM2's leading-parenthetical style cue.
 _ARABIC_DIALECTS = {
@@ -47,6 +53,69 @@ app = FastAPI(title="VoxCPM2 Worker", docs_url=None, redoc_url=None)
 _model = None
 _sample_rate = 48_000
 _lock = asyncio.Lock()
+_idle_task: asyncio.Task | None = None
+_last_used = 0.0
+_last_unload_reason = ""
+
+
+def _rss_mb() -> float | None:
+    try:
+        for line in pathlib.Path("/proc/self/status").read_text(encoding="utf-8").splitlines():
+            if line.startswith("VmRSS:"):
+                return round(int(line.split()[1]) / 1024, 1)
+    except Exception:
+        return None
+    return None
+
+
+def _cleanup_runtime_memory():
+    gc.collect()
+    with suppress(Exception):
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    with suppress(Exception):
+        import ctypes
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+
+
+def _do_unload(reason: str = "manual") -> bool:
+    global _model, _last_unload_reason
+    was_loaded = _model is not None
+    _model = None
+    _last_unload_reason = reason
+    if was_loaded:
+        _cleanup_runtime_memory()
+    return was_loaded
+
+
+def _validate_text(value: str, field: str = "text"):
+    if len(value or "") > MAX_TEXT_CHARS:
+        raise HTTPException(413, f"{field} is too long; max {MAX_TEXT_CHARS} characters")
+
+
+async def _save_upload_tmp(upload: UploadFile | None) -> str | None:
+    if not upload or not upload.filename:
+        return None
+
+    fd, path = tempfile.mkstemp(suffix=".wav")
+    size = 0
+    try:
+        while True:
+            chunk = await upload.read(1024 * 1024)
+            if not chunk:
+                break
+            size += len(chunk)
+            if size > MAX_UPLOAD_BYTES:
+                raise HTTPException(413, f"Uploaded audio is too large; max {MAX_UPLOAD_BYTES // (1024 * 1024)} MB")
+            os.write(fd, chunk)
+    except Exception:
+        with suppress(Exception):
+            os.unlink(path)
+        raise
+    finally:
+        os.close(fd)
+    return path
 
 
 def _do_load():
@@ -64,25 +133,68 @@ def _do_load():
 
 
 async def _ensure_loaded():
-    loop = asyncio.get_event_loop()
-    await loop.run_in_executor(None, _do_load)
+    global _last_used
+    async with _lock:
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, _do_load)
+        _last_used = time.monotonic()
+
+
+async def _idle_unload_loop():
+    sleep_s = min(60, max(5, MODEL_IDLE_SECONDS // 3 if MODEL_IDLE_SECONDS else 60))
+    while True:
+        await asyncio.sleep(sleep_s)
+        if MODEL_IDLE_SECONDS <= 0 or _model is None or _last_used <= 0:
+            continue
+        if time.monotonic() - _last_used < MODEL_IDLE_SECONDS:
+            continue
+        async with _lock:
+            if _model is not None and time.monotonic() - _last_used >= MODEL_IDLE_SECONDS:
+                await asyncio.to_thread(_do_unload, "idle")
+
+
+@app.on_event("startup")
+async def startup():
+    global _idle_task
+    if MODEL_IDLE_SECONDS > 0:
+        _idle_task = asyncio.create_task(_idle_unload_loop())
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    if _idle_task:
+        _idle_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await _idle_task
 
 
 @app.get("/health")
 async def health():
+    idle_seconds = round(time.monotonic() - _last_used, 1) if _model is not None and _last_used else 0
     return {
         "model": "VoxCPM2",
         "status": "ok",
         "ready": _model is not None,
         "model_loaded": _model is not None,
         "sample_rate": _sample_rate,
+        "rss_mb": _rss_mb(),
+        "idle_seconds": idle_seconds,
+        "idle_timeout_s": MODEL_IDLE_SECONDS,
+        "last_unload_reason": _last_unload_reason,
     }
 
 
 @app.post("/load")
 async def load_endpoint():
     await _ensure_loaded()
-    return {"status": "loaded", "sample_rate": _sample_rate}
+    return {"status": "loaded", "sample_rate": _sample_rate, "rss_mb": _rss_mb()}
+
+
+@app.post("/unload")
+async def unload_endpoint():
+    async with _lock:
+        unloaded = await asyncio.to_thread(_do_unload, "manual")
+    return {"status": "unloaded" if unloaded else "not_loaded", "sample_rate": _sample_rate, "rss_mb": _rss_mb()}
 
 
 @app.post("/synthesize")
@@ -99,23 +211,16 @@ async def synthesize(
     prompt_wav: UploadFile | None = File(None),
     prompt_text: str | None = Form(None),
 ):
-    await _ensure_loaded()
+    _validate_text(text)
+    _validate_text(model_input_override, "model_input_override")
+    _validate_text(prompt_text or "", "prompt_text")
 
     ref_tmp: str | None = None
     prompt_tmp: str | None = None
 
     try:
-        if reference_wav and reference_wav.filename:
-            data = await reference_wav.read()
-            fd, ref_tmp = tempfile.mkstemp(suffix=".wav")
-            os.write(fd, data)
-            os.close(fd)
-
-        if prompt_wav and prompt_wav.filename:
-            data = await prompt_wav.read()
-            fd, prompt_tmp = tempfile.mkstemp(suffix=".wav")
-            os.write(fd, data)
-            os.close(fd)
+        ref_tmp = await _save_upload_tmp(reference_wav)
+        prompt_tmp = await _save_upload_tmp(prompt_wav)
 
         out_path = OUT_DIR / f"voxcpm2_{uuid.uuid4().hex[:12]}.wav"
         # A non-empty override is used verbatim (frontend manual-edit mode); otherwise force
@@ -141,10 +246,13 @@ async def synthesize(
             kwargs["prompt_text"] = prompt_text.strip()
 
         async with _lock:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, _do_load)
             t0 = time.perf_counter()
             wav = await loop.run_in_executor(None, lambda: _model.generate(**kwargs))
             elapsed = time.perf_counter() - t0
+            global _last_used
+            _last_used = time.monotonic()
 
     except Exception as e:
         raise HTTPException(500, str(e))
@@ -180,6 +288,9 @@ async def synthesize(
         "created": time.time(),
         **result,
     })
+    del wav
+    if CLEANUP_AFTER_SYNTH:
+        _cleanup_runtime_memory()
     return result
 
 

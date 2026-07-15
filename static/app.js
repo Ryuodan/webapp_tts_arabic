@@ -989,6 +989,7 @@ async function pollStatus() {
     if (!r.ok) return;
     const data = await r.json();
     for (const [mid, info] of Object.entries(data)) {
+      if (!MODELS[mid]) continue;
       if (info.status === 'offline') {
         workerStatus[mid] = 'offline';
       } else if (info.model_loaded) {
@@ -1436,7 +1437,7 @@ function miniPlayerHtml(mid, item, runId = null) {
   const url = item.url || `/audio/${mid}/${item.result.filename}`;
   return `
     ${miniTitleHtml(mid)}
-    <audio controls preload="auto" src="${escapeHtml(url)}"></audio>
+    <audio controls preload="metadata" src="${escapeHtml(url)}"></audio>
     ${metricGridHtml(item.result)}
     <div class="mini-player-meta">${escapeHtml(MODELS[mid].role)}</div>
     ${optionChipsHtml(options)}
