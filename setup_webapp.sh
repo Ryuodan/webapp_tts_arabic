@@ -7,6 +7,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONDA_EXE="${CONDA_EXE:-/home/m.sayed/miniconda3/bin/conda}"
 GATEWAY_ENV="${GATEWAY_ENV:-arabic-tts-web}"
 PKGS=(fastapi "uvicorn[standard]" python-multipart soundfile)
+# Cohere Transcribe (INT8) needs the model stack on top of PKGS; bitsandbytes does the
+# 8-bit dequant, librosa decodes/resamples arbitrary uploads to the model's 16 kHz mono.
+ASR_ENV="${ASR_ENV:-transcribe-asr}"
+ASR_PKGS=(transformers accelerate bitsandbytes librosa)
 
 if [[ ! -x "$CONDA_EXE" ]]; then
   CONDA_EXE="$(command -v conda || true)"
@@ -37,6 +41,16 @@ for env_name in omnivoice-tts voxcpm2-tts; do
     echo "Skipping missing worker env: ${env_name}"
   fi
 done
+
+# ── ASR env ─────────────────────────────────────────────────────
+# Unlike the TTS envs (which ship with their models), this one is created here.
+# pip's default torch wheel is the CUDA build on Linux — the INT8 checkpoint needs a GPU.
+if ! env_exists "$ASR_ENV"; then
+  echo "Creating ASR conda env: ${ASR_ENV}"
+  "$CONDA_EXE" create -y -q -n "$ASR_ENV" python=3.11
+fi
+echo "Installing ASR dependencies in ${ASR_ENV} (torch + transformers — this takes a few minutes)..."
+"$CONDA_EXE" run -n "$ASR_ENV" python -m pip install --quiet torch "${PKGS[@]}" "${ASR_PKGS[@]}"
 
 echo ""
 echo "All done. Run: bash start.sh"

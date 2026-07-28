@@ -21,15 +21,22 @@ WORKDIR   = pathlib.Path(os.getenv("TTS_WORKDIR", "~/tts-05172026")).expanduser(
 
 OUTPUT_DIRS = {
     # Keep old Fish/S2 Pro recordings serveable, but do not expose it as an active worker.
-    "fish":      WORKDIR / "outputs",
-    "omnivoice": WORKDIR / "outputs_omnivoice",
-    "voxcpm2":   WORKDIR / "outputs_voxcpm2",
+    "fish":       WORKDIR / "outputs",
+    "omnivoice":  WORKDIR / "outputs_omnivoice",
+    "voxcpm2":    WORKDIR / "outputs_voxcpm2",
+    "transcribe": WORKDIR / "outputs_transcribe",
 }
 
-WORKER_URLS = {
+# Speech-out (TTS) workers — only these answer /api/{model}/synthesize.
+TTS_WORKERS = {
     "omnivoice": "http://127.0.0.1:8082",
     "voxcpm2":   "http://127.0.0.1:8083",
 }
+# Speech-in (ASR) worker — answers /api/transcribe.
+ASR_WORKER = "http://127.0.0.1:8084"
+
+# Everything with /health + /load, so status polling and warm-up are shared.
+WORKER_URLS = {**TTS_WORKERS, "transcribe": ASR_WORKER}
 
 _client: Optional[httpx.AsyncClient] = None
 
@@ -57,25 +64,39 @@ async def status():
     return results
 
 
-@app.post("/api/{model}/synthesize")
-async def synthesize(model: str, request: Request):
-    if model not in WORKER_URLS:
-        raise HTTPException(404, f"Unknown model: {model}")
+async def _proxy_post(url: str, model: str, request: Request, timeout_msg: str) -> JSONResponse:
+    """Stream a multipart request through to a worker and hand back its JSON.
 
-    body    = await request.body()
+    The body is piped rather than buffered so audio uploads never sit in gateway memory;
+    httpx re-frames it as chunked once content-length is dropped.
+    """
     headers = {k: v for k, v in request.headers.items()
-               if k.lower() not in ("host", "content-length")}
+               if k.lower() not in ("host", "content-length", "transfer-encoding")}
     try:
-        r = await _client.post(f"{WORKER_URLS[model]}/synthesize",
-                               content=body, headers=headers)
+        r = await _client.post(url, content=request.stream(), headers=headers)
     except httpx.ConnectError:
         raise HTTPException(503, f"{model} worker is not running — check start.sh")
     except httpx.ReadTimeout:
-        raise HTTPException(504, f"{model} synthesis timed out (>5 min)")
+        raise HTTPException(504, timeout_msg)
 
     if r.status_code != 200:
         raise HTTPException(r.status_code, r.text)
     return JSONResponse(r.json())
+
+
+@app.post("/api/{model}/synthesize")
+async def synthesize(model: str, request: Request):
+    if model not in TTS_WORKERS:
+        raise HTTPException(404, f"Unknown model: {model}")
+    return await _proxy_post(f"{TTS_WORKERS[model]}/synthesize", model, request,
+                             f"{model} synthesis timed out (>15 min)")
+
+
+@app.post("/api/transcribe")
+async def transcribe(request: Request):
+    """Speech → Arabic/English text via the Cohere Transcribe worker."""
+    return await _proxy_post(f"{ASR_WORKER}/transcribe", "transcribe", request,
+                             "transcription timed out (>15 min)")
 
 
 @app.post("/api/{model}/load")
@@ -123,8 +144,8 @@ async def history(model: str, limit: int = 100):
             try:
                 meta = json.loads(sidecar.read_text(encoding="utf-8"))
                 # surface the saved inputs alongside file info
-                for k in ("text", "instruct", "params", "reference_text",
-                          "prompt_text", "duration_s", "rtf", "elapsed_s"):
+                for k in ("text", "instruct", "params", "reference_text", "prompt_text",
+                          "language", "duration_s", "rtf", "elapsed_s"):
                     if k in meta:
                         item[k] = meta[k]
             except Exception:

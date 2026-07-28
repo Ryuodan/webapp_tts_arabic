@@ -37,12 +37,12 @@ port_busy() { ss -ltn "( sport = :$1 )" 2>/dev/null | grep -q LISTEN; }
 
 # ── stop any previous instance ──────────────────────────────────
 if pgrep -f "${SCRIPT_DIR}/server\.py|${SCRIPT_DIR}/workers/" >/dev/null \
-   || port_busy 8082 || port_busy 8083 || port_busy "$PORT"; then
+   || port_busy 8082 || port_busy 8083 || port_busy 8084 || port_busy "$PORT"; then
   log "Previous instance detected — stopping it first..."
   bash "${SCRIPT_DIR}/stop.sh"
 fi
 
-for p in 8082 8083 "$PORT"; do
+for p in 8082 8083 8084 "$PORT"; do
   if port_busy "$p"; then
     log "✖ Port $p is still in use by another process:"
     ss -ltnp "( sport = :$p )" 2>/dev/null | tail -n +2 | sed 's/^/    /'
@@ -96,8 +96,9 @@ trap cleanup EXIT INT TERM
 
 # ── start workers ───────────────────────────────────────────────
 # Fish S2 Pro is intentionally disabled; it slows down the whole server on this host.
-start_worker omnivoice-tts "${SCRIPT_DIR}/workers/omnivoice_server.py" 8082
-start_worker voxcpm2-tts   "${SCRIPT_DIR}/workers/voxcpm2_server.py"   8083
+start_worker omnivoice-tts  "${SCRIPT_DIR}/workers/omnivoice_server.py"  8082
+start_worker voxcpm2-tts    "${SCRIPT_DIR}/workers/voxcpm2_server.py"    8083
+start_worker transcribe-asr "${SCRIPT_DIR}/workers/transcribe_server.py" 8084
 
 # ── wait for workers to bind their ports ────────────────────────
 deadline=$(( $(date +%s) + WORKER_WAIT ))

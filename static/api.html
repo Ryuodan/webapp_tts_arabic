@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arabic TTS Studio — API</title>
+  <link rel="stylesheet" href="style.css?v=12">
+  <link rel="stylesheet" href="api.css?v=1">
+</head>
+<body>
+
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-icon">‹/›</div>
+      <div class="brand-text">
+        <span class="brand-en">Arabic TTS Studio — API</span>
+        <span class="brand-ar">واجهة برمجية مفتوحة: تفريغ صوتي وتوليد كلام</span>
+      </div>
+    </div>
+    <div class="status-row">
+      <a class="api-link" href="index.html">🎙 عودة إلى الاستوديو</a>
+    </div>
+  </header>
+
+  <main class="api-page">
+    <p class="api-intro">
+      كل نقطة نهاية أدناه قابلة للتجربة مباشرة من هذه الصفحة، ومعها أمر <code>curl</code> جاهز للنسخ.
+      الخادم هو نفسه الذي يخدم هذه الصفحة، لذا تعمل المسارات النسبية كما هي من أي عميل على الشبكة.
+    </p>
+    <div class="api-base">
+      <span>عنوان الخدمة</span>
+      <code id="api-base">—</code>
+    </div>
+
+    <div class="api-list" id="api-list">
+      <!-- endpoint cards rendered by api.js -->
+    </div>
+  </main>
+
+  <script src="api.js?v=1"></script>
+</body>
+</html>

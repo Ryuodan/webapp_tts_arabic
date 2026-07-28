@@ -1,0 +1,8 @@
+# Test-only dependencies. Install into the gateway env: the suite fakes every model
+# library, so it never needs the worker envs or a GPU.
+#   conda run -n arabic-tts-web python -m pip install -r requirements-dev.txt
+-r requirements.txt
+
+pytest>=7.4
+numpy>=1.24
+soundfile>=0.12        # writing/inspecting the fixture wavs

@@ -728,10 +728,13 @@ function renderComposePanel() {
   fill('compose-age', AGES);
 }
 
-function setComposeStatus(msg, type = '') {
-  const el = $('compose-status');
+// One inline status line under an agent's controls — '', 'success' or 'error'.
+function setStatusLine(id, msg, type = '') {
+  const el = $(id);
   if (el) { el.textContent = msg || ''; el.className = `compose-status ${type}`; }
 }
+
+function setComposeStatus(msg, type = '') { setStatusLine('compose-status', msg, type); }
 
 // Ask the agent to write one Arabic script and configure BOTH engines from the chosen inputs.
 async function composeWithAI() {
@@ -805,10 +808,7 @@ function applyComposed(result) {
 let prepBackup = null;       // last pre-apply text, for one-step undo
 let pendingPrepText = null;  // the prepared text awaiting the user's accept/discard
 
-function setPrepStatus(msg, type = '') {
-  const el = $('prep-status');
-  if (el) { el.textContent = msg || ''; el.className = `compose-status ${type}`; }
-}
+function setPrepStatus(msg, type = '') { setStatusLine('prep-status', msg, type); }
 
 function togglePrepOption(btn) {
   const on = btn.dataset.on !== '1';
@@ -911,6 +911,70 @@ function invalidatePrepUndo() {
   if (prepBackup === null) return;
   prepBackup = null;
   $('btn-prep-undo').hidden = true;
+}
+
+// ── Transcription agent (ASR) ─────────────────────────────────
+// Audio → text. The result feeds either the synthesis box or the clone panel's
+// reference-text field, which is what you need after uploading a reference clip.
+let transcribeFile = null;   // the picked audio File
+let transcriptText = '';     // last successful transcript
+
+function setTranscribeStatus(msg, type = '') { setStatusLine('transcribe-status', msg, type); }
+
+async function transcribeAudio() {
+  const btn = $('btn-transcribe');
+  if (btn.disabled) return;
+  if (!transcribeFile) { setTranscribeStatus('اختر ملفاً صوتياً أولاً', 'error'); return; }
+
+  const fd = new FormData();
+  fd.append('audio', transcribeFile, transcribeFile.name);
+  fd.append('language', $('transcribe-lang').value);
+  fd.append('punctuation', $('transcribe-punct').dataset.on === '1');
+
+  btn.disabled = true;
+  $('transcribe-label').textContent = '… جاري التفريغ';
+  setTranscribeStatus('يفرّغ النموذج الصوت…');
+  try {
+    const r = await fetch('/api/transcribe', { method: 'POST', body: fd });
+    if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+    const res = await r.json();
+
+    transcriptText = (res.text || '').trim();
+    $('transcribe-text').textContent = transcriptText || '(لم يتعرّف النموذج على أي كلام)';
+    $('transcribe-result').hidden = false;
+    setTranscribeStatus(
+      `✓ ${formatSeconds(res.duration_s)} صوت في ${formatSeconds(res.elapsed_s)} · RTF ${formatRtf(res.rtf)}`,
+      'success');
+  } catch (e) {
+    setTranscribeStatus(`خطأ: ${String(e.message).slice(0, 220)}`, 'error');
+    showToast('تعذّر تفريغ الصوت', 'error', 5000);
+  } finally {
+    btn.disabled = false;
+    $('transcribe-label').textContent = '▷ فرّغ الصوت';
+  }
+}
+
+// Drop the transcript into the synthesis box (undoable via ↶ like a prep apply).
+function useTranscriptAsText() {
+  if (!transcriptText) return;
+  prepBackup = $('text-input').value;
+  $('btn-prep-undo').hidden = false;
+  $('text-input').value = transcriptText;
+  showToast('تم نقل النص المُفرَّغ ✓', 'success');
+  updateCharCount();
+  updateSynthBtn();
+  updateModelInputPreview();
+}
+
+// Drop it into the selected model's clone reference-text field and open that panel.
+function useTranscriptAsReference() {
+  if (!transcriptText) return;
+  const key = selectedModel === 'omnivoice' ? 'ref_text' : 'prompt_text';
+  cloneFiles[key] = transcriptText;
+  const field = document.querySelector(`[data-clone-key="${key}"]`);
+  if (field) field.value = transcriptText;
+  setAccordionOpen('acc-clone', true);
+  showToast('تم نقله إلى نص الصوت المرجعي ✓', 'success');
 }
 
 // ── Select model ──────────────────────────────────────────────
@@ -1667,13 +1731,18 @@ async function compareModels() {
 function setupAccordions() {
   $$('.acc-header').forEach(btn => {
     btn.addEventListener('click', () => {
-      const body = $(btn.dataset.target);
       const section = btn.closest('.accordion');
-      const isOpen  = !body.classList.contains('collapsed');
-      body.classList.toggle('collapsed', isOpen);
-      section.classList.toggle('open', !isOpen);
+      setAccordionOpen(section.id, $(btn.dataset.target).classList.contains('collapsed'));
     });
   });
+}
+
+function setAccordionOpen(sectionId, open) {
+  const section = $(sectionId);
+  if (!section) return;
+  const body = section.querySelector('.acc-body');
+  body.classList.toggle('collapsed', !open);
+  section.classList.toggle('open', open);
 }
 
 // ── Clear history ─────────────────────────────────────────────
@@ -1725,6 +1794,21 @@ function init() {
   $('btn-prep-apply').addEventListener('click', applyPrep);
   $('btn-prep-cancel').addEventListener('click', cancelPrep);
   $('btn-prep-undo').addEventListener('click', undoPrep);
+
+  // Transcription agent (audio → text)
+  const tzone = $('transcribe-zone');
+  tzone.querySelector('input').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    transcribeFile = file;
+    tzone.classList.add('has-file');
+    tzone.querySelector('.zone-label').textContent = `✓ ${file.name}`;
+    setTranscribeStatus('');
+  });
+  $('transcribe-punct').addEventListener('click', e => togglePrepOption(e.currentTarget));
+  $('btn-transcribe').addEventListener('click', transcribeAudio);
+  $('btn-transcribe-use').addEventListener('click', useTranscriptAsText);
+  $('btn-transcribe-ref').addEventListener('click', useTranscriptAsReference);
 
   // Clear text
   $('btn-clear-text').addEventListener('click', () => {

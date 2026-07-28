@@ -1060,3 +1060,20 @@ textarea { resize: vertical; }
   .metric-grid, .summary-grid { grid-template-columns: 1fr; }
   .insight-item { grid-template-columns: 1fr; gap: 2px; }
 }
+
+/* ── Transcription panel (audio → text) ──────────────────────── */
+/* The accordion body already pads and gaps its children, so the pieces
+   borrowed from the text-prep bar drop their own outer spacing here. */
+#transcribe-body .prep-bar,
+#transcribe-body .prep-preview { margin: 0; padding-inline: 0; }
+#transcribe-body .prep-bar { padding-top: 0; }
+#transcribe-body .param-select { direction: rtl; }
+
+/* ── API console link (header, both pages) ───────────────── */
+.api-link {
+  font-size: .72rem; text-decoration: none;
+  padding: 4px 10px; border-radius: 12px;
+  border: 1px solid var(--border2); background: var(--bg3); color: var(--txt2);
+  transition: var(--transition);
+}
+.api-link:hover { border-color: var(--purple); color: var(--purple); }

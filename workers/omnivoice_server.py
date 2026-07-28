@@ -2,9 +2,7 @@
 Model is loaded lazily on first synthesis request.
 """
 import asyncio
-import json
 import os
-import pathlib
 import tempfile
 import time
 import uuid
@@ -12,11 +10,10 @@ import uuid
 import soundfile as sf
 import uvicorn
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
 
-WORKDIR = pathlib.Path(os.getenv("TTS_WORKDIR", "~/tts-05172026")).expanduser()
-OUT_DIR = pathlib.Path(os.getenv("OMNIVOICE_OUT_DIR", str(WORKDIR / "outputs_omnivoice"))).expanduser()
-OUT_DIR.mkdir(parents=True, exist_ok=True)
+from _common import output_dir, register_audio_route, write_sidecar
+
+OUT_DIR = output_dir("OMNIVOICE_OUT_DIR", "outputs_omnivoice")
 OMNIVOICE_MODEL_ID = os.getenv("OMNIVOICE_MODEL_ID", "k2-fsa/OmniVoice")
 OMNIVOICE_DEVICE = os.getenv("OMNIVOICE_DEVICE", "auto")
 
@@ -159,7 +156,7 @@ async def synthesize(
         "rtf": round(elapsed / max(duration, 0.01), 3),
         "sample_rate": SAMPLE_RATE,
     }
-    _write_sidecar(out_path, {
+    write_sidecar(out_path, {
         "text": text,
         "instruct": speaker,          # voice description / instruction
         "params": {"speaker": speaker},
@@ -171,20 +168,7 @@ async def synthesize(
     return result
 
 
-def _write_sidecar(wav_path: pathlib.Path, meta: dict):
-    try:
-        wav_path.with_suffix(".json").write_text(
-            json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
-    except Exception:
-        pass  # never fail synthesis over a sidecar write
-
-
-@app.get("/audio/{filename}")
-async def get_audio(filename: str):
-    path = OUT_DIR / pathlib.Path(filename).name
-    if not path.exists():
-        raise HTTPException(404, "Audio file not found")
-    return FileResponse(str(path), media_type="audio/wav")
+register_audio_route(app, OUT_DIR)
 
 
 if __name__ == "__main__":

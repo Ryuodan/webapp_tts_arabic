@@ -2,18 +2,19 @@
 # Kill all TTS worker and gateway processes (screen sessions + stray
 # processes), then wait until their ports are actually released.
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PORTS=(8025 8082 8083)
+PORTS=(8025 8082 8083 8084)
 PATTERNS=(
   "${APP_DIR}/workers/fish_server.py"
   "${APP_DIR}/workers/omnivoice_server.py"
   "${APP_DIR}/workers/voxcpm2_server.py"
+  "${APP_DIR}/workers/transcribe_server.py"
   "${APP_DIR}/server.py"
 )
 
 echo "Stopping Arabic TTS Studio processes..."
 
 # legacy screen sessions
-for s in arabic-tts-web fish-tts-worker omnivoice-tts-worker voxcpm2-tts-worker; do
+for s in arabic-tts-web fish-tts-worker omnivoice-tts-worker voxcpm2-tts-worker transcribe-asr-worker; do
   screen -S "$s" -X quit 2>/dev/null && echo "  stopped screen session '$s'"
 done
 

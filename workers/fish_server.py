@@ -1,6 +1,5 @@
 """Fish Audio S2 Pro TTS worker — run inside the arabic-tts conda env (port 8081)."""
 import asyncio
-import json
 import os
 import pathlib
 import tempfile
@@ -10,13 +9,12 @@ import uuid
 import soundfile as sf
 import uvicorn
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse
 
-WORKDIR   = pathlib.Path(os.getenv("TTS_WORKDIR", "~/tts-05172026")).expanduser()
+from _common import WORKDIR, output_dir, register_audio_route, write_sidecar
+
 S2_BIN    = pathlib.Path(os.getenv("S2_BIN", str(WORKDIR / "s2.cpp" / "build" / "s2"))).expanduser()
 TOKENIZER = pathlib.Path(os.getenv("FISH_TOKENIZER", str(WORKDIR / "model" / "tokenizer.json"))).expanduser()
-OUT_DIR   = pathlib.Path(os.getenv("FISH_OUT_DIR", str(WORKDIR / "outputs"))).expanduser()
-OUT_DIR.mkdir(parents=True, exist_ok=True)
+OUT_DIR   = output_dir("FISH_OUT_DIR", "outputs")
 S2_CUDA_DEVICE = os.getenv("S2_CUDA_DEVICE", "-1")
 S2_THREADS = os.getenv("S2_THREADS", str(os.cpu_count() or 4))
 
@@ -153,7 +151,7 @@ async def synthesize(
         "rtf": round(elapsed / max(info.duration, 0.01), 3),
         "sample_rate": info.samplerate,
     }
-    _write_sidecar(out_path, {
+    write_sidecar(out_path, {
         "text": text,
         "params": {
             "temperature": temperature,
@@ -169,20 +167,7 @@ async def synthesize(
     return result
 
 
-def _write_sidecar(wav_path: pathlib.Path, meta: dict):
-    try:
-        wav_path.with_suffix(".json").write_text(
-            json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
-    except Exception:
-        pass  # never fail synthesis over a sidecar write
-
-
-@app.get("/audio/{filename}")
-async def get_audio(filename: str):
-    path = OUT_DIR / pathlib.Path(filename).name
-    if not path.exists():
-        raise HTTPException(404, "Audio file not found")
-    return FileResponse(str(path), media_type="audio/wav")
+register_audio_route(app, OUT_DIR)
 
 
 if __name__ == "__main__":

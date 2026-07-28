@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Arabic TTS Studio</title>
-  <link rel="stylesheet" href="style.css?v=11">
+  <link rel="stylesheet" href="style.css?v=12">
 </head>
 <body>
 
@@ -19,6 +19,7 @@
     </div>
     <div class="status-row" id="status-row">
       <!-- status badges injected by JS -->
+      <a class="api-link" href="api.html">‹/› واجهة الـ API</a>
     </div>
   </header>
 
@@ -69,6 +70,44 @@
             <span id="compose-agent-label">✨ أكمل بالذكاء الاصطناعي</span>
           </button>
           <div class="compose-status" id="compose-status"></div>
+        </div>
+      </section>
+
+      <!-- Transcription (ASR) — audio in, text out; feeds the box below -->
+      <section class="panel-section accordion" id="acc-transcribe">
+        <button class="acc-header" data-target="transcribe-body">
+          <span>📝 التفريغ الصوتي (Cohere Transcribe)</span>
+          <span class="acc-arrow">›</span>
+        </button>
+        <div class="acc-body collapsed" id="transcribe-body">
+          <p class="compose-desc">ارفع مقطعاً صوتياً ليحوّله النموذج إلى نص — استخدمه كنص للتوليد، أو كنص للصوت المرجعي في الاستنساخ. المقاطع الطويلة تُقسَّم وتُدمج تلقائياً.</p>
+          <div class="file-zone" id="transcribe-zone">
+            <span class="zone-label">اسحب ملفاً صوتياً هنا أو اضغط للاختيار</span>
+            <input type="file" accept="audio/*">
+          </div>
+          <div class="prep-bar">
+            <select class="param-select" id="transcribe-lang" title="لغة التفريغ — النموذج يدعم العربية والإنجليزية فقط">
+              <option value="ar">عربي</option>
+              <option value="en">إنجليزي</option>
+            </select>
+            <button class="prep-toggle active" id="transcribe-punct" data-on="1"
+              title="أطفئه للحصول على نص بلا علامات ترقيم وبأحرف صغيرة">علامات الترقيم</button>
+            <button class="btn-prep" id="btn-transcribe">
+              <span id="transcribe-label">▷ فرّغ الصوت</span>
+            </button>
+            <span class="compose-status" id="transcribe-status"></span>
+          </div>
+
+          <div class="prep-preview" id="transcribe-result" hidden>
+            <div class="prep-diff-row">
+              <span class="prep-diff-tag tag-norm">النص المُفرَّغ</span>
+              <div class="prep-diff-text" id="transcribe-text" dir="auto"></div>
+            </div>
+            <div class="prep-preview-actions">
+              <button class="btn-prep" id="btn-transcribe-use">✓ استخدمه كنص للتوليد</button>
+              <button class="btn-ghost btn-xs" id="btn-transcribe-ref">↳ استخدمه كنص مرجعي</button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -257,6 +296,6 @@
   <!-- Toast notification -->
   <div class="toast hidden" id="toast"></div>
 
-  <script src="app.js?v=15"></script>
+  <script src="app.js?v=16"></script>
 </body>
 </html>
