@@ -21,7 +21,7 @@ const ENDPOINTS = [
         + 'المقاطع الأطول من نافذة النموذج تُقسَّم وتُدمج نتائجها تلقائياً.',
     encoding: 'form',
     fields: [
-      { name: 'audio',       type: 'file',   required: true, note: 'ملف صوتي — حتى 100MB' },
+      { name: 'audio',       type: 'file',   required: true, note: 'ملف صوتي — يخضع لحد حجم الطلب في الخادم' },
       { name: 'language',    type: 'select', options: ['ar', 'en'], value: 'ar', note: 'النموذج عربي/إنجليزي فقط' },
       { name: 'punctuation', type: 'select', options: ['true', 'false'], value: 'true', note: 'false ⇐ نص بلا ترقيم' },
     ],

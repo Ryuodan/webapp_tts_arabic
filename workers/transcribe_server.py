@@ -24,10 +24,14 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from _common import output_dir, register_audio_route, write_sidecar
 
 OUT_DIR = output_dir("TRANSCRIBE_OUT_DIR", "outputs_transcribe")
-MODEL_ID = os.getenv("TRANSCRIBE_MODEL_ID", "NAMAA-Space/cohere-transcribe-arabic-07-2026-int8")
+# The one transcription model. Pinned rather than configurable: everything downstream
+# (16 kHz features, the ar/en decoder prompt, the chunk-reassembly decode) is specific
+# to this checkpoint, so a swapped id would not be a drop-in anyway.
+MODEL_ID = "NAMAA-Space/cohere-transcribe-arabic-07-2026-int8"
 DEVICE = os.getenv("TRANSCRIBE_DEVICE", "auto")
 MAX_NEW_TOKENS = int(os.getenv("TRANSCRIBE_MAX_NEW_TOKENS", "256"))
-MAX_UPLOAD_MB = float(os.getenv("TRANSCRIBE_MAX_UPLOAD_MB", "100"))
+# Same knob the TTS workers read — one upload limit across every worker.
+MAX_UPLOAD_BYTES = int(os.getenv("TTS_MAX_UPLOAD_BYTES", str(25 * 1024 * 1024)))
 MODEL_IDLE_SECONDS = int(os.getenv("TTS_MODEL_IDLE_SECONDS", "900"))
 SAMPLE_RATE = 16_000            # fixed by the model's feature extractor
 
@@ -164,8 +168,8 @@ async def transcribe(
     data = await audio.read()
     if not data:
         raise HTTPException(400, "Empty audio upload")
-    if len(data) > MAX_UPLOAD_MB * 1024 * 1024:
-        raise HTTPException(413, f"Audio exceeds the {MAX_UPLOAD_MB:g} MB limit")
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, f"Uploaded audio is too large; max {MAX_UPLOAD_BYTES // (1024 * 1024)} MB")
 
     await _ensure_loaded()
 

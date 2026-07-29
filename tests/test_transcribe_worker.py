@@ -12,6 +12,8 @@ from fastapi.testclient import TestClient
 
 from conftest import fresh_import
 
+NAMAA_CHECKPOINT = "NAMAA-Space/cohere-transcribe-arabic-07-2026-int8"
+
 
 @pytest.fixture
 def asr(tmp_path, monkeypatch, fake_transformers):
@@ -33,7 +35,16 @@ def test_health_reports_unloaded_until_the_model_is_pulled_in(asr):
     body = asr.get("/health").json()
     assert body["model_loaded"] is False and body["ready"] is False
     assert body["sample_rate"] == 16_000
-    assert body["model_id"].endswith("cohere-transcribe-arabic-07-2026-int8")
+    assert body["model_id"] == NAMAA_CHECKPOINT
+
+
+def test_the_checkpoint_is_pinned_and_not_overridable(tmp_path, monkeypatch, fake_transformers):
+    """Only the NAMAA build is supported; env must not be able to point this elsewhere."""
+    module = fresh_import("transcribe_server", monkeypatch, {
+        "TRANSCRIBE_OUT_DIR": tmp_path / "o",
+        "TRANSCRIBE_MODEL_ID": "someone-else/whisper-small",   # a knob that must not exist
+    })
+    assert module.MODEL_ID == NAMAA_CHECKPOINT
 
 
 def test_load_endpoint_warms_the_model(asr):
@@ -46,7 +57,7 @@ def test_model_is_loaded_lazily_on_first_request(asr, upload):
     assert "model_from_pretrained" not in asr.rec
     post(asr, upload)
     model_id, kwargs = asr.rec["model_from_pretrained"]
-    assert model_id.endswith("cohere-transcribe-arabic-07-2026-int8")
+    assert model_id == NAMAA_CHECKPOINT
     assert kwargs["device_map"] == "auto"
 
 
@@ -166,10 +177,20 @@ def test_missing_upload_is_a_422(asr):
 def test_oversized_upload_is_rejected_before_the_model_runs(tmp_path, monkeypatch,
                                                             fake_transformers, upload):
     module = fresh_import("transcribe_server", monkeypatch,
-                          {"TRANSCRIBE_OUT_DIR": tmp_path / "o", "TRANSCRIBE_MAX_UPLOAD_MB": "0.001"})
+                          {"TRANSCRIBE_OUT_DIR": tmp_path / "o", "TTS_MAX_UPLOAD_BYTES": "128"})
     r = TestClient(module.app).post("/transcribe", files=upload())
-    assert r.status_code == 413 and "MB limit" in r.json()["detail"]
+    assert r.status_code == 413 and "too large" in r.json()["detail"]
     assert "generate_kwargs" not in fake_transformers      # never reached the GPU
+
+
+def test_upload_cap_is_the_one_every_worker_shares(tmp_path, monkeypatch, fake_transformers):
+    """One knob for all workers — a per-worker override would drift from the others."""
+    env = {"TTS_MAX_UPLOAD_BYTES": "4096",
+           "TRANSCRIBE_OUT_DIR": tmp_path / "asr", "OMNIVOICE_OUT_DIR": tmp_path / "tts"}
+    asr = fresh_import("transcribe_server", monkeypatch, env)
+    tts = fresh_import("omnivoice_server", monkeypatch, env)
+
+    assert asr.MAX_UPLOAD_BYTES == tts.MAX_UPLOAD_BYTES == 4096
 
 
 def test_undecodable_audio_is_a_client_error(asr, upload):
