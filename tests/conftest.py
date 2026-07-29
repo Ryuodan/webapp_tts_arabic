@@ -6,6 +6,7 @@ Nothing here talks to a GPU, an OpenAI key or a real model: the heavy imports
 httpx client is swapped for a scripted transport. That keeps the suite runnable in the
 gateway env alone, which is the only env every machine has.
 """
+import contextlib
 import importlib
 import pathlib
 import sys
@@ -74,7 +75,32 @@ class FakeBatch(dict):
 
 
 @pytest.fixture
-def fake_transformers(monkeypatch):
+def fake_torch(monkeypatch):
+    """Install a fake `torch`.
+
+    The workers import torch at module scope but touch only three things: a CUDA probe,
+    a cache flush and `inference_mode`. That import alone was enough to make every worker
+    test error out in the gateway env, which has no torch — breaking this module's
+    promise that the suite runs there. The fakes below cover the whole surface; see
+    `grep -oE 'torch\\.[a-z_]+' workers/*.py` before adding to it.
+    """
+    torch = types.ModuleType("torch")
+    torch.cuda = types.SimpleNamespace(is_available=lambda: False,
+                                       empty_cache=lambda: None)
+    torch.float16 = "float16"
+    torch.float32 = "float32"
+
+    @contextlib.contextmanager
+    def inference_mode():
+        yield
+
+    torch.inference_mode = inference_mode
+    monkeypatch.setitem(sys.modules, "torch", torch)
+    return torch
+
+
+@pytest.fixture
+def fake_transformers(monkeypatch, fake_torch):
     """Install a fake `transformers` + `transformers.audio_utils`.
 
     Returns the recorder dict; tests tweak `rec['chunks']` to force the long-form path
@@ -103,7 +129,10 @@ def fake_transformers(monkeypatch):
                 raise RuntimeError(rec["decode_error"])
             rec["decode_kwargs"] = kwargs
             rec["decoded"] = outputs
-            return rec["transcript"]
+            # Real transformers returns one transcript per batch item — a list, even for
+            # a single input and even after long-form chunks are stitched together.
+            # Returning a bare string here hid a `.strip()`-on-list crash in the worker.
+            return [rec["transcript"]]
 
     class FakeModel:
         device = "cpu"
@@ -143,7 +172,7 @@ def fake_transformers(monkeypatch):
 
 
 @pytest.fixture
-def fake_omnivoice(monkeypatch):
+def fake_omnivoice(monkeypatch, fake_torch):
     rec = Recorder(error=None, audio=[np.zeros(24_000, dtype=np.float32)])
 
     class OmniVoice:
@@ -165,7 +194,7 @@ def fake_omnivoice(monkeypatch):
 
 
 @pytest.fixture
-def fake_voxcpm(monkeypatch):
+def fake_voxcpm(monkeypatch, fake_torch):
     rec = Recorder(error=None, sample_rate=48_000, wav=np.zeros(48_000, dtype=np.float32))
 
     class TTSModel:

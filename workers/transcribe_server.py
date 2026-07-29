@@ -134,7 +134,12 @@ def _run(audio, language: str, punctuation: bool) -> str:
     decode_kwargs = {"skip_special_tokens": True}
     if chunk_index is not None:            # long-form: stitch the chunks back together
         decode_kwargs.update(audio_chunk_index=chunk_index, language=language)
-    return _processor.decode(outputs, **decode_kwargs).strip()
+    decoded = _processor.decode(outputs, **decode_kwargs)
+    # decode() yields one transcript per batch item — a list even for our single input,
+    # and even once the chunks above have been stitched back together.
+    if isinstance(decoded, (list, tuple)):
+        decoded = " ".join(str(part) for part in decoded)
+    return decoded.strip()
 
 
 @app.get("/health")

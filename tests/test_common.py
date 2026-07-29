@@ -77,7 +77,7 @@ def test_audio_route_blocks_traversal(served, name):
     assert b"import" not in r.content
 
 
-def test_every_worker_uses_the_shared_helpers():
+def test_every_worker_uses_the_shared_helpers(fake_torch):
     """Guards the de-duplication: a worker must not grow its own private copy again."""
     import fish_server, omnivoice_server, transcribe_server, voxcpm2_server
 
