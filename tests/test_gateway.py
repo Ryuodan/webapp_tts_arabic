@@ -12,7 +12,8 @@ from fastapi.testclient import TestClient
 
 from conftest import fresh_import, write_wav
 
-PORTS = {"omnivoice": 8082, "voxcpm2": 8083, "transcribe": 8084}
+# Every OmniVoice alias is the same worker; only the ASR worker has its own port.
+PORTS = {"omnivoice": 8082, "omnivoice_ft": 8082, "omnivoice_base": 8082, "transcribe": 8084}
 
 
 @pytest.fixture
@@ -53,16 +54,41 @@ def stub(client, model, path, reply):
 def test_status_reports_every_worker(gateway):
     stub(gateway, "omnivoice", "/health", {"model": "OmniVoice", "model_loaded": True})
     stub(gateway, "transcribe", "/health", {"model": "Cohere", "model_loaded": False})
-    stub(gateway, "voxcpm2", "/health", httpx.ConnectError("down"))
 
     body = gateway.get("/api/status").json()
 
-    assert set(body) == {"omnivoice", "voxcpm2", "transcribe"}
-    assert body["omnivoice"]["model_loaded"] is True
+    assert set(body) == set(gateway.server.WORKER_URLS) | {"_memory_policy"}
     assert body["transcribe"]["model_loaded"] is False
-    # An unreachable worker gets a synthesised offline record rather than an error.
-    assert body["voxcpm2"] == {"model": "voxcpm2", "status": "offline",
-                               "ready": False, "model_loaded": False}
+    # All three OmniVoice aliases share one worker, so they report one health payload.
+    for alias in ("omnivoice", "omnivoice_ft", "omnivoice_base"):
+        assert body[alias]["model_loaded"] is True
+
+
+def test_status_polls_each_worker_once_not_once_per_alias(gateway):
+    stub(gateway, "omnivoice", "/health", {"model": "OmniVoice", "model_loaded": True})
+    stub(gateway, "transcribe", "/health", {"model": "Cohere", "model_loaded": True})
+
+    gateway.get("/api/status")
+
+    health_calls = [r for r in gateway.seen if r.url.path == "/health"]
+    assert len(health_calls) == len(set(gateway.server.WORKER_URLS.values()))
+
+
+def test_status_reports_an_unreachable_worker_as_offline(gateway):
+    stub(gateway, "omnivoice", "/health", {"model_loaded": True})
+    stub(gateway, "transcribe", "/health", httpx.ConnectError("down"))
+
+    body = gateway.get("/api/status").json()
+
+    assert body["transcribe"] == {"model": "transcribe", "status": "offline",
+                                  "ready": False, "model_loaded": False}
+
+
+def test_status_advertises_the_memory_policy(gateway):
+    stub(gateway, "omnivoice", "/health", {"model_loaded": True})
+    stub(gateway, "transcribe", "/health", {"model_loaded": True})
+    policy = gateway.get("/api/status").json()["_memory_policy"]
+    assert policy["single_model_mode"] is True and policy["max_request_mb"] > 0
 
 
 # ── Synthesis proxy ───────────────────────────────────────────
@@ -82,12 +108,12 @@ def test_synthesize_forwards_body_and_returns_worker_json(gateway):
     assert sent.headers["content-type"] == "application/x-www-form-urlencoded"
 
 
-def test_synthesize_streams_large_bodies_intact(gateway):
-    """The proxy pipes the request instead of buffering it — the worker must still see it all."""
-    stub(gateway, "voxcpm2", "/synthesize", {"filename": "v.wav"})
+def test_synthesize_forwards_large_bodies_intact(gateway):
+    """Uploads under the cap must reach the worker byte-for-byte."""
+    stub(gateway, "omnivoice_base", "/synthesize", {"filename": "v.wav"})
     blob = b"\x00" * (2 * 1024 * 1024)
 
-    r = gateway.post("/api/voxcpm2/synthesize", data={"text": "hi"},
+    r = gateway.post("/api/omnivoice_base/synthesize", data={"text": "hi"},
                      files={"reference_wav": ("ref.wav", blob, "audio/wav")})
 
     assert r.status_code == 200
@@ -117,8 +143,8 @@ def test_synthesize_offline_worker_is_503(gateway):
 
 
 def test_synthesize_timeout_is_504(gateway):
-    stub(gateway, "voxcpm2", "/synthesize", httpx.ReadTimeout("slow"))
-    r = gateway.post("/api/voxcpm2/synthesize", data={"text": "hi"})
+    stub(gateway, "omnivoice_base", "/synthesize", httpx.ReadTimeout("slow"))
+    r = gateway.post("/api/omnivoice_base/synthesize", data={"text": "hi"})
     assert r.status_code == 504
 
 
@@ -127,6 +153,77 @@ def test_synthesize_propagates_worker_error(gateway):
     r = gateway.post("/api/omnivoice/synthesize", data={"text": "hi"})
     assert r.status_code == 500
     assert "CUDA OOM" in r.json()["detail"]
+
+
+# ── Single-model memory policy ────────────────────────────────
+def test_synthesis_unloads_the_other_workers_first(gateway):
+    """One checkpoint resident at a time — the ASR model must release before TTS runs."""
+    stub(gateway, "omnivoice_ft", "/synthesize", {"filename": "o.wav"})
+    stub(gateway, "transcribe", "/unload", {"status": "unloaded"})
+
+    gateway.post("/api/omnivoice_ft/synthesize", data={"text": "مرحباً"})
+
+    calls = [(r.url.port, r.url.path) for r in gateway.seen]
+    assert (PORTS["transcribe"], "/unload") in calls
+    assert calls.index((PORTS["transcribe"], "/unload")) < \
+        calls.index((PORTS["omnivoice_ft"], "/synthesize"))
+
+
+def test_transcription_unloads_the_tts_worker_first(gateway):
+    """The reverse direction: a 2.4 GB ASR load must not land on top of OmniVoice."""
+    stub(gateway, "transcribe", "/transcribe", {"text": "مرحباً"})
+    stub(gateway, "omnivoice", "/unload", {"status": "unloaded"})
+
+    gateway.post("/api/transcribe", files={"audio": ("c.wav", b"x")})
+
+    calls = [(r.url.port, r.url.path) for r in gateway.seen]
+    assert calls.index((PORTS["omnivoice"], "/unload")) < \
+        calls.index((PORTS["transcribe"], "/transcribe"))
+
+
+def test_aliases_of_the_active_worker_are_not_unloaded(gateway):
+    """The three OmniVoice aliases are one process; unloading it mid-request would thrash."""
+    stub(gateway, "omnivoice_ft", "/synthesize", {"filename": "o.wav"})
+    stub(gateway, "transcribe", "/unload", {"status": "unloaded"})
+
+    gateway.post("/api/omnivoice_ft/synthesize", data={"text": "مرحباً"})
+
+    unloads = {r.url.port for r in gateway.seen if r.url.path == "/unload"}
+    assert PORTS["omnivoice"] not in unloads
+
+
+def test_a_dead_worker_does_not_block_the_unload_sweep(gateway):
+    """Best-effort: an offline peer must not fail the request that triggered the sweep."""
+    stub(gateway, "omnivoice_ft", "/synthesize", {"filename": "o.wav"})
+    stub(gateway, "transcribe", "/unload", httpx.ConnectError("down"))
+
+    r = gateway.post("/api/omnivoice_ft/synthesize", data={"text": "مرحباً"})
+    assert r.status_code == 200
+
+
+def test_unload_endpoint_is_exposed_for_every_worker(gateway):
+    for model in ("omnivoice_ft", "transcribe"):
+        stub(gateway, model, "/unload", {"status": "unloaded"})
+        assert gateway.post(f"/api/{model}/unload").json() == {"status": "unloaded"}
+    assert gateway.post("/api/nope/unload").status_code == 404
+
+
+# ── Request size cap ──────────────────────────────────────────
+def test_oversized_request_is_rejected_before_reaching_a_worker(gateway):
+    gateway.server.MAX_REQUEST_BYTES = 1024
+    stub(gateway, "transcribe", "/transcribe", {"text": "unreachable"})
+
+    r = gateway.post("/api/transcribe", files={"audio": ("big.wav", b"\x00" * 4096)})
+
+    assert r.status_code == 413 and "too large" in r.json()["detail"]
+    assert not [c for c in gateway.seen if c.url.path == "/transcribe"]
+
+
+def test_oversized_synthesis_is_rejected_too(gateway):
+    gateway.server.MAX_REQUEST_BYTES = 1024
+    r = gateway.post("/api/omnivoice_ft/synthesize",
+                     files={"ref": ("r.wav", b"\x00" * 4096)})
+    assert r.status_code == 413
 
 
 # ── Transcription proxy ───────────────────────────────────────
@@ -158,7 +255,7 @@ def test_transcribe_timeout_is_504(gateway):
 
 
 # ── load / per-model status ───────────────────────────────────
-@pytest.mark.parametrize("model", ["omnivoice", "voxcpm2", "transcribe"])
+@pytest.mark.parametrize("model", ["omnivoice", "omnivoice_ft", "omnivoice_base", "transcribe"])
 def test_load_and_status_cover_every_worker(gateway, model):
     stub(gateway, model, "/load", {"status": "loaded"})
     stub(gateway, model, "/health", {"model": model, "model_loaded": True})

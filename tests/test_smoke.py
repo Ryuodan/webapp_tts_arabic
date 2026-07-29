@@ -3,7 +3,7 @@
 Everything else in the suite mocks a boundary. This one starts an actual uvicorn worker
 and the actual gateway, then drives them over HTTP — so it catches what in-process tests
 cannot: a worker that fails to import, a port that does not match start.sh, an ASGI-level
-mistake in the streaming proxy, or a static file the server refuses to hand out.
+mistake in the proxy, or a static file the server refuses to hand out.
 
 The ASR worker itself is stood up from a stub script rather than the real one, because the
 real one needs a CUDA GPU and a 2.4 GB checkpoint. Its contract is covered by
@@ -51,6 +51,11 @@ def free_port():
         return s.getsockname()[1]
 
 
+def port_taken(port):
+    with socket.socket() as s:
+        return s.connect_ex(("127.0.0.1", port)) == 0
+
+
 def wait_for(url, deadline=25.0):
     end = time.time() + deadline
     while time.time() < end:
@@ -65,6 +70,13 @@ def wait_for(url, deadline=25.0):
 @pytest.fixture(scope="module")
 def stack(tmp_path_factory):
     """A real gateway on a free port, with a real ASR worker process behind it on 8084."""
+    # server.py pins the worker ports, so anything else holding one makes these
+    # assertions meaningless — skip rather than report a bogus pass or failure.
+    if port_taken(8082):
+        pytest.skip("port 8082 is held by another process; cannot assert worker state")
+    if port_taken(8084):
+        pytest.skip("port 8084 is held by another process; cannot start the stub worker")
+
     tmp = tmp_path_factory.mktemp("smoke")
     stub = tmp / "stub_worker.py"
     stub.write_text(STUB_WORKER, encoding="utf-8")
@@ -98,6 +110,7 @@ def test_gateway_reports_the_asr_worker_over_a_real_socket(stack):
     body = httpx.get(f"{stack}/api/status", timeout=5).json()
     assert body["transcribe"]["model_loaded"] is True
     assert body["omnivoice"]["status"] == "offline"      # not started here
+    assert body["_memory_policy"]["single_model_mode"] is True
 
 
 @pytest.mark.slow
@@ -113,7 +126,7 @@ def test_transcription_round_trip(stack, wav_file):
 
 
 @pytest.mark.slow
-def test_large_upload_survives_the_streaming_proxy(stack):
+def test_large_upload_survives_the_proxy(stack):
     blob = b"\x7f" * (5 * 1024 * 1024)
     r = httpx.post(f"{stack}/api/transcribe", timeout=60,
                    files={"audio": ("big.wav", blob, "audio/wav")})
@@ -158,5 +171,5 @@ def test_every_worker_script_is_launched_and_stopped():
     stop = (ROOT / "stop.sh").read_text(encoding="utf-8")
     for script in (ROOT / "workers").glob("*_server.py"):
         assert script.name in stop, f"{script.name} is never stopped"
-        if script.name != "fish_server.py":            # deliberately disabled on this host
+        if script.name not in ("fish_server.py", "voxcpm2_server.py"):   # retired workers
             assert script.name in start, f"{script.name} is never started"

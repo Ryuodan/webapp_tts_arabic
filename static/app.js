@@ -1,59 +1,65 @@
 'use strict';
 
+// Resolve requests from the directory that served this script. The production UI lives
+// below /arabic-tts/, so root-relative /api and /audio URLs bypassed the reverse proxy and
+// left the status badges stuck on "checking". This also keeps local / development serving
+// from / working without a separate configuration value.
+const APP_BASE_URL = new URL('.', (document.currentScript && document.currentScript.src) || document.baseURI);
+const appUrl = path => new URL(String(path || '').replace(/^\/+/, ''), APP_BASE_URL).toString();
+const modelAudioUrl = (mid, filename) => appUrl(
+  `audio/${encodeURIComponent(mid)}/${encodeURIComponent(filename)}`
+);
+
 // ── Model definitions ────────────────────────────────────────
+// The interface exposes exactly two models: the Saudi-HQ fine-tuned OmniVoice and the
+// stock one. Both ride the SAME worker (gateway aliases -> port 8082); fixedParams.variant
+// tells the worker which checkpoint to load. VoxCPM2/Fish are retired from the interface.
+const OMNI_SHARED = {
+  params: [
+    { id: 'voice', label: 'الصوت', type: 'select', default: '',
+      options: [
+        { value: '',      label: 'بدون استنساخ' },
+        { value: 'abeer', label: 'عبير — سعودية' },
+        { value: 'ahmed', label: 'أحمد — فصحى' },
+      ] },
+  ],
+  emotionTags: ['[laughter]'],   // base model only documents [laughter]; [applause] is unsupported
+  cloneFields: [],
+  formFields: {},
+};
+
 const MODELS = {
-  omnivoice: {
-    id: 'omnivoice',
-    name: 'OmniVoice',
+  omnivoice_ft: {
+    ...OMNI_SHARED,
+    id: 'omnivoice_ft',
+    name: 'OmniVoice المحسّن',
+    icon: '⭐',
+    specs: '0.6B · 24kHz · Saudi HQ FT',
+    role: 'أفضل نسخة — بعد الضبط الدقيق على بيانات سعودية عالية الجودة (saudi_hq_ft/checkpoint-2500). الخيار الافتراضي.',
+    traits: ['Saudi fine-tune', 'الأفضل للعربية', 'Voice cloning', '24kHz'],
+    profile: [
+      { label: 'أفضل استخدام', value: 'الإنتاج: نطق عربي/سعودي أفضل من الأصل، مع استنساخ الأصوات المضمّنة (عبير/أحمد).' },
+      { label: 'التحكم', value: 'اللهجة عبر لغة النموذج تلقائياً؛ الجنس/العمر/الأسلوب عبر instruct الإنجليزي + صوت مرجعي اختياري.' },
+      { label: 'ملاحظة', value: 'يتطلب أوزان الـ checkpoint على السيرفر (models/omnivoice/best_finetuned).' },
+    ],
+    compareNote: 'النسخة المحسّنة — قارِنها بالأصلية.',
+    fixedParams: { variant: 'finetuned' },
+  },
+  omnivoice_base: {
+    ...OMNI_SHARED,
+    id: 'omnivoice_base',
+    name: 'OmniVoice الأصلي',
     icon: '🌐',
     specs: '0.6B · 24kHz · 600+ lang',
-    role: 'أوسع تغطية لغات (600+) وجيد للعربية؛ لكن وصف الصوت (instruct) مُدرَّب على الإنجليزية/الصينية فقط.',
+    role: 'النموذج الأصلي k2-fsa/OmniVoice بدون ضبط — خط أساس للمقارنة، وأوسع تغطية لغات (600+).',
     traits: ['600+ لغة', 'Arabic-ready', 'Voice design', '24kHz'],
     profile: [
-      { label: 'أفضل استخدام', value: 'كخط أساس للنطق العربي أو نقل صوت مرجعي بين اللغات.' },
-      { label: 'التحكم', value: 'اللهجة تُختار عبر لغة النموذج العربية تلقائياً؛ الجنس/العمر/الأسلوب عبر instruct الإنجليزي + صوت مرجعي اختياري.' },
-      { label: 'الأداء محلياً', value: 'عادةً أسرع من VoxCPM2 على CPU في هذا السيرفر.' },
+      { label: 'أفضل استخدام', value: 'خط أساس للمقارنة مع النسخة المحسّنة، أو نقل صوت مرجعي بين اللغات.' },
+      { label: 'التحكم', value: 'اللهجة عبر لغة النموذج تلقائياً؛ الجنس/العمر/الأسلوب عبر instruct الإنجليزي + صوت مرجعي اختياري.' },
+      { label: 'ملاحظة', value: 'يشارك نفس العامل (worker)؛ التبديل بين النسختين يعيد تحميل النموذج (دقائق على CPU).' },
     ],
-    compareNote: 'استخدمه كخط أساس للنطق والتغطية اللغوية.',
-    params: [
-      { id: 'speaker', label: 'Voice / Style Prompt', type: 'text',
-        placeholder: 'e.g. female, young adult, whisper', default: '',
-        hint: 'وصف الصوت بمفردات OmniVoice الإنجليزية فقط: الجنس (male/female)، العمر (young adult/middle-aged/elderly)، النبرة (low/high pitch)، الأسلوب (whisper). لا يقبل وصفاً عربياً حراً. اللهجة العربية تُضبط تلقائياً عبر لغة النموذج، وليست جزءاً من هذا الوصف. اتركه فارغاً للصوت الافتراضي.' },
-    ],
-    emotionTags: ['[laughter]'],   // base model only documents [laughter]; [applause] is unsupported
-    cloneFields: ['ref_audio', 'ref_text'],
-    formFields: { ref_audio: 'ref_audio', ref_text: 'ref_text' },
-  },
-  voxcpm2: {
-    id: 'voxcpm2',
-    name: 'VoxCPM2',
-    icon: '🔊',
-    specs: '2B · 48kHz · Diffusion',
-    role: 'جودة إخراج أعلى واستنساخ صوت مرن (30 لغة)؛ العربية مدعومة لكن بدقة أقل (WER ~13%)، وأثقل نموذج على CPU.',
-    traits: ['30 لغة', '48kHz', 'Voice design', 'Cloning'],
-    profile: [
-      { label: 'أفضل استخدام', value: 'المقاطع النهائية عالية الجودة أو اختبار تصميم/استنساخ صوت متقدم.' },
-      { label: 'التحكم', value: 'CFG + timesteps + صوت مرجعي. اللهجة تُحقن كبادئة (Arabic) قبل النص؛ المرجع يثبّتها أكثر.' },
-      { label: 'الأداء محلياً', value: 'الأبطأ على CPU؛ استخدم 5 timesteps للمسودات و20 للجودة.' },
-    ],
-    compareNote: 'قارنه عندما تكون الجودة أهم من زمن التوليد.',
-    params: [
-      { id: 'style',               label: 'Style cue',        type: 'text',
-        placeholder: 'مثال: calm, formal أو cheerful, energetic', default: '',
-        hint: 'وصف أسلوب/نبرة حر يُحقن كبادئة بين قوسين قبل النص. يضبطه وكيل التأليف تلقائياً؛ اتركه فارغاً للأسلوب الافتراضي.' },
-      { id: 'cfg_value',           label: 'CFG Value',        type: 'range',  min: 1.0, max: 5.0, step: 0.1, default: 2.0,
-        hint: 'أعلى = اتباع أقوى للوصف أو المرجع، وقد يزيد الحدة أو الاصطناع.' },
-      { id: 'inference_timesteps', label: 'Timesteps',        type: 'select', options: [5, 10, 20], default: 10,
-        hint: '5 أسرع للمسودات، 10 متوازن، 20 أفضل جودة لكنه أبطأ.' },
-    ],
-    emotionTags: ['(calm)', '(excited)', '(sad)', '(whisper)', '(cheerful)'],
-    cloneFields: ['ref_wav', 'prompt_wav', 'prompt_text'],
-    formFields: {
-      reference_wav: 'ref_wav',
-      prompt_wav:    'prompt_wav',
-      prompt_text:   'prompt_text',
-    },
-    cloneHint: 'تلميح: أضف وصفاً في أقواس أمام النص: (calm and slow) النص هنا',
+    compareNote: 'الأصل بدون ضبط — خط الأساس.',
+    fixedParams: { variant: 'base' },
   },
 };
 
@@ -81,10 +87,6 @@ const AGES = [
 ];
 const attrLabel = (list, id) => (list.find(o => o.id === id) || list[0]).label;
 
-// English descriptors for VoxCPM2's leading-parenthetical cue — MUST match its worker map.
-const DIALECT_EN = {
-  msa: 'Modern Standard Arabic', saudi: 'Saudi (Najdi) Arabic', egyptian: 'Egyptian Arabic',
-};
 // OmniVoice picks the dialect via its native ISO 639-3 language code — MUST match the worker map.
 const DIALECT_LANG = {
   msa: 'arb', saudi: 'ars', egyptian: 'arz',
@@ -104,25 +106,16 @@ const JOBS = [
 // Returns { text, instruct?, lang? } — `instruct`/`lang` are only present for OmniVoice.
 function buildModelInput(mid, text) {
   const v = paramValues[mid] || {};
-  const desc = DIALECT_EN[v.dialect || 'msa'] || DIALECT_EN.msa;
-  const persona = [GENDER_EN[v.gender] || '', AGE_EN[v.age] || ''].filter(Boolean).join(' ');
   const body = text || '';
 
-  if (mid === 'voxcpm2') {
-    const style = (v.style || '').trim();
-    const cue = [style, persona, desc].filter(Boolean).join(', ');
-    return { text: `(${cue}) ${body}` };
-  }
-  if (mid === 'omnivoice') {
-    // Dialect → language code (not instruct); instruct carries only valid EN voice-design tokens.
-    const attrs = [];
-    const sp = (v.speaker || '').trim();
-    if (sp) attrs.push(sp);
-    if (GENDER_EN[v.gender]) attrs.push(GENDER_EN[v.gender]);
-    if (AGE_EN[v.age]) attrs.push(AGE_EN[v.age]);
-    return { text: body, instruct: attrs.join(', '), lang: DIALECT_LANG[v.dialect || 'msa'] || DIALECT_LANG.msa };
-  }
-  return { text: body };
+  // Both interface models are OmniVoice variants and share the same injection:
+  // dialect → language code (not instruct); instruct carries only valid EN voice-design tokens.
+  const attrs = [];
+  const sp = (v.speaker || '').trim();
+  if (sp) attrs.push(sp);
+  if (GENDER_EN[v.gender]) attrs.push(GENDER_EN[v.gender]);
+  if (AGE_EN[v.age]) attrs.push(AGE_EN[v.age]);
+  return { text: body, instruct: attrs.join(', '), lang: DIALECT_LANG[v.dialect || 'msa'] || DIALECT_LANG.msa };
 }
 
 const SAMPLE_SENTENCES = [
@@ -134,8 +127,11 @@ const SAMPLE_SENTENCES = [
 ];
 
 // ── State ─────────────────────────────────────────────────────
-let selectedModel = 'omnivoice';
-let workerStatus  = { omnivoice: 'offline', voxcpm2: 'offline' };
+let selectedModel = 'omnivoice_ft';
+let workerStatus  = { omnivoice_ft: 'checking', omnivoice_base: 'checking' };
+let loadingModels = new Set();   // models with an in-flight /load request
+let statusPollInFlight = false;
+let statusPollTimer = null;
 let currentAudioUrl = null;
 let isGenerating  = false;
 let isComparing   = false;
@@ -238,31 +234,20 @@ function cloneLabel(key) {
   }[key] || key;
 }
 
+const selectOptionValue = o => (o && typeof o === 'object') ? o.value : o;
+
 function optionSummary(mid, includeClone = true) {
   const model = MODELS[mid];
   const vals = paramValues[mid] || {};
   const entries = (model.params || []).map(p => {
     const raw = Object.prototype.hasOwnProperty.call(vals, p.id) ? vals[p.id] : p.default;
-    const value = typeof raw === 'string' && !raw.trim() ? 'افتراضي' : raw;
+    let value = typeof raw === 'string' && !raw.trim() ? 'افتراضي' : raw;
+    if (p.type === 'select') {
+      const match = (p.options || []).find(o => selectOptionValue(o) == raw);
+      if (match && typeof match === 'object') value = match.label;
+    }
     return { label: p.label, value };
   });
-
-  // Forced language + chosen dialect/persona lead the summary.
-  const lead = [{ label: 'اللهجة', value: `العربية · ${dialectLabel(vals.dialect || 'msa')}` }];
-  if (vals.gender) lead.push({ label: 'الجنس', value: attrLabel(GENDERS, vals.gender) });
-  if (vals.age)    lead.push({ label: 'العمر', value: attrLabel(AGES, vals.age) });
-  entries.unshift(...lead);
-
-  if (includeClone) {
-    const usedClone = [];
-    for (const stateKey of Object.values(model.formFields || {})) {
-      const val = cloneFiles[stateKey];
-      if (val instanceof File) usedClone.push({ label: cloneLabel(stateKey), value: val.name });
-      else if (typeof val === 'string' && val.trim()) usedClone.push({ label: cloneLabel(stateKey), value: 'موجود' });
-    }
-    entries.push(...usedClone);
-    if (!usedClone.length && model.formFields) entries.push({ label: 'استنساخ', value: 'بدون مرجع' });
-  }
 
   return entries;
 }
@@ -294,7 +279,7 @@ function showToast(msg, type = '', duration = 3000) {
 // ── Init param values ─────────────────────────────────────────
 function initParamValues() {
   for (const [mid, m] of Object.entries(MODELS)) {
-    paramValues[mid] = { dialect: 'msa', gender: '', age: '' };   // Arabic forced; persona auto
+    paramValues[mid] = { dialect: 'msa', gender: '', age: '', ...(m.fixedParams || {}) };   // Arabic forced; persona auto
     for (const p of m.params) {
       paramValues[mid][p.id] = p.default;
     }
@@ -307,6 +292,14 @@ function renderModelCards() {
   container.innerHTML = '';
   for (const m of Object.values(MODELS)) {
     const st = workerStatus[m.id] || 'offline';
+    // 'loading' = worker is up but the model isn't in RAM yet (loads on demand).
+    const isLoading = loadingModels.has(m.id);
+    const statusText = st === 'online'  ? '● متاح'
+                     : st === 'offline' ? '● غير متاح'
+                     : st === 'checking' ? '● جاري التحقق…'
+                     : isLoading        ? '● جاري التحميل…'
+                                        : '● متاح - غير محمّل';
+    const statusCls = (st === 'loading' || st === 'checking') ? 'loading' : st;  // keep the blink while up-but-not-loaded
     const card = document.createElement('div');
     card.className = `model-card ${m.id} ${selectedModel === m.id ? 'active' : ''} ${st === 'offline' ? 'offline' : ''}`;
     card.dataset.model = m.id;
@@ -322,10 +315,39 @@ function renderModelCards() {
       <div class="mc-traits">
         ${(m.traits || []).map(t => `<span>${escapeHtml(t)}</span>`).join('')}
       </div>
-      <div class="mc-status ${st}">${st === 'online' ? '● متاح' : st === 'loading' ? '● تحميل' : '● غير متاح'}</div>
+      <div class="mc-footer">
+        <span class="mc-status ${statusCls}">${statusText}</span>
+        ${st === 'loading'
+          ? `<button class="mc-load-btn" data-load="${m.id}" ${isLoading ? 'disabled' : ''}>${isLoading ? 'جاري التحميل…' : 'تحميل النموذج'}</button>`
+          : ''}
+      </div>
     `;
     card.addEventListener('click', () => selectModel(m.id));
+    const loadBtn = card.querySelector('.mc-load-btn');
+    if (loadBtn) loadBtn.addEventListener('click', (e) => { e.stopPropagation(); loadModel(m.id); });
     container.appendChild(card);
+  }
+}
+
+// ── Explicitly load (warm) a model into memory ────────────────
+// Models load lazily on first synth; this lets the user trigger it ahead of time.
+// On this CPU-only host a load takes ~2–3 min and ~6–7 GB RAM per model.
+async function loadModel(id) {
+  if (loadingModels.has(id) || workerStatus[id] === 'online') return;
+  loadingModels.add(id);
+  renderModelCards();
+  const name = (MODELS[id] && MODELS[id].name) || id;
+  showToast(`جاري تحميل ${name}… (قد يستغرق 2–3 دقائق)`, '', 4000);
+  try {
+    const r = await fetch(appUrl(`api/${id}/load`), { method: 'POST' });
+    if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+    loadingModels.delete(id);
+    await pollStatus();                 // refresh badges immediately
+    showToast(`✓ تم تحميل ${name}`, 'success');
+  } catch (e) {
+    loadingModels.delete(id);
+    renderModelCards();
+    showToast(`تعذّر تحميل النموذج: ${String(e.message).slice(0, 160)}`, 'warn');
   }
 }
 
@@ -336,7 +358,7 @@ function renderStatusBadges() {
   for (const m of Object.values(MODELS)) {
     const st = workerStatus[m.id] || 'offline';
     const badge = document.createElement('div');
-    badge.className = `status-badge ${st}`;
+    badge.className = `status-badge ${st === 'checking' ? 'loading' : st}`;
     badge.innerHTML = `<span class="status-dot"></span>${m.name}`;
     row.appendChild(badge);
   }
@@ -503,6 +525,7 @@ function sentInputHtml(meta) {
 
 function renderParams() {
   const body = $('params-body');
+  if (!body) return;
   const model = MODELS[selectedModel];
   body.innerHTML = renderModelInsights(model);
   renderLanguageBar(body);
@@ -534,7 +557,13 @@ function renderParams() {
 
     } else if (p.type === 'select') {
       row.className = 'param-row';
-      const opts = p.options.map(o => `<option value="${o}" ${o == val ? 'selected' : ''}>${o}</option>`).join('');
+      // Options are either primitives (numeric params) or {value, label} objects (string params).
+      const numeric = typeof selectOptionValue(p.options[0]) === 'number';
+      const opts = p.options.map(o => {
+        const ov = selectOptionValue(o);
+        const ol = (o && typeof o === 'object') ? o.label : o;
+        return `<option value="${escapeHtml(String(ov))}" ${ov == val ? 'selected' : ''}>${escapeHtml(String(ol))}</option>`;
+      }).join('');
       row.innerHTML = `
         <label class="param-label" for="p-${p.id}">${p.label}</label>
         <select class="param-select" id="p-${p.id}">${opts}</select>
@@ -542,7 +571,7 @@ function renderParams() {
       `;
       body.appendChild(row);
       row.querySelector('select').addEventListener('change', e => {
-        paramValues[selectedModel][p.id] = parseInt(e.target.value);
+        paramValues[selectedModel][p.id] = numeric ? parseInt(e.target.value) : e.target.value;
       });
 
     } else if (p.type === 'text') {
@@ -565,9 +594,37 @@ function renderParams() {
   }
 }
 
+function renderVoicePicker() {
+  const select = $('voice-select');
+  if (!select) return;
+
+  const model = MODELS[selectedModel];
+  const voiceParam = (model.params || []).find(p => p.id === 'voice');
+  if (!voiceParam) {
+    select.innerHTML = '<option value="">بدون استنساخ</option>';
+    select.disabled = true;
+    return;
+  }
+
+  const current = (paramValues[selectedModel] && paramValues[selectedModel].voice) || '';
+  select.disabled = false;
+  select.innerHTML = voiceParam.options.map(o => `
+    <option value="${escapeHtml(String(o.value))}" ${o.value === current ? 'selected' : ''}>
+      ${escapeHtml(o.label)}
+    </option>
+  `).join('');
+
+  select.onchange = e => {
+    for (const mid of Object.keys(MODELS)) {
+      if (paramValues[mid]) paramValues[mid].voice = e.target.value;
+    }
+  };
+}
+
 // ── Render emotion tags ───────────────────────────────────────
 function renderTags() {
   const strip = $('tag-strip');
+  if (!strip) return;
   const model = MODELS[selectedModel];
   if (!model.emotionTags || !model.emotionTags.length) {
     strip.className = 'tag-strip empty';
@@ -603,6 +660,7 @@ function insertTag(tag) {
 // ── Render voice-cloning panel ────────────────────────────────
 function renderClonePanel() {
   const body = $('clone-body');
+  if (!body) return;
   const model = MODELS[selectedModel];
   body.innerHTML = '';
 
@@ -613,16 +671,9 @@ function renderClonePanel() {
     body.appendChild(hint);
   }
 
-  if (model.id === 'omnivoice') {
-    body.appendChild(makeFileZone('ref_audio', 'الصوت المرجعي (WAV 5–30 ثانية)', 'audio/wav,audio/*'));
-    body.appendChild(makeTextRow('ref_text', 'نص الصوت المرجعي (اختياري)', 'النص المنطوق في الصوت المرجعي…'));
-  }
-
-  if (model.id === 'voxcpm2') {
-    body.appendChild(makeFileZone('ref_wav',    'الصوت المرجعي (Basic cloning)', 'audio/wav,audio/*'));
-    body.appendChild(makeFileZone('prompt_wav', 'صوت البروميبت (Ultimate cloning)', 'audio/wav,audio/*'));
-    body.appendChild(makeTextRow('prompt_text', 'نص البروميبت (Ultimate)', 'النص المنطوق في صوت البروميبت…'));
-  }
+  // Both interface models are OmniVoice variants with the same cloning fields.
+  body.appendChild(makeFileZone('ref_audio', 'الصوت المرجعي (WAV 5–30 ثانية)', 'audio/wav,audio/*'));
+  body.appendChild(makeTextRow('ref_text', 'نص الصوت المرجعي (اختياري)', 'النص المنطوق في الصوت المرجعي…'));
 }
 
 function makeFileZone(key, label, accept) {
@@ -665,6 +716,7 @@ function makeTextRow(key, label, placeholder) {
 // ── Render compare checkboxes ─────────────────────────────────
 function renderCompareChecks() {
   const container = $('compare-checks');
+  if (!container) return;
   container.innerHTML = '';
   for (const m of Object.values(MODELS)) {
     const label = document.createElement('label');
@@ -690,15 +742,31 @@ function renderCompareChecks() {
 // Reflect the number of selected models on the compare button
 function updateCompareLabel() {
   if (isComparing) return;
-  const n = $$('#compare-checks input:checked').length;
+  if (!$('compare-checks') || !$('btn-compare')) return;
+  const toggle = $('use-all-models');
+  const useAll = !toggle || toggle.checked;
+  const n = useAll
+    ? Object.keys(MODELS).filter(mid => !['offline', 'checking'].includes(workerStatus[mid])).length
+    : $$('#compare-checks input:checked').length;
   const label = $('compare-label');
-  if (label) label.textContent = n ? `قارن الآن (${n})` : 'اختر نماذج للمقارنة';
-  $('btn-compare').disabled = n === 0;
+  if (label) label.textContent = n ? `قارن الآن (${n})` : 'لا توجد نماذج متاحة';
+  // Keep the button clickable with empty text so the user gets an explanatory toast
+  // instead of an inert control that looks broken.
+  $('btn-compare').disabled = n === 0 || isGenerating || isComparing;
+}
+
+function updateCompareMode() {
+  const toggle = $('use-all-models');
+  const enabled = !toggle || toggle.checked;
+  const btn = $('btn-compare');
+  if (btn) btn.hidden = !enabled;
+  updateCompareLabel();
 }
 
 // ── Render sample chips ───────────────────────────────────────
 function renderSampleChips() {
   const container = $('sample-chips');
+  if (!container) return;
   container.innerHTML = '';
   for (const s of SAMPLE_SENTENCES) {
     const chip = document.createElement('button');
@@ -745,7 +813,7 @@ async function composeWithAI() {
   $('compose-agent-label').textContent = '… جاري التأليف';
   setComposeStatus('يكتب الوكيل النص ويضبط إعدادات النموذجين…');
   try {
-    const r = await fetch('/api/compose', {
+    const r = await fetch(appUrl('api/compose'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -782,10 +850,9 @@ function applyComposed(result) {
     v.dialect = dialect; v.gender = gender; v.age = age;
     if (manualOverride[mid]) manualOverride[mid].enabled = false;
   }
-  paramValues.omnivoice.speaker = result.omnivoice_instruct || '';
-  paramValues.voxcpm2.style = result.voxcpm2_style || '';
-  if (Number.isFinite(result.cfg_value)) paramValues.voxcpm2.cfg_value = result.cfg_value;
-  if (Number.isFinite(result.inference_timesteps)) paramValues.voxcpm2.inference_timesteps = result.inference_timesteps;
+  // Same instruct for both OmniVoice variants (compose's voxcpm2 fields are unused now).
+  paramValues.omnivoice_ft.speaker = result.omnivoice_instruct || '';
+  paramValues.omnivoice_base.speaker = result.omnivoice_instruct || '';
 
   // One shared plain-Arabic script (each engine applies its own style mechanism).
   $('text-input').value = result.text || '';
@@ -833,7 +900,7 @@ async function prepareText() {
   $('prep-label').textContent = '… جاري التحضير';
   setPrepStatus('يحضّر الوكيل النص…');
   try {
-    const r = await fetch('/api/prepare', {
+    const r = await fetch(appUrl('api/prepare'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -914,8 +981,8 @@ function invalidatePrepUndo() {
 }
 
 // ── Transcription agent (ASR) ─────────────────────────────────
-// Audio → text. The result feeds either the synthesis box or the clone panel's
-// reference-text field, which is what you need after uploading a reference clip.
+// Audio → text, feeding the synthesis box. (The reference-text hand-off is gone with
+// the clone panel — simplified mode has no field to drop a transcript into.)
 let transcribeFile = null;   // the picked audio File
 let transcriptText = '';     // last successful transcript
 
@@ -954,27 +1021,33 @@ async function transcribeAudio() {
   }
 }
 
-// Drop the transcript into the synthesis box (undoable via ↶ like a prep apply).
+// Drop the transcript into the synthesis box.
 function useTranscriptAsText() {
   if (!transcriptText) return;
-  prepBackup = $('text-input').value;
-  $('btn-prep-undo').hidden = false;
   $('text-input').value = transcriptText;
   showToast('تم نقل النص المُفرَّغ ✓', 'success');
   updateCharCount();
   updateSynthBtn();
-  updateModelInputPreview();
 }
 
-// Drop it into the selected model's clone reference-text field and open that panel.
-function useTranscriptAsReference() {
-  if (!transcriptText) return;
-  const key = selectedModel === 'omnivoice' ? 'ref_text' : 'prompt_text';
-  cloneFiles[key] = transcriptText;
-  const field = document.querySelector(`[data-clone-key="${key}"]`);
-  if (field) field.value = transcriptText;
-  setAccordionOpen('acc-clone', true);
-  showToast('تم نقله إلى نص الصوت المرجعي ✓', 'success');
+// Wire the panel. Every lookup is guarded: the transcription section is optional markup,
+// and a page without it must still boot the primary controls.
+function setupTranscription() {
+  const zone = $('transcribe-zone');
+  const button = $('btn-transcribe');
+  if (!zone || !button) return;
+
+  zone.querySelector('input').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    transcribeFile = file;
+    zone.classList.add('has-file');
+    zone.querySelector('.zone-label').textContent = `✓ ${file.name}`;
+    setTranscribeStatus('');
+  });
+  $('transcribe-punct').addEventListener('click', e => togglePrepOption(e.currentTarget));
+  button.addEventListener('click', transcribeAudio);
+  $('btn-transcribe-use').addEventListener('click', useTranscriptAsText);
 }
 
 // ── Select model ──────────────────────────────────────────────
@@ -982,9 +1055,7 @@ function selectModel(id) {
   selectedModel = id;
   cloneFiles = {};
   renderModelCards();
-  renderParams();
-  renderTags();
-  renderClonePanel();
+  renderVoicePicker();
   renderCompareChecks();
   updateSynthBtn();
 
@@ -1003,42 +1074,106 @@ function updateCharCount() {
 
 function updateSynthBtn() {
   const hasText = $('text-input').value.trim().length > 0;
-  const online  = workerStatus[selectedModel] === 'online';
-  $('btn-synth').disabled = !hasText || isGenerating;
-  $('synth-label').textContent = !online ? 'النموذج غير متاح' :
-    isGenerating ? 'جاري التوليد…' : 'توليد الصوت';
+  const useAll = Boolean($('use-all-models') && $('use-all-models').checked);
+  const states = Object.keys(MODELS).map(mid => workerStatus[mid]);
+  const checking = useAll
+    ? states.every(st => st === 'checking')
+    : workerStatus[selectedModel] === 'checking';
+  const available = useAll
+    ? Object.keys(MODELS).some(mid => !['offline', 'checking'].includes(workerStatus[mid]))
+    : !['offline', 'checking'].includes(workerStatus[selectedModel]);
+  $('btn-synth').disabled = !hasText || isGenerating || isComparing || !available;
+  $('synth-label').textContent = checking ? 'جاري التحقق…' :
+    !available ? 'النموذج غير متاح' :
+    isGenerating || isComparing ? 'جاري التوليد…' :
+    useAll ? 'قارن النماذج' : 'توليد الصوت';
+  updateCompareLabel();
 }
 
 // ── Poll worker health ────────────────────────────────────────
-async function pollStatus() {
-  try {
-    const r = await fetch('/api/status');
-    if (!r.ok) return;
-    const data = await r.json();
-    for (const [mid, info] of Object.entries(data)) {
-      if (info.status === 'offline') {
-        workerStatus[mid] = 'offline';
-      } else if (info.model_loaded) {
-        workerStatus[mid] = 'online';
-      } else {
-        workerStatus[mid] = 'loading';
-      }
-    }
-  } catch { /* server not yet up */ }
+function renderWorkerStatus() {
   renderStatusBadges();
   renderModelCards();
   renderCompareChecks();
   updateSynthBtn();
 }
 
+async function pollStatus() {
+  if (statusPollInFlight) return;
+  statusPollInFlight = true;
+  let timeout = null;
+  try {
+    // Promise.race keeps the check bounded even in browsers without AbortController.
+    // Abort the underlying request too when that API is available.
+    const controller = typeof AbortController === 'function' ? new AbortController() : null;
+    const request = fetch(appUrl('api/status'), {
+      cache: 'no-store',
+      ...(controller ? { signal: controller.signal } : {}),
+    });
+    const deadline = new Promise((_, reject) => {
+      timeout = setTimeout(() => {
+        if (controller) controller.abort();
+        reject(new Error('Status request timed out'));
+      }, 15_000);
+    });
+    const r = await Promise.race([request, deadline]);
+    if (!r.ok) throw new Error(`Status request failed: HTTP ${r.status}`);
+    const data = await r.json();
+    if (!data || typeof data !== 'object') throw new Error('Invalid status response');
+    for (const mid of Object.keys(MODELS)) {
+      const info = data[mid];
+      if (!info || typeof info !== 'object') {
+        workerStatus[mid] = 'offline';
+        continue;
+      }
+      const want = (MODELS[mid].fixedParams || {}).variant || '';
+      if (info.status === 'offline') {
+        workerStatus[mid] = 'offline';
+      } else if (want && info.variants && !(want in info.variants)) {
+        // Worker is up but this variant's weights are missing server-side.
+        workerStatus[mid] = 'offline';
+      } else if (info.model_loaded && (!want ||
+                 (Array.isArray(info.loaded_variants) && info.loaded_variants.includes(want)) ||
+                 info.loaded_variant === want)) {
+        workerStatus[mid] = 'online';
+      } else {
+        // Worker up; this variant loads on demand (or another variant currently holds the RAM).
+        workerStatus[mid] = 'loading';
+      }
+    }
+  } catch {
+    // A failed gateway request is a completed check, not an indefinitely pending one.
+    for (const mid of Object.keys(MODELS)) workerStatus[mid] = 'offline';
+  } finally {
+    clearTimeout(timeout);
+    statusPollInFlight = false;
+    renderWorkerStatus();
+  }
+}
+
+function startStatusPolling() {
+  void pollStatus();
+  if (!statusPollTimer) statusPollTimer = setInterval(pollStatus, 10_000);
+
+  // Never leave the initial state spinning indefinitely, even if a browser extension,
+  // compatibility issue, or a later optional UI initializer interrupts normal startup.
+  setTimeout(() => {
+    let changed = false;
+    for (const mid of Object.keys(MODELS)) {
+      if (workerStatus[mid] === 'checking') {
+        workerStatus[mid] = 'offline';
+        changed = true;
+      }
+    }
+    if (changed) renderWorkerStatus();
+  }, 16_000);
+}
+
 // ── Current "instruct" (voice description / prompt text) ──────
-// What counts as the instruction differs per model:
-//   omnivoice → speaker voice description, voxcpm2 → prompt_text,
-//   fish → emotion tags are inline in the text (no separate field).
+// The instruction for both OmniVoice variants is the speaker voice description.
 function currentInstruct() {
-  if (selectedModel === 'omnivoice') return (paramValues.omnivoice.speaker || '').trim();
-  if (selectedModel === 'voxcpm2')   return (cloneFiles.prompt_text || '').trim();
-  return '';
+  const v = paramValues[selectedModel];
+  return v ? (v.speaker || '').trim() : '';
 }
 
 // ── Build FormData for synthesis ──────────────────────────────
@@ -1057,7 +1192,7 @@ function buildFormDataForModel(mid, text, includeClone = true, paramsOverride = 
   const ov = manualOverride[mid];
   if (ov && ov.enabled) {
     fd.append('model_input_override', ov.text);
-    if (mid === 'omnivoice') fd.append('model_instruct_override', ov.instruct);
+    fd.append('model_instruct_override', ov.instruct);
   }
 
   // Clone files/text
@@ -1079,6 +1214,9 @@ function buildFormData() {
 
 // ── Synthesize ────────────────────────────────────────────────
 async function synthesize() {
+  if ($('use-all-models') && $('use-all-models').checked) {
+    return compareModels();
+  }
   if (isGenerating) return;
   const text = $('text-input').value.trim();
   if (!text) return;
@@ -1097,7 +1235,7 @@ async function synthesize() {
 
   try {
     const fd = buildFormData();
-    const r  = await fetch(`/api/${selectedModel}/synthesize`, { method: 'POST', body: fd });
+    const r  = await fetch(appUrl(`api/${selectedModel}/synthesize`), { method: 'POST', body: fd });
 
     if (!r.ok) {
       const err = await r.text();
@@ -1105,12 +1243,13 @@ async function synthesize() {
     }
 
     const result = await r.json();
-    const audioUrl = `/audio/${selectedModel}/${result.filename}`;
+    const audioUrl = modelAudioUrl(selectedModel, result.filename);
     const options = optionSummary(selectedModel, true);
 
     await loadPlayer(audioUrl, { ...result, options }, text);
     addToHistory({
-      ...result, text, url: audioUrl, options, timestamp: Date.now(),
+      ...result, model: selectedModel,   // interface id, not the worker's "omnivoice"
+      text, url: audioUrl, options, timestamp: Date.now(),
       instruct: currentInstruct(),
       params: { ...paramValues[selectedModel] },
     });
@@ -1150,10 +1289,8 @@ async function loadPlayer(url, meta, text) {
   if (insights) {
     const options = meta.options || optionSummary(meta.model, false);
     insights.innerHTML = `
-      <p class="player-model-note">${escapeHtml(model.role || '')}</p>
       ${metricGridHtml(meta)}
       ${optionChipsHtml(options)}
-      ${sentInputHtml(meta)}
     `;
   }
 
@@ -1164,7 +1301,7 @@ async function loadPlayer(url, meta, text) {
 
   // Player button color
   const playBtn = $('btn-play');
-  playBtn.className = `btn-play ${meta.model === 'voxcpm2' ? 'vox' : meta.model}`;
+  playBtn.className = `btn-play ${meta.model}`;
 
   // Reset time
   $('cur-time').textContent = '0:00';
@@ -1216,7 +1353,7 @@ async function drawWaveform(url, mid = selectedModel) {
     ctx.fillRect(0, 0, W, H);
 
     // Color based on model
-    const color = mid === 'voxcpm2' ? '#3fb950' : '#58a6ff';
+    const color = mid === 'omnivoice_base' ? '#3fb950' : '#58a6ff';
     ctx.fillStyle = color + '90';
 
     for (let i = 0; i < W; i++) {
@@ -1274,19 +1411,59 @@ function setupAudioEvents() {
 
 // ── History ───────────────────────────────────────────────────
 const HISTORY_KEY = 'tts_history_v2';
+const HISTORY_COLLAPSED_KEY = 'tts_history_collapsed_v1';
 let historyItems = [];
+let historyCollapsed = false;
 
 function loadHistory() {
   try {
     const saved = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
-    historyItems = Array.isArray(saved) ? saved.filter(i => MODELS[i.model]) : [];
+    historyItems = Array.isArray(saved) ? saved.filter(i => MODELS[i.model]).map(item => ({
+      ...item,
+      // Repair URLs saved by older builds that pointed at the domain-root /audio route.
+      url: item.filename ? modelAudioUrl(item.model, item.filename) : item.url,
+    })) : [];
   } catch { historyItems = []; }
+}
+
+function loadHistoryCollapsed() {
+  try {
+    historyCollapsed = localStorage.getItem(HISTORY_COLLAPSED_KEY) === '1';
+  } catch {
+    historyCollapsed = false;
+  }
+  applyHistoryCollapsedState();
 }
 
 function saveHistory() {
   // Keep last 200 items
   const trimmed = historyItems.slice(0, 200);
   localStorage.setItem(HISTORY_KEY, JSON.stringify(trimmed));
+}
+
+function setHistoryCollapsed(collapsed) {
+  historyCollapsed = Boolean(collapsed);
+  try {
+    localStorage.setItem(HISTORY_COLLAPSED_KEY, historyCollapsed ? '1' : '0');
+  } catch {}
+  applyHistoryCollapsedState();
+}
+
+function applyHistoryCollapsedState() {
+  const card = document.querySelector('.history-card');
+  const list = $('history-list');
+  const btn = $('btn-toggle-history');
+  if (!card || !list || !btn) return;
+
+  card.classList.toggle('history-collapsed', historyCollapsed);
+  list.setAttribute('aria-hidden', String(historyCollapsed));
+  btn.setAttribute('aria-expanded', String(!historyCollapsed));
+  btn.textContent = historyCollapsed ? 'فتح' : 'طي';
+  btn.title = historyCollapsed ? 'فتح السجل' : 'طي السجل';
+}
+
+function toggleHistoryCollapsed() {
+  setHistoryCollapsed(!historyCollapsed);
 }
 
 function addToHistory(item) {
@@ -1373,15 +1550,19 @@ async function loadServerHistory() {
   const existing = new Set(historyItems.map(i => i.filename));
   for (const mid of Object.keys(MODELS)) {
     try {
-      const r = await fetch(`/api/${mid}/history?limit=30`);
+      const r = await fetch(appUrl(`api/${mid}/history?limit=30`));
       if (!r.ok) continue;
       const files = await r.json();
       for (const f of files) {
+        // Both interface models share one output dir; assign each clip to the card whose
+        // variant generated it. Clips predating variant tracking ran the fine-tuned default.
+        const variant = (f.params && f.params.variant) || 'finetuned';
+        if (variant !== MODELS[mid].fixedParams.variant) continue;
         if (!existing.has(f.filename)) {
           historyItems.push({
             filename:   f.filename,
             model:      mid,
-            url:        `/audio/${mid}/${f.filename}`,
+            url:        modelAudioUrl(mid, f.filename),
             text:       f.text || '',
             instruct:   f.instruct || '',
             params:     f.params || null,
@@ -1424,10 +1605,12 @@ function miniPlayerHtml(mid, item, runId = null) {
       ${optionChipsHtml(options)}
     `;
   }
-  const url = item.url || `/audio/${mid}/${item.result.filename}`;
+  const url = item.result && item.result.filename
+    ? modelAudioUrl(mid, item.result.filename)
+    : item.url;
   return `
     ${miniTitleHtml(mid)}
-    <audio controls preload="auto" src="${escapeHtml(url)}"></audio>
+    <audio controls preload="metadata" src="${escapeHtml(url)}"></audio>
     ${metricGridHtml(item.result)}
     <div class="mini-player-meta">${escapeHtml(MODELS[mid].role)}</div>
     ${optionChipsHtml(options)}
@@ -1483,15 +1666,26 @@ let compareRuns = [];
 function loadCompareRuns() {
   try {
     const arr = JSON.parse(localStorage.getItem(COMPARE_RUNS_KEY) || '[]');
-    compareRuns = Array.isArray(arr) ? arr : [];
+    compareRuns = Array.isArray(arr) ? arr
+      .filter(run => run && typeof run === 'object' && Array.isArray(run.items))
+      .map(run => ({
+        ...run,
+        id: String(run.id || `c${run.timestamp || Date.now()}`),
+        text: String(run.text || ''),
+        timestamp: Number(run.timestamp) || Date.now(),
+        items: run.items.filter(item => item && typeof item === 'object' && MODELS[item.mid]),
+      }))
+      .filter(run => run.items.length) : [];
   } catch { compareRuns = []; }
   // One-time migration of the old single-slot run into the new list.
   if (!compareRuns.length) {
     try {
       const old = JSON.parse(localStorage.getItem(COMPARE_KEY) || 'null');
       if (old && Array.isArray(old.items) && old.items.length) {
+        const items = old.items.filter(item => item && typeof item === 'object' && MODELS[item.mid]);
+        if (!items.length) throw new Error('Legacy comparison data is invalid');
         compareRuns = [{ id: `c${old.timestamp || Date.now()}`, text: old.text || '',
-                         timestamp: old.timestamp || Date.now(), items: old.items }];
+                         timestamp: old.timestamp || Date.now(), items }];
         persistCompareRuns();
       }
     } catch { /* ignore */ }
@@ -1592,11 +1786,11 @@ async function retryCompareItem(runId, mid) {
   let item;
   try {
     const fd = buildFormDataForModel(mid, run.text, false, prev.params || null);
-    const r = await fetch(`/api/${mid}/synthesize`, { method: 'POST', body: fd });
+    const r = await fetch(appUrl(`api/${mid}/synthesize`), { method: 'POST', body: fd });
     if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
     const result = await r.json();
-    const url = `/audio/${mid}/${result.filename}`;
-    addToHistory({ ...result, text: run.text, url, options, timestamp: Date.now() });
+    const url = modelAudioUrl(mid, result.filename);
+    addToHistory({ ...result, model: mid, text: run.text, url, options, timestamp: Date.now() });
     item = { mid, result, options, url, params: prev.params };
     showToast('تمت إعادة التوليد ✓', 'success');
   } catch (e) {
@@ -1668,17 +1862,24 @@ function renderCompareLibrary() {
   }
 }
 
-async function compareModels() {
+async function compareModels(compareAll = false) {
   if (isComparing) return;
   const text = $('text-input').value.trim();
   if (!text) { showToast('أدخل نصاً أولاً', 'warn'); return; }
 
-  const selected = Array.from($$('#compare-checks input:checked')).map(e => e.value);
+  const toggle = $('use-all-models');
+  const useAll = compareAll || !toggle || toggle.checked;
+  const selected = useAll
+    ? Object.keys(MODELS).filter(mid => workerStatus[mid] !== 'offline')
+    : Array.from($$('#compare-checks input:checked')).map(e => e.value);
   if (!selected.length) { showToast('اختر نموذجاً واحداً على الأقل', 'warn'); return; }
 
   isComparing = true;
   const btn = $('btn-compare');
-  btn.disabled = true;
+  if (btn) btn.disabled = true;
+  updateSynthBtn();
+  $('synth-progress').classList.remove('hidden');
+  $('progress-hint').textContent = `جاري تحضير مقارنة ${selected.length} نماذج…`;
 
   // Create the run up front and show it expanded at the top of the library, so the live
   // generation streams into the same card the user will keep and compare against later.
@@ -1691,40 +1892,64 @@ async function compareModels() {
   };
   currentCompareRunId = run.id;
   expandedCompareRuns.add(run.id);
-  addCompareRun(run);   // unshift + persist + renderCompareLibrary → renders the pending card
-  $('saved-compare-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-  for (let i = 0; i < selected.length; i++) {
-    const mid = selected[i];
-    const idx = run.items.findIndex(it => it.mid === mid);
-    const options = run.items[idx].options;
-    $('compare-label').textContent = `جاري المقارنة ${i + 1}/${selected.length}`;
-    setMiniHtml(run.id, mid, `${miniTitleHtml(mid)}<div class="mini-spinner">جاري التوليد…</div>${optionChipsHtml(options)}`);
-
-    let item;
-    try {
-      const fd = buildFormDataForModel(mid, text, false);
-      const r = await fetch(`/api/${mid}/synthesize`, { method: 'POST', body: fd });
-      if (!r.ok) throw new Error(await r.text());
-      const result = await r.json();
-      const url = `/audio/${mid}/${result.filename}`;
-      addToHistory({ ...result, text, url, options, timestamp: Date.now() });
-      item = { mid, result, options, url, params: run.items[idx].params };
-    } catch (e) {
-      item = { mid, error: e.message, options, params: run.items[idx].params };
+  try {
+    addCompareRun(run);   // unshift + persist + renderCompareLibrary → renders the pending card
+    const compareCard = $('saved-compare-card');
+    if (compareCard && typeof compareCard.scrollIntoView === 'function') {
+      compareCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
-    run.items[idx] = item;
-    persistCompareRuns();
-    setMiniHtml(run.id, mid, miniPlayerHtml(mid, item, run.id));
-    refreshRunSummary(run);
-  }
+    for (let i = 0; i < selected.length; i++) {
+      const mid = selected[i];
+      const idx = run.items.findIndex(it => it.mid === mid);
+      const options = run.items[idx].options;
+      const progress = `جاري المقارنة ${i + 1}/${selected.length}`;
+      if ($('compare-label')) $('compare-label').textContent = progress;
+      $('synth-label').textContent = progress;
+      $('progress-hint').textContent = `${progress} — قد يحتاج النموذج غير المحمّل عدة دقائق`;
+      setMiniHtml(run.id, mid, `${miniTitleHtml(mid)}<div class="mini-spinner">جاري التوليد…</div>${optionChipsHtml(options)}`);
 
-  isComparing = false;
-  btn.disabled = false;
-  updateCompareLabel();
-  const hadErr = run.items.some(r => r.error);
-  showToast(hadErr ? 'اكتملت المقارنة مع أخطاء' : 'اكتملت المقارنة', hadErr ? 'warn' : 'success');
+      let item;
+      try {
+        const fd = buildFormDataForModel(mid, text, false);
+        const r = await fetch(appUrl(`api/${mid}/synthesize`), { method: 'POST', body: fd });
+        if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+        const result = await r.json();
+        const url = modelAudioUrl(mid, result.filename);
+        addToHistory({ ...result, model: mid, text, url, options, timestamp: Date.now() });
+        item = { mid, result, options, url, params: run.items[idx].params };
+      } catch (e) {
+        item = { mid, error: e.message || String(e), options, params: run.items[idx].params };
+      }
+
+      run.items[idx] = item;
+      persistCompareRuns();
+      setMiniHtml(run.id, mid, miniPlayerHtml(mid, item, run.id));
+      refreshRunSummary(run);
+    }
+
+    const hadErr = run.items.some(r => r.error);
+    showToast(hadErr ? 'اكتملت المقارنة مع أخطاء' : 'اكتملت المقارنة', hadErr ? 'warn' : 'success');
+  } catch (e) {
+    const message = String(e.message || e).slice(0, 120);
+    for (const item of run.items) {
+      if (item.pending) {
+        delete item.pending;
+        item.error = message;
+      }
+    }
+    try {
+      persistCompareRuns();
+      renderCompareLibrary();
+    } catch { /* the progress controls are still reset below */ }
+    showToast(`تعذّر بدء المقارنة: ${message}`, 'error', 6000);
+  } finally {
+    isComparing = false;
+    currentCompareRunId = null;
+    $('synth-progress').classList.add('hidden');
+    updateCompareMode();
+    updateSynthBtn();
+  }
 }
 
 // ── Accordion toggle ──────────────────────────────────────────
@@ -1753,99 +1978,99 @@ function clearHistory() {
   renderHistory();
 }
 
+function setupPrimaryActions() {
+  const textInput = $('text-input');
+  if (!textInput || textInput.dataset.primaryActionsBound === '1') return;
+  textInput.dataset.primaryActionsBound = '1';
+
+  textInput.addEventListener('input', () => {
+    updateCharCount();
+    updateSynthBtn();
+  });
+
+  const synthBtn = $('btn-synth');
+  if (synthBtn) synthBtn.addEventListener('click', synthesize);
+
+  const compareBtn = $('btn-compare');
+  if (compareBtn) compareBtn.addEventListener('click', () => compareModels(true));
+
+  const compareToggle = $('use-all-models');
+  if (compareToggle) {
+    compareToggle.addEventListener('change', () => {
+      updateCompareMode();
+      updateSynthBtn();
+    });
+  }
+
+  const clearBtn = $('btn-clear-text');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      textInput.value = '';
+      updateCharCount();
+      updateSynthBtn();
+    });
+  }
+
+  updateCompareMode();
+}
+
 // ── Init ──────────────────────────────────────────────────────
 function init() {
   initParamValues();
   loadHistory();
+  loadHistoryCollapsed();
 
   renderModelCards();
   renderStatusBadges();
-  renderParams();
-  renderTags();
-  renderClonePanel();
-  renderCompareChecks();
-  renderSampleChips();
-  renderComposePanel();
-  renderHistory();
-  loadCompareRuns();
-  if (compareRuns[0]) expandedCompareRuns.add(compareRuns[0].id);  // open the latest after reload
-  renderCompareLibrary();                              // comparisons library (live + old)
-  setupAccordions();
-  setupAudioEvents();
 
-  // Text input events
-  $('text-input').addEventListener('input', () => {
-    invalidatePrepUndo();   // manual edits supersede the last prepare
-    updateCharCount();
-    updateSynthBtn();
-    updateModelInputPreview();
-  });
+  // Start health synchronization before initializing optional controls. A problem in an
+  // unrelated panel must not prevent the model cards from leaving their initial state.
+  startStatusPolling();
 
-  // Synth button
-  $('btn-synth').addEventListener('click', synthesize);
+  // Primary actions must remain usable even if optional history/local-storage restoration
+  // encounters stale data from an older frontend version.
+  setupPrimaryActions();
 
-  // Auto-compose agent
-  $('btn-compose-agent').addEventListener('click', composeWithAI);
+  // Transcription is optional too, but it is wired before the restoration block so a
+  // stale-localStorage failure there cannot leave the transcribe button dead.
+  setupTranscription();
 
-  // Text-Prep agent (numbers→words / tashkeel toggles + prepare + before/after preview + undo)
-  $('prep-normalize').addEventListener('click', e => togglePrepOption(e.currentTarget));
-  $('prep-diacritize').addEventListener('click', e => togglePrepOption(e.currentTarget));
-  $('btn-prep').addEventListener('click', prepareText);
-  $('btn-prep-apply').addEventListener('click', applyPrep);
-  $('btn-prep-cancel').addEventListener('click', cancelPrep);
-  $('btn-prep-undo').addEventListener('click', undoPrep);
-
-  // Transcription agent (audio → text)
-  const tzone = $('transcribe-zone');
-  tzone.querySelector('input').addEventListener('change', e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    transcribeFile = file;
-    tzone.classList.add('has-file');
-    tzone.querySelector('.zone-label').textContent = `✓ ${file.name}`;
-    setTranscribeStatus('');
-  });
-  $('transcribe-punct').addEventListener('click', e => togglePrepOption(e.currentTarget));
-  $('btn-transcribe').addEventListener('click', transcribeAudio);
-  $('btn-transcribe-use').addEventListener('click', useTranscriptAsText);
-  $('btn-transcribe-ref').addEventListener('click', useTranscriptAsReference);
-
-  // Clear text
-  $('btn-clear-text').addEventListener('click', () => {
-    $('text-input').value = '';
-    invalidatePrepUndo();
-    setPrepStatus('');
-    updateCharCount();
-    updateSynthBtn();
-    updateModelInputPreview();
-  });
+  try {
+    renderVoicePicker();
+    renderCompareChecks();
+    renderHistory();
+    loadCompareRuns();
+    if (compareRuns[0]) expandedCompareRuns.add(compareRuns[0].id);
+    renderCompareLibrary();
+    setupAudioEvents();
+  } catch (e) {
+    console.error('Optional UI initialization failed', e);
+    showToast('تم تشغيل الأزرار، لكن تعذّر استعادة بعض بيانات المتصفح القديمة', 'warn', 6000);
+  }
 
   // Clear history
   $('btn-clear-history').addEventListener('click', clearHistory);
 
-  // Clear saved comparisons
-  $('btn-clear-compares').addEventListener('click', clearCompareRuns);
+  // Collapse / expand history
+  $('btn-toggle-history').addEventListener('click', toggleHistoryCollapsed);
 
-  // Expand / collapse all saved comparisons
-  $('btn-toggle-compares').addEventListener('click', e => {
-    setAllCompareRunsExpanded(e.currentTarget.dataset.expand === '1');
-  });
+  if ($('btn-clear-compares')) $('btn-clear-compares').addEventListener('click', clearCompareRuns);
+
+  if ($('btn-toggle-compares')) {
+    $('btn-toggle-compares').addEventListener('click', e => {
+      setAllCompareRunsExpanded(e.currentTarget.dataset.expand === '1');
+    });
+  }
 
   // History filter
   $('history-filter').addEventListener('change', () => renderHistory());
 
-  // Compare
-  $('btn-compare').addEventListener('click', compareModels);
-
-  // Retry a failed model inside any comparison (event-delegated on the library)
-  $('saved-compare-list').addEventListener('click', e => {
-    const btn = e.target.closest('.mini-retry');
-    if (btn) { e.stopPropagation(); retryCompareItem(btn.dataset.runId, btn.dataset.mid); }
-  });
-
-  // Initial status poll + periodic refresh
-  pollStatus();
-  setInterval(pollStatus, 10_000);
+  if ($('saved-compare-list')) {
+    $('saved-compare-list').addEventListener('click', e => {
+      const btn = e.target.closest('.mini-retry');
+      if (btn) { e.stopPropagation(); retryCompareItem(btn.dataset.runId, btn.dataset.mid); }
+    });
+  }
 
   // Load server-side history after status check
   setTimeout(loadServerHistory, 1500);

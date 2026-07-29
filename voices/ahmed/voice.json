@@ -1,0 +1,13 @@
+{
+  "id": "ahmed",
+  "label": "أحمد — فصحى",
+  "gender": "male",
+  "language": "arb",
+  "ref_audio": "ahmed_ref_6s.wav",
+  "ref_text": "لَا يَمُرُّ يَوْمٌ إِلَّا وَأَسْتَقْبِلُ عِدَّةَ رَسَائِلَ، تَتَضَمَّنُ أَسْئِلَةً مُلِحَّةْ.",
+  "sample_rate": 24000,
+  "duration_s": 6.0,
+  "source": "https://huggingface.co/IbrahimSalah/Arabic-TTS-Spark (reference.wav, resampled 44.1kHz stereo -> 24kHz mono)",
+  "license": "Upstream repo: fair-noncommercial-research-license",
+  "notes": "MSA male reference clip from the Arabic-TTS-Spark repo; transcript is the demo Space's default reference text (fully diacritized)."
+}

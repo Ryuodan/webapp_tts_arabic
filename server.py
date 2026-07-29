@@ -20,25 +20,71 @@ STATIC    = BASE_DIR / "static"
 WORKDIR   = pathlib.Path(os.getenv("TTS_WORKDIR", "~/tts-05172026")).expanduser()
 
 OUTPUT_DIRS = {
-    # Keep old Fish/S2 Pro recordings serveable, but do not expose it as an active worker.
-    "fish":       WORKDIR / "outputs",
-    "omnivoice":  WORKDIR / "outputs_omnivoice",
-    "voxcpm2":    WORKDIR / "outputs_voxcpm2",
-    "transcribe": WORKDIR / "outputs_transcribe",
+    # Keep old Fish/VoxCPM2 recordings serveable, but they are no longer active workers.
+    "fish":      WORKDIR / "outputs",
+    "voxcpm2":   WORKDIR / "outputs_voxcpm2",
+    # The two interface models are OmniVoice variants sharing one worker + output dir.
+    "omnivoice":      WORKDIR / "outputs_omnivoice",
+    "omnivoice_ft":   WORKDIR / "outputs_omnivoice",
+    "omnivoice_base": WORKDIR / "outputs_omnivoice",
+    "transcribe":     WORKDIR / "outputs_transcribe",
 }
+
+_OMNIVOICE_URL = "http://127.0.0.1:8082"
 
 # Speech-out (TTS) workers — only these answer /api/{model}/synthesize.
 TTS_WORKERS = {
-    "omnivoice": "http://127.0.0.1:8082",
-    "voxcpm2":   "http://127.0.0.1:8083",
+    # Aliases for the SAME worker; the frontend fixes the `variant` form field per model.
+    "omnivoice":      _OMNIVOICE_URL,
+    "omnivoice_ft":   _OMNIVOICE_URL,
+    "omnivoice_base": _OMNIVOICE_URL,
 }
 # Speech-in (ASR) worker — answers /api/transcribe.
 ASR_WORKER = "http://127.0.0.1:8084"
 
-# Everything with /health + /load, so status polling and warm-up are shared.
+# Everything with /health + /load, so status polling, warm-up and the single-model
+# memory policy cover the ASR model too — it is as heavy as a TTS checkpoint.
 WORKER_URLS = {**TTS_WORKERS, "transcribe": ASR_WORKER}
 
+# Which worker-side model variant each alias warms on /load ("" = worker default).
+MODEL_VARIANT = {
+    "omnivoice_ft":   "finetuned",
+    "omnivoice_base": "base",
+}
+
+SINGLE_MODEL_MODE = os.getenv("TTS_SINGLE_MODEL", "1").lower() not in {"0", "false", "no", "off"}
+MAX_REQUEST_BYTES = int(os.getenv("TTS_MAX_REQUEST_BYTES", str(32 * 1024 * 1024)))
+
 _client: Optional[httpx.AsyncClient] = None
+_model_gate = asyncio.Lock()
+
+
+async def _read_limited_body(request: Request) -> bytes:
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > MAX_REQUEST_BYTES:
+                raise HTTPException(413, f"Request is too large; max {MAX_REQUEST_BYTES // (1024 * 1024)} MB")
+        except ValueError:
+            pass
+
+    body = await request.body()
+    if len(body) > MAX_REQUEST_BYTES:
+        raise HTTPException(413, f"Request is too large; max {MAX_REQUEST_BYTES // (1024 * 1024)} MB")
+    return body
+
+
+async def _unload_other_models(active_model: str):
+    if not SINGLE_MODEL_MODE:
+        return
+    active_url = WORKER_URLS[active_model]
+    for model, url in WORKER_URLS.items():
+        if url == active_url:       # aliases of the active worker included
+            continue
+        try:
+            await _client.post(f"{url}/unload", timeout=60.0)
+        except Exception:
+            pass
 
 
 @asynccontextmanager
@@ -52,32 +98,61 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Arabic TTS Studio", lifespan=lifespan, docs_url=None, redoc_url=None)
 
 
+@app.middleware("http")
+async def frontend_cache_policy(request: Request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if request.method == "GET" and not path.startswith(("/api/", "/audio/")):
+        # The UI uses query-versioned assets, but the HTML itself must not pin an old
+        # bundle reference in browser/proxy caches after a frontend deployment.
+        response.headers["Cache-Control"] = "no-store, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+    return response
+
+
 @app.get("/api/status")
 async def status():
-    results = {}
-    for model, url in WORKER_URLS.items():
+    # One health call per unique worker URL; aliases reuse the same payload.
+    by_url = {}
+    for url in set(WORKER_URLS.values()):
         try:
             r = await _client.get(f"{url}/health", timeout=3.0)
-            results[model] = r.json()
+            by_url[url] = r.json()
         except Exception:
+            by_url[url] = None
+    results = {}
+    for model, url in WORKER_URLS.items():
+        health = by_url[url]
+        if health is None:
             results[model] = {"model": model, "status": "offline", "ready": False, "model_loaded": False}
+        else:
+            results[model] = health
+    results["_memory_policy"] = {
+        "single_model_mode": SINGLE_MODEL_MODE,
+        "max_request_mb": MAX_REQUEST_BYTES // (1024 * 1024),
+    }
     return results
 
 
 async def _proxy_post(url: str, model: str, request: Request, timeout_msg: str) -> JSONResponse:
-    """Stream a multipart request through to a worker and hand back its JSON.
+    """Forward a multipart request to a worker under the memory policy, return its JSON.
 
-    The body is piped rather than buffered so audio uploads never sit in gateway memory;
-    httpx re-frames it as chunked once content-length is dropped.
+    The body is size-capped and buffered rather than streamed: the cap is what keeps a
+    large upload from filling RAM on this host, and it cannot be enforced on a body that
+    is piped straight through. Holding the model gate across the call serialises the
+    heavyweight workers so only one checkpoint is resident at a time.
     """
+    body    = await _read_limited_body(request)
     headers = {k: v for k, v in request.headers.items()
-               if k.lower() not in ("host", "content-length", "transfer-encoding")}
-    try:
-        r = await _client.post(url, content=request.stream(), headers=headers)
-    except httpx.ConnectError:
-        raise HTTPException(503, f"{model} worker is not running — check start.sh")
-    except httpx.ReadTimeout:
-        raise HTTPException(504, timeout_msg)
+               if k.lower() not in ("host", "content-length")}
+    async with _model_gate:
+        await _unload_other_models(model)
+        try:
+            r = await _client.post(url, content=body, headers=headers)
+        except httpx.ConnectError:
+            raise HTTPException(503, f"{model} worker is not running — check start.sh")
+        except httpx.ReadTimeout:
+            raise HTTPException(504, timeout_msg)
 
     if r.status_code != 200:
         raise HTTPException(r.status_code, r.text)
@@ -103,13 +178,32 @@ async def transcribe(request: Request):
 async def load_model(model: str):
     if model not in WORKER_URLS:
         raise HTTPException(404, f"Unknown model: {model}")
-    try:
-        r = await _client.post(f"{WORKER_URLS[model]}/load", timeout=900.0)
-        return JSONResponse(r.json())
-    except httpx.ConnectError:
-        raise HTTPException(503, f"{model} worker is not running")
-    except httpx.ReadTimeout:
-        raise HTTPException(504, f"{model} model load timed out (>15 min)")
+    async with _model_gate:
+        await _unload_other_models(model)
+        try:
+            variant = MODEL_VARIANT.get(model, "")
+            r = await _client.post(f"{WORKER_URLS[model]}/load",
+                                   params={"variant": variant} if variant else None,
+                                   timeout=900.0)
+            return JSONResponse(r.json())
+        except httpx.ConnectError:
+            raise HTTPException(503, f"{model} worker is not running")
+        except httpx.ReadTimeout:
+            raise HTTPException(504, f"{model} model load timed out (>15 min)")
+
+
+@app.post("/api/{model}/unload")
+async def unload_model(model: str):
+    if model not in WORKER_URLS:
+        raise HTTPException(404, f"Unknown model: {model}")
+    async with _model_gate:
+        try:
+            r = await _client.post(f"{WORKER_URLS[model]}/unload", timeout=60.0)
+            return JSONResponse(r.json())
+        except httpx.ConnectError:
+            raise HTTPException(503, f"{model} worker is not running")
+        except httpx.ReadTimeout:
+            raise HTTPException(504, f"{model} model unload timed out")
 
 
 @app.get("/api/{model}/status")

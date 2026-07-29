@@ -8,11 +8,13 @@ longer than its `max_audio_clip_s` into chunks and the processor reassembles the
 per-chunk transcripts from `audio_chunk_index`.
 """
 import asyncio
+import gc
 import os
 import pathlib
 import tempfile
 import time
 import uuid
+from contextlib import suppress
 
 import soundfile as sf
 import torch
@@ -26,6 +28,7 @@ MODEL_ID = os.getenv("TRANSCRIBE_MODEL_ID", "NAMAA-Space/cohere-transcribe-arabi
 DEVICE = os.getenv("TRANSCRIBE_DEVICE", "auto")
 MAX_NEW_TOKENS = int(os.getenv("TRANSCRIBE_MAX_NEW_TOKENS", "256"))
 MAX_UPLOAD_MB = float(os.getenv("TRANSCRIBE_MAX_UPLOAD_MB", "100"))
+MODEL_IDLE_SECONDS = int(os.getenv("TTS_MODEL_IDLE_SECONDS", "900"))
 SAMPLE_RATE = 16_000            # fixed by the model's feature extractor
 
 # The checkpoint is Arabic + English only. Arabic dialects all share the "ar" decoder
@@ -36,6 +39,8 @@ app = FastAPI(title="Cohere Transcribe Arabic Worker", docs_url=None, redoc_url=
 _model = None
 _processor = None
 _lock = asyncio.Lock()          # one generate() at a time — the GPU is shared with the TTS workers
+_last_used = 0.0
+_idle_task = None
 
 
 def _do_load():
@@ -46,6 +51,65 @@ def _do_load():
     _processor = AutoProcessor.from_pretrained(MODEL_ID)
     _model = CohereAsrForConditionalGeneration.from_pretrained(MODEL_ID, device_map=DEVICE)
     _model.eval()
+
+
+def _cleanup_runtime_memory():
+    gc.collect()
+    with suppress(Exception):
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    with suppress(Exception):
+        import ctypes
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+
+
+def _do_unload(reason: str = "manual") -> bool:
+    """Drop the ~2.4 GB checkpoint so a TTS model can take the memory.
+
+    The gateway calls this on every other worker before it runs one, so the ASR model
+    must release just like the TTS ones do — otherwise single-model mode is a no-op here.
+    """
+    global _model, _processor
+    was_loaded = _model is not None
+    _model = _processor = None
+    if was_loaded:
+        _cleanup_runtime_memory()
+    return was_loaded
+
+
+async def _idle_unload_loop():
+    sleep_s = min(60, max(5, MODEL_IDLE_SECONDS // 3 if MODEL_IDLE_SECONDS else 60))
+    while True:
+        await asyncio.sleep(sleep_s)
+        if MODEL_IDLE_SECONDS <= 0 or _model is None or _last_used <= 0:
+            continue
+        if time.monotonic() - _last_used < MODEL_IDLE_SECONDS:
+            continue
+        async with _lock:
+            if _model is not None and time.monotonic() - _last_used >= MODEL_IDLE_SECONDS:
+                await asyncio.to_thread(_do_unload, "idle")
+
+
+@app.on_event("startup")
+async def startup():
+    global _idle_task
+    if MODEL_IDLE_SECONDS > 0:
+        _idle_task = asyncio.create_task(_idle_unload_loop())
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    if _idle_task:
+        _idle_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await _idle_task
+
+
+@app.post("/unload")
+async def unload_endpoint():
+    async with _lock:
+        unloaded = await asyncio.to_thread(_do_unload, "manual")
+    return {"status": "unloaded" if unloaded else "not_loaded"}
 
 
 async def _ensure_loaded():
@@ -121,10 +185,12 @@ async def transcribe(
 
         try:
             async with _lock:
+                global _last_used
                 t0 = time.perf_counter()
                 text = await loop.run_in_executor(
                     None, lambda: _run(samples, lang, punctuation))
                 elapsed = time.perf_counter() - t0
+                _last_used = time.monotonic()      # feeds the idle-unload loop
         except Exception as e:
             raise HTTPException(500, str(e))
     finally:

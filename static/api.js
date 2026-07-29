@@ -32,12 +32,13 @@ const ENDPOINTS = [
     path: '/api/{model}/synthesize',
     title: 'توليد كلام',
     desc: 'نص ← ملف wav. المعاملات الإضافية تختلف بين النموذجين: '
-        + 'omnivoice يقبل speaker، وvoxcpm2 يقبل style وcfg_value وinference_timesteps.',
+        + 'الاسمان أدناه نسختان من OmniVoice (المحسّنة والأصلية) تتشاركان نفس العامل.',
     encoding: 'form',
     fields: [
-      { name: 'model',   type: 'select', in: 'path', options: ['omnivoice', 'voxcpm2'], value: 'omnivoice' },
+      { name: 'model',   type: 'select', in: 'path', options: ['omnivoice_ft', 'omnivoice_base'], value: 'omnivoice_ft' },
       { name: 'text',    type: 'text',   required: true, value: 'مرحباً، كيف حالك؟' },
       { name: 'dialect', type: 'select', options: ['msa', 'saudi', 'egyptian'], value: 'msa' },
+      { name: 'voice',   type: 'text',   value: '', note: 'اسم صوت مدمج، أو فارغ لصوت النموذج' },
       { name: 'gender',  type: 'select', options: ['', 'male', 'female'], value: '', note: 'فارغ = اختيار النموذج' },
       { name: 'age',     type: 'select', options: ['', 'young', 'middle', 'old'], value: '' },
     ],
@@ -49,7 +50,7 @@ const ENDPOINTS = [
     title: 'تحميل نموذج مسبقاً',
     desc: 'يحمّل أوزان النموذج في الذاكرة الآن بدل انتظار أول طلب. مفيد لتفادي بطء أول استدعاء.',
     fields: [
-      { name: 'model', type: 'select', in: 'path', options: ['omnivoice', 'voxcpm2', 'transcribe'], value: 'transcribe' },
+      { name: 'model', type: 'select', in: 'path', options: ['omnivoice_ft', 'omnivoice_base', 'transcribe'], value: 'transcribe' },
     ],
   },
   {
@@ -58,7 +59,7 @@ const ENDPOINTS = [
     title: 'حالة نموذج واحد',
     desc: 'نفس محتوى ‎/api/status‎ لكن لنموذج بعينه.',
     fields: [
-      { name: 'model', type: 'select', in: 'path', options: ['omnivoice', 'voxcpm2', 'transcribe'], value: 'transcribe' },
+      { name: 'model', type: 'select', in: 'path', options: ['omnivoice_ft', 'omnivoice_base', 'transcribe'], value: 'transcribe' },
     ],
   },
   {
@@ -67,7 +68,7 @@ const ENDPOINTS = [
     title: 'سجل المخرجات',
     desc: 'آخر الملفات المحفوظة على الخادم مع مدخلاتها. لـ transcribe يحتوي الحقل text على النص المُفرَّغ.',
     fields: [
-      { name: 'model', type: 'select', in: 'path', options: ['omnivoice', 'voxcpm2', 'transcribe'], value: 'transcribe' },
+      { name: 'model', type: 'select', in: 'path', options: ['omnivoice_ft', 'omnivoice_base', 'transcribe'], value: 'transcribe' },
       { name: 'limit', type: 'text', in: 'query', value: '10' },
     ],
     returns: '[ { filename, model, text, params, duration_s, rtf, mtime, size_bytes } ]',
@@ -100,7 +101,7 @@ const ENDPOINTS = [
       { name: 'age',     type: 'select', options: ['', 'young', 'middle', 'old'], value: '' },
       { name: 'brief',   type: 'text',   value: '' },
     ],
-    returns: '{ text, omnivoice: {...}, voxcpm2: {...}, notes }',
+    returns: '{ text, dialect, gender, age, omnivoice_instruct, notes }',
   },
   {
     method: 'GET',
@@ -108,7 +109,7 @@ const ENDPOINTS = [
     title: 'تنزيل ملف صوتي',
     desc: 'يخدم أي ملف يظهر في السجل أو في ردّ التوليد/التفريغ. رابط مباشر — لا حاجة لتجربته من هنا.',
     fields: [
-      { name: 'model',    type: 'select', in: 'path', options: ['omnivoice', 'voxcpm2', 'transcribe'], value: 'omnivoice' },
+      { name: 'model',    type: 'select', in: 'path', options: ['omnivoice_ft', 'omnivoice_base', 'transcribe'], value: 'omnivoice_ft' },
       { name: 'filename', type: 'text',   in: 'path', value: 'omnivoice_xxxxxxxxxxxx.wav' },
     ],
     noTry: true,

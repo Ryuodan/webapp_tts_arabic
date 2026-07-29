@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Arabic TTS Studio</title>
-  <link rel="stylesheet" href="style.css?v=12">
+  <link rel="stylesheet" href="style.css?v=17">
 </head>
 <body>
 
@@ -37,76 +37,57 @@
         </div>
       </section>
 
-      <!-- Auto-compose agent -->
-      <section class="panel-section accordion open" id="acc-compose-agent">
-        <button class="acc-header" data-target="compose-agent-body">
-          <span>✨ التأليف التلقائي (وكيل)</span>
-          <span class="acc-arrow">›</span>
-        </button>
-        <div class="acc-body" id="compose-agent-body">
-          <p class="compose-desc">اختر المهمة واللهجة والجنس والعمر، فيكتب الوكيل النص العربي ويضبط الإعدادات والتعليمات تلقائياً للنموذجين (OmniVoice و VoxCPM2) — ثم راجِع وولّد أو قارِن.</p>
-          <div class="compose-grid">
-            <div class="compose-row">
-              <label class="param-label" for="compose-job" style="padding:0">المهمة</label>
-              <select class="param-select" id="compose-job"></select>
-            </div>
-            <div class="compose-row">
-              <label class="param-label" for="compose-dialect" style="padding:0">اللهجة</label>
-              <select class="param-select" id="compose-dialect"></select>
-            </div>
-            <div class="compose-row">
-              <label class="param-label" for="compose-gender" style="padding:0">الجنس</label>
-              <select class="param-select" id="compose-gender"></select>
-            </div>
-            <div class="compose-row">
-              <label class="param-label" for="compose-age" style="padding:0">العمر</label>
-              <select class="param-select" id="compose-age"></select>
-            </div>
-          </div>
-          <textarea id="compose-brief" class="param-text" rows="2"
-            placeholder="ملاحظات/سياق اختياري: المنتج، اسم العميل، نقطة يجب ذكرها…"
-            style="resize:vertical;margin-top:8px"></textarea>
-          <button class="btn-compose-agent" id="btn-compose-agent">
-            <span id="compose-agent-label">✨ أكمل بالذكاء الاصطناعي</span>
-          </button>
-          <div class="compose-status" id="compose-status"></div>
+      <!-- Simplified mode: advanced compose/prep/parameter/compare controls are intentionally hidden. -->
+
+      <!-- Voice picker -->
+      <section class="panel-section">
+        <h3 class="section-label">الصوت</h3>
+        <div class="voice-picker">
+          <label class="param-label" for="voice-select">الصوت</label>
+          <select class="param-select" id="voice-select"></select>
         </div>
       </section>
 
-      <!-- Transcription (ASR) — audio in, text out; feeds the box below -->
-      <section class="panel-section accordion" id="acc-transcribe">
-        <button class="acc-header" data-target="transcribe-body">
-          <span>📝 التفريغ الصوتي (Cohere Transcribe)</span>
-          <span class="acc-arrow">›</span>
+      <!-- Compare mode -->
+      <section class="panel-section">
+        <div class="compare-toggle">
+          <span>قارن نفس النص باستخدام كل النماذج المتاحة</span>
+        </div>
+        <div class="compare-checks hidden" id="compare-checks"></div>
+        <button class="btn-compare" id="btn-compare" type="button" disabled>
+          <span id="compare-label">قارن الآن</span>
         </button>
-        <div class="acc-body collapsed" id="transcribe-body">
-          <p class="compose-desc">ارفع مقطعاً صوتياً ليحوّله النموذج إلى نص — استخدمه كنص للتوليد، أو كنص للصوت المرجعي في الاستنساخ. المقاطع الطويلة تُقسَّم وتُدمج تلقائياً.</p>
-          <div class="file-zone" id="transcribe-zone">
-            <span class="zone-label">اسحب ملفاً صوتياً هنا أو اضغط للاختيار</span>
-            <input type="file" accept="audio/*">
-          </div>
-          <div class="prep-bar">
-            <select class="param-select" id="transcribe-lang" title="لغة التفريغ — النموذج يدعم العربية والإنجليزية فقط">
-              <option value="ar">عربي</option>
-              <option value="en">إنجليزي</option>
-            </select>
-            <button class="prep-toggle active" id="transcribe-punct" data-on="1"
-              title="أطفئه للحصول على نص بلا علامات ترقيم وبأحرف صغيرة">علامات الترقيم</button>
-            <button class="btn-prep" id="btn-transcribe">
-              <span id="transcribe-label">▷ فرّغ الصوت</span>
-            </button>
-            <span class="compose-status" id="transcribe-status"></span>
-          </div>
+      </section>
 
-          <div class="prep-preview" id="transcribe-result" hidden>
-            <div class="prep-diff-row">
-              <span class="prep-diff-tag tag-norm">النص المُفرَّغ</span>
-              <div class="prep-diff-text" id="transcribe-text" dir="auto"></div>
-            </div>
-            <div class="prep-preview-actions">
-              <button class="btn-prep" id="btn-transcribe-use">✓ استخدمه كنص للتوليد</button>
-              <button class="btn-ghost btn-xs" id="btn-transcribe-ref">↳ استخدمه كنص مرجعي</button>
-            </div>
+      <!-- Transcription (ASR) — audio in, text out; fills the box below.
+           Flat section, not an accordion: simplified mode no longer wires them up. -->
+      <section class="panel-section">
+        <h3 class="section-label">📝 التفريغ الصوتي</h3>
+        <p class="compose-desc">ارفع مقطعاً صوتياً ليحوّله النموذج إلى نص، ثم انقله إلى صندوق النص بالأسفل. المقاطع الطويلة تُقسَّم وتُدمج تلقائياً.</p>
+        <div class="file-zone" id="transcribe-zone">
+          <span class="zone-label">اسحب ملفاً صوتياً هنا أو اضغط للاختيار</span>
+          <input type="file" accept="audio/*">
+        </div>
+        <div class="prep-bar">
+          <select class="param-select" id="transcribe-lang" title="لغة التفريغ — النموذج يدعم العربية والإنجليزية فقط">
+            <option value="ar">عربي</option>
+            <option value="en">إنجليزي</option>
+          </select>
+          <button class="prep-toggle active" id="transcribe-punct" data-on="1"
+            title="أطفئه للحصول على نص بلا علامات ترقيم وبأحرف صغيرة">علامات الترقيم</button>
+          <button class="btn-prep" id="btn-transcribe">
+            <span id="transcribe-label">▷ فرّغ الصوت</span>
+          </button>
+          <span class="compose-status" id="transcribe-status"></span>
+        </div>
+
+        <div class="prep-preview" id="transcribe-result" hidden>
+          <div class="prep-diff-row">
+            <span class="prep-diff-tag tag-norm">النص المُفرَّغ</span>
+            <div class="prep-diff-text" id="transcribe-text" dir="auto"></div>
+          </div>
+          <div class="prep-preview-actions">
+            <button class="btn-prep" id="btn-transcribe-use">✓ استخدمه كنص للتوليد</button>
           </div>
         </div>
       </section>
@@ -117,9 +98,6 @@
           النص
           <span class="char-count" id="char-count">0</span>
         </h3>
-        <div class="tag-strip" id="tag-strip">
-          <!-- emotion-tag buttons rendered by JS -->
-        </div>
         <textarea
           id="text-input"
           dir="auto"
@@ -127,83 +105,8 @@
           rows="6"
           spellcheck="false"
         ></textarea>
-        <!-- Text-Prep agent: numbers→words + optional tashkeel (models untouched) -->
-        <div class="prep-bar">
-          <button class="prep-toggle active" id="prep-normalize" data-on="1"
-            title="حوّل الأرقام والتواريخ والنِّسب والاختصارات إلى كلمات منطوقة (مثال: 2026 ← ألفين وستة وعشرين)">الأرقام→كلمات</button>
-          <button class="prep-toggle" id="prep-diacritize" data-on="0"
-            title="أضِف التشكيل (الحركات) — جرِّبه وقارن، قد يحسّن النطق أو لا">ـَـُ تشكيل</button>
-          <button class="btn-prep" id="btn-prep">
-            <span id="prep-label">✦ حضّر النص</span>
-          </button>
-          <button class="btn-ghost btn-xs" id="btn-prep-undo" hidden>↶ تراجع</button>
-          <span class="compose-status" id="prep-status"></span>
-        </div>
-
-        <!-- Before/after preview — populated by the prep agent; commit or discard -->
-        <div class="prep-preview" id="prep-preview" hidden>
-          <div class="prep-diff-row" id="prep-row-original">
-            <span class="prep-diff-tag">الأصل</span>
-            <div class="prep-diff-text" id="prep-text-original" dir="rtl"></div>
-          </div>
-          <div class="prep-diff-row" id="prep-row-normalized" hidden>
-            <span class="prep-diff-tag tag-norm">الأرقام→كلمات</span>
-            <div class="prep-diff-text" id="prep-text-normalized" dir="rtl"></div>
-          </div>
-          <div class="prep-diff-row" id="prep-row-diacritized" hidden>
-            <span class="prep-diff-tag tag-tash">تشكيل</span>
-            <div class="prep-diff-text" id="prep-text-diacritized" dir="rtl"></div>
-          </div>
-          <div class="prep-preview-actions">
-            <button class="btn-prep" id="btn-prep-apply">✓ اعتمد في صندوق النص</button>
-            <button class="btn-ghost btn-xs" id="btn-prep-cancel">إلغاء</button>
-          </div>
-        </div>
-        <div class="input-footer">
+        <div class="input-footer simple-footer">
           <button class="btn-ghost btn-xs" id="btn-clear-text">مسح</button>
-          <span class="hint-text" id="sample-hint">أمثلة:</span>
-          <div class="sample-chips" id="sample-chips">
-            <!-- sample sentence chips -->
-          </div>
-        </div>
-      </section>
-
-      <!-- Parameters accordion (open by default so params + prompt are visible) -->
-      <section class="panel-section accordion open" id="acc-params">
-        <button class="acc-header" data-target="params-body">
-          <span>⚙ المعاملات والتوجيه</span>
-          <span class="acc-arrow">›</span>
-        </button>
-        <div class="acc-body" id="params-body">
-          <!-- Rendered by JS based on selected model -->
-        </div>
-      </section>
-
-      <!-- Voice cloning accordion -->
-      <section class="panel-section accordion" id="acc-clone">
-        <button class="acc-header" data-target="clone-body">
-          <span>🎤 استنساخ الصوت</span>
-          <span class="acc-arrow">›</span>
-        </button>
-        <div class="acc-body collapsed" id="clone-body">
-          <!-- Rendered by JS based on selected model -->
-        </div>
-      </section>
-
-      <!-- Compare accordion (open by default so the comparison is discoverable) -->
-      <section class="panel-section accordion open" id="acc-compare">
-        <button class="acc-header" data-target="compare-body">
-          <span>⚖ مقارنة النماذج</span>
-          <span class="acc-arrow">›</span>
-        </button>
-        <div class="acc-body" id="compare-body">
-          <p class="compare-desc">تشغيل نفس النص على النماذج المختارة بالتتابع مع تسجيل الزمن والخيارات.</p>
-          <div class="compare-checks" id="compare-checks">
-            <!-- checkboxes rendered by JS -->
-          </div>
-          <button class="btn-compare" id="btn-compare">
-            <span id="compare-label">قارن الآن</span>
-          </button>
         </div>
       </section>
 
@@ -251,14 +154,14 @@
             <a class="btn-dl" id="btn-dl" download>⬇ تنزيل</a>
           </div>
           <div class="player-insights" id="player-insights"></div>
-          <audio id="audio-el" preload="auto"></audio>
+          <audio id="audio-el" preload="metadata"></audio>
         </div>
       </section>
 
       <!-- Comparisons library: live + old runs, each expandable inline (hidden until one exists) -->
       <section class="panel-section saved-compare-card" id="saved-compare-card" hidden>
         <div class="history-header">
-          <h3 class="section-label">المقارنات</h3>
+          <h3 class="section-label">المقارنة</h3>
           <div class="history-controls">
             <button class="btn-ghost btn-xs" id="btn-toggle-compares" data-expand="1">فتح الكل</button>
             <button class="btn-ghost btn-xs" id="btn-clear-compares">مسح الكل</button>
@@ -274,10 +177,11 @@
         <div class="history-header">
           <h3 class="section-label">السجل</h3>
           <div class="history-controls">
+            <button class="btn-ghost btn-xs" id="btn-toggle-history" aria-expanded="true" aria-controls="history-list">طي</button>
             <select class="filter-select" id="history-filter">
               <option value="all">كل النماذج</option>
-              <option value="omnivoice">OmniVoice</option>
-              <option value="voxcpm2">VoxCPM2</option>
+              <option value="omnivoice_ft">OmniVoice المحسّن</option>
+              <option value="omnivoice_base">OmniVoice الأصلي</option>
             </select>
             <button class="btn-ghost btn-xs" id="btn-clear-history">مسح الكل</button>
           </div>
@@ -296,6 +200,6 @@
   <!-- Toast notification -->
   <div class="toast hidden" id="toast"></div>
 
-  <script src="app.js?v=16"></script>
+  <script src="app.js?v=29"></script>
 </body>
 </html>

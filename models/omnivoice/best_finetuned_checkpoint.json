@@ -1,0 +1,22 @@
+{
+  "model": "OmniVoice",
+  "fine_tune_run": "saudi_hq_ft",
+  "selected_checkpoint": "omnivoice/checkpoints/saudi_hq_ft/checkpoint-2500",
+  "local_alias": "omnivoice/checkpoints/best_finetuned",
+  "selection": {
+    "scope": "best available checkpoint directory",
+    "metric": "eval/loss",
+    "value": 4.4111,
+    "step": 2500,
+    "source": "outputs/abeer_compare/omni_ckpts/losses.json"
+  },
+  "note": "The lowest logged eval/loss was step 1250 at 4.3344, but checkpoint-1250 was pruned and is not available on disk.",
+  "artifact": {
+    "model_safetensors_bytes": 2450344144,
+    "model_safetensors_sha256": "5f2b8938ccdcebe95038caef452dd945bbada1e0c3ac34b2956ed2ed293a7e3f",
+    "config_json_sha256": "958f818c4e5b92a8a465784338431604b10f1b4a1a6e430dbb1412deae7dcdc6",
+    "tokenizer_json_sha256": "408f669b7e2b045fdf54201d815bd364e6667dbd845115da81239c40bc6dcfd1",
+    "train_config_json_sha256": "0f64f1e34f31db28cf549652932698fa9585267ed4ee1d3bb707111b0c0c3f24"
+  },
+  "selected_on": "2026-07-15"
+}

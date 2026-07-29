@@ -44,11 +44,13 @@ def js_globals(filename, names):
         const ctx = {{
           document: {{ addEventListener: noop, getElementById: () => null,
                        querySelector: () => null, querySelectorAll: () => [],
-                       createElement: () => element }},
+                       createElement: () => element,
+                       baseURI: 'http://localhost/', currentScript: null }},
           window: {{ location: {{ origin: 'http://localhost' }}, devicePixelRatio: 1 }},
           navigator: {{ clipboard: {{ writeText: noop }} }},
           localStorage: {{ getItem: () => null, setItem: noop, removeItem: noop }},
           setInterval: noop, setTimeout: noop, fetch: noop, console,
+          URL, URLSearchParams,
         }};
         vm.createContext(ctx);
         vm.runInContext(fs.readFileSync({json.dumps(str(path))}, 'utf8') + {json.dumps(reader)}, ctx);
@@ -65,16 +67,11 @@ def app_js(*names):
     global APP
     if APP is None:
         APP = js_globals("app.js", ["MODELS", "DIALECTS", "GENDERS", "AGES", "JOBS",
-                                    "DIALECT_EN", "DIALECT_LANG", "GENDER_EN", "AGE_EN"])
+                                    "DIALECT_LANG", "GENDER_EN", "AGE_EN"])
     return [APP[n] for n in names] if len(names) > 1 else APP[names[0]]
 
 
 # ── Dialect injection ─────────────────────────────────────────
-def test_voxcpm2_dialect_descriptors_match_the_worker():
-    """These strings are pasted verbatim into VoxCPM2's leading parenthetical cue."""
-    assert app_js("DIALECT_EN") == voxcpm2_server._ARABIC_DIALECTS
-
-
 def test_fish_and_voxcpm2_agree_on_the_descriptors():
     assert fish_server._ARABIC_DIALECTS == voxcpm2_server._ARABIC_DIALECTS
 
@@ -86,7 +83,6 @@ def test_omnivoice_language_codes_match_the_worker():
 
 def test_the_ui_offers_exactly_the_dialects_every_layer_supports():
     ui = {d["id"] for d in app_js("DIALECTS")}
-    assert ui == set(voxcpm2_server._ARABIC_DIALECTS)
     assert ui == set(omnivoice_server._ARABIC_DIALECT_LANG)
     assert ui == set(compose_mod._DIALECTS)
 
@@ -114,20 +110,26 @@ def test_job_presets_match_the_compose_agent():
     assert [j["id"] for j in app_js("JOBS")] == list(compose_mod.JOBS)
 
 
-def test_voxcpm2_timestep_options_match_the_agents_allowed_values():
-    params = {p["id"]: p for p in app_js("MODELS")["voxcpm2"]["params"]}
-    assert params["inference_timesteps"]["options"] == list(compose_mod._TIMESTEPS)
-
-
 # ── Model registry ────────────────────────────────────────────
-def test_the_ui_lists_exactly_the_gateways_tts_workers():
-    assert set(app_js("MODELS")) == set(gateway.TTS_WORKERS)
+def test_the_ui_models_are_routable_tts_workers():
+    """Each interface model must resolve to a worker; `omnivoice` is a routing-only alias."""
+    models = set(app_js("MODELS"))
+    assert models <= set(gateway.TTS_WORKERS)
+    assert set(gateway.TTS_WORKERS) - models == {"omnivoice"}
+
+
+def test_each_interface_model_pins_a_worker_variant():
+    """Both cards hit the same worker, so the variant is the only thing telling them apart."""
+    for model in app_js("MODELS"):
+        assert gateway.MODEL_VARIANT.get(model), model
+    assert len({gateway.TTS_WORKERS[m] for m in app_js("MODELS")}) == 1
 
 
 def test_transcription_is_not_a_synthesis_model():
     """Mixing the ASR worker into MODELS would put it in the compare grid and synth flow."""
     assert "transcribe" not in app_js("MODELS")
     assert "transcribe" in gateway.WORKER_URLS and "transcribe" in gateway.OUTPUT_DIRS
+    assert "transcribe" not in gateway.TTS_WORKERS
 
 
 def test_every_model_has_an_output_directory():

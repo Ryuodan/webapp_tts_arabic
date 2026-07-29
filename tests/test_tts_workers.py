@@ -88,7 +88,9 @@ def test_omni_writes_audio_metrics_and_sidecar(omni):
     assert sf.info(str(wav)).samplerate == 24_000
     assert body["duration_s"] == 2.0 and body["sample_rate"] == 24_000
     meta = json.loads(wav.with_suffix(".json").read_text(encoding="utf-8"))
-    assert meta["text"] == "مرحباً" and meta["params"] == {"speaker": "whisper"}
+    assert meta["text"] == "مرحباً"
+    # The sidecar now records which variant/voice produced the clip, not just the prompt.
+    assert meta["params"] == {"speaker": "whisper", "voice": "", "variant": "base"}
 
 
 def test_omni_generation_failure_is_a_500(omni):
