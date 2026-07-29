@@ -10,7 +10,11 @@ PKGS=(fastapi "uvicorn[standard]" python-multipart soundfile)
 # Cohere Transcribe (INT8) needs the model stack on top of PKGS; bitsandbytes does the
 # 8-bit dequant, librosa decodes/resamples arbitrary uploads to the model's 16 kHz mono.
 ASR_ENV="${ASR_ENV:-transcribe-asr}"
-ASR_PKGS=(transformers accelerate bitsandbytes librosa)
+# transformers is floored, not left open: CohereAsrForConditionalGeneration landed in 5.8
+# (the checkpoint reports transformers_version 5.8.1). Without the floor, re-running this
+# against an existing env leaves an older transformers in place and the model class is
+# simply missing at load time.
+ASR_PKGS=("transformers>=5.8" accelerate bitsandbytes librosa)
 
 if [[ ! -x "$CONDA_EXE" ]]; then
   CONDA_EXE="$(command -v conda || true)"
