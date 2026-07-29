@@ -19,6 +19,12 @@ const ENDPOINTS = [
     title: 'تفريغ صوتي (Cohere Transcribe Arabic INT8)',
     desc: 'صوت ← نص عربي أو إنجليزي. يقبل wav/mp3/m4a/webm ويعيد أخذ العينات إلى 16kHz تلقائياً. '
         + 'المقاطع الأطول من نافذة النموذج تُقسَّم وتُدمج نتائجها تلقائياً.',
+    // Pinned in workers/transcribe_server.py — keep the two in step if it ever changes.
+    model: {
+      name: 'NAMAA-Space/cohere-transcribe-arabic-07-2026-int8',
+      url: 'https://huggingface.co/NAMAA-Space/cohere-transcribe-arabic-07-2026-int8',
+      note: 'نسخة NAMAA-Space المكمَّمة (INT8) من نموذج Cohere للتفريغ العربي',
+    },
     encoding: 'form',
     fields: [
       { name: 'audio',       type: 'file',   required: true, note: 'ملف صوتي — يخضع لحد حجم الطلب في الخادم' },
@@ -190,7 +196,14 @@ function buildCurl(spec, values) {
 
 // ── Rendering ─────────────────────────────────────────────────
 function fieldControlHtml(f) {
-  if (f.type === 'file')   return `<input type="file" name="${f.name}">`;
+  // Audio fields get a recorder beside the picker so the endpoint is testable without
+  // first producing a file on disk. The button reveals itself only if the mic is usable.
+  if (f.type === 'file')   return `
+    <span class="api-file">
+      <input type="file" name="${f.name}" accept="audio/*">
+      <button type="button" class="api-mic" hidden>🎙 سجّل</button>
+      <span class="api-mic-state"></span>
+    </span>`;
   if (f.type === 'select') return `<select name="${f.name}">${f.options.map(o =>
     `<option value="${escapeHtml(o)}" ${o === f.value ? 'selected' : ''}>${escapeHtml(o || '(فارغ)')}</option>`
   ).join('')}</select>`;
@@ -220,6 +233,13 @@ function cardHtml(spec) {
         <span class="api-title">${escapeHtml(spec.title)}</span>
       </div>
       <p class="api-desc">${escapeHtml(spec.desc)}</p>
+      ${spec.model ? `
+        <div class="api-model">
+          <span>النموذج</span>
+          <a href="${escapeHtml(spec.model.url)}" target="_blank" rel="noopener noreferrer"
+             dir="ltr">${escapeHtml(spec.model.name)}</a>
+          ${spec.model.note ? `<small>${escapeHtml(spec.model.note)}</small>` : ''}
+        </div>` : ''}
       ${spec.returns ? `<div class="api-returns"><span>يعيد</span><code>${escapeHtml(spec.returns)}</code></div>` : ''}
       <form class="api-form" data-id="${id}">
         ${spec.fields.map(fieldRowHtml).join('')}
@@ -297,6 +317,57 @@ function showResponse(card, status, text, ms, parsed = null) {
   audio.innerHTML = file ? `<audio controls src="${escapeHtml(file)}"></audio>` : '';
 }
 
+// ── Mic capture ───────────────────────────────────────────────
+// The recorded File is pushed into the real <input type="file">, so readValues /
+// buildBody / buildCurl keep working on `el.files[0]` with no special case for it.
+function wireMic(card, onChange) {
+  const input = card.querySelector('input[type="file"]');
+  const btn = card.querySelector('.api-mic');
+  // No mic (or an insecure origin) leaves the button hidden — the picker still works.
+  if (!input || !btn || !MicRecorder.supported() || !window.isSecureContext) return;
+
+  const state = card.querySelector('.api-mic-state');
+  let handle = null;
+  let timer = null;
+
+  const idle = () => {
+    btn.textContent = '🎙 سجّل';
+    btn.classList.remove('recording');
+    clearInterval(timer);
+    timer = null;
+  };
+
+  btn.addEventListener('click', async () => {
+    if (handle) {                      // second click: stop and hand over the file
+      const active = handle;
+      handle = null;
+      idle();
+      try {
+        const file = await active.stop();
+        setInputFile(input, file);
+        state.textContent = `✓ ${file.name} — ${Math.round(file.size / 1024)}KB`;
+        onChange();                    // refresh the curl snippet with the new filename
+      } catch (e) {
+        state.textContent = e.message;
+      }
+      return;
+    }
+
+    state.textContent = '';
+    try {
+      handle = await MicRecorder.start();
+    } catch (e) {
+      state.textContent = e.message;   // already an Arabic, actionable reason
+      return;
+    }
+    btn.textContent = '⏹ إيقاف';
+    btn.classList.add('recording');
+    timer = setInterval(() => {
+      state.textContent = `● ${MicRecorder.fmtElapsed(Date.now() - handle.startedAt)}`;
+    }, 250);
+  });
+}
+
 // ── Init ──────────────────────────────────────────────────────
 function init() {
   $('api-base').textContent = window.location.origin;
@@ -309,6 +380,7 @@ function init() {
     const refresh = () => { curl.textContent = buildCurl(spec, readValues(spec, form)); };
 
     refresh();
+    wireMic(card, refresh);
     form.addEventListener('input', refresh);
     form.addEventListener('change', refresh);
     form.addEventListener('submit', e => {

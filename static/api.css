@@ -44,7 +44,45 @@
   word-break: break-word; line-height: 1.7;
 }
 
+/* Which checkpoint answers this endpoint, linked to its model card. */
+.api-model {
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  margin-top: 8px; font-size: .7rem; color: var(--txt3);
+}
+.api-model a {
+  color: var(--omni); font-size: .72rem; text-decoration: none;
+  word-break: break-all; border-bottom: 1px dotted currentColor;
+}
+.api-model a:hover { color: var(--txt); }
+.api-model small { font-size: .65rem; color: var(--txt3); }
+
 /* ── Try-it form ───────────────────────────────────────────── */
+/* File picker + recorder share a row; the picker keeps its full width when the
+   mic is unavailable and the button stays hidden. */
+.api-file { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.api-mic {
+  align-self: start;
+  padding: 4px 10px;
+  font: inherit; font-size: .68rem;
+  color: var(--txt2); background: var(--bg3);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  cursor: pointer; transition: var(--transition);
+}
+.api-mic:hover { color: var(--txt); border-color: var(--txt3); }
+.api-mic.recording {
+  color: var(--red); border-color: var(--red);
+  background: rgba(248,81,73,.12);
+  animation: api-mic-pulse 1.4s ease-in-out infinite;
+}
+@keyframes api-mic-pulse { 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) {
+  .api-mic.recording { animation: none; }
+}
+.api-mic-state {
+  font-size: .65rem; color: var(--txt3); line-height: 1.5;
+  direction: ltr; text-align: start; word-break: break-word;
+}
+
 .api-form {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));

@@ -63,7 +63,14 @@
            Flat section, not an accordion: simplified mode no longer wires them up. -->
       <section class="panel-section">
         <h3 class="section-label">📝 التفريغ الصوتي</h3>
-        <p class="compose-desc">ارفع مقطعاً صوتياً ليحوّله النموذج إلى نص، ثم انقله إلى صندوق النص بالأسفل. المقاطع الطويلة تُقسَّم وتُدمج تلقائياً.</p>
+        <p class="compose-desc">ارفع مقطعاً صوتياً أو سجّل من الميكروفون ليحوّله النموذج إلى نص، ثم انقله إلى صندوق النص بالأسفل. المقاطع الطويلة تُقسَّم وتُدمج تلقائياً.</p>
+        <p class="model-credit">
+          <span>النموذج</span>
+          <a href="https://huggingface.co/NAMAA-Space/cohere-transcribe-arabic-07-2026-int8"
+             target="_blank" rel="noopener noreferrer" dir="ltr"
+             >NAMAA-Space/cohere-transcribe-arabic-07-2026-int8</a>
+          <small>نسخة NAMAA-Space المكمَّمة (INT8) من نموذج Cohere للتفريغ العربي — عربي/إنجليزي، 16kHz</small>
+        </p>
         <div class="file-zone" id="transcribe-zone">
           <span class="zone-label">اسحب ملفاً صوتياً هنا أو اضغط للاختيار</span>
           <input type="file" accept="audio/*">
@@ -75,6 +82,9 @@
           </select>
           <button class="prep-toggle active" id="transcribe-punct" data-on="1"
             title="أطفئه للحصول على نص بلا علامات ترقيم وبأحرف صغيرة">علامات الترقيم</button>
+          <!-- Revealed by app.js only when the browser can actually record. -->
+          <button class="prep-toggle" id="btn-record" hidden
+            title="سجّل مقطعاً من الميكروفون بدل رفع ملف">🎙 سجّل</button>
           <button class="btn-prep" id="btn-transcribe">
             <span id="transcribe-label">▷ فرّغ الصوت</span>
           </button>
@@ -200,6 +210,7 @@
   <!-- Toast notification -->
   <div class="toast hidden" id="toast"></div>
 
-  <script src="app.js?v=29"></script>
+  <script src="recorder.js?v=1"></script>
+  <script src="app.js?v=30"></script>
 </body>
 </html>

@@ -330,6 +330,31 @@ textarea { resize: vertical; }
   color: var(--purple);
   background: rgba(188,140,255,.12);
 }
+/* Recording overrides .active's purple — red reads as "live", and the pulse makes an
+   in-progress recording obvious even when the timer is out of the user's focus. */
+.prep-toggle.recording {
+  border-color: var(--red);
+  color: var(--red);
+  background: rgba(248,81,73,.12);
+  animation: mic-pulse 1.4s ease-in-out infinite;
+}
+@keyframes mic-pulse { 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) {
+  .prep-toggle.recording { animation: none; }
+}
+
+/* Which checkpoint is answering, linked to its model card. */
+.model-credit {
+  display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;
+  margin: 0 0 10px; font-size: .7rem; color: var(--txt3); direction: rtl;
+}
+.model-credit a {
+  color: var(--omni); text-decoration: none;
+  word-break: break-all; border-bottom: 1px dotted currentColor;
+}
+.model-credit a:hover { color: var(--txt); }
+.model-credit small { font-size: .65rem; color: var(--txt3); line-height: 1.5; }
+
 .btn-prep {
   padding: 4px 12px;
   border-radius: var(--radius);

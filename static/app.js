@@ -991,7 +991,7 @@ function setTranscribeStatus(msg, type = '') { setStatusLine('transcribe-status'
 async function transcribeAudio() {
   const btn = $('btn-transcribe');
   if (btn.disabled) return;
-  if (!transcribeFile) { setTranscribeStatus('اختر ملفاً صوتياً أولاً', 'error'); return; }
+  if (!transcribeFile) { setTranscribeStatus('اختر ملفاً صوتياً أو سجّل مقطعاً أولاً', 'error'); return; }
 
   const fd = new FormData();
   fd.append('audio', transcribeFile, transcribeFile.name);
@@ -1002,7 +1002,7 @@ async function transcribeAudio() {
   $('transcribe-label').textContent = '… جاري التفريغ';
   setTranscribeStatus('يفرّغ النموذج الصوت…');
   try {
-    const r = await fetch('/api/transcribe', { method: 'POST', body: fd });
+    const r = await fetch(appUrl('api/transcribe'), { method: 'POST', body: fd });
     if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
     const res = await r.json();
 
@@ -1030,6 +1030,65 @@ function useTranscriptAsText() {
   updateSynthBtn();
 }
 
+// One place to accept audio, whether it was picked from disk or just recorded.
+function setTranscribeFile(file, label) {
+  const zone = $('transcribe-zone');
+  if (!file || !zone) return;
+  transcribeFile = file;
+  zone.classList.add('has-file');
+  zone.querySelector('.zone-label').textContent = `✓ ${label || file.name}`;
+  setTranscribeStatus('');
+}
+
+// Mic capture into the same File the picker would have produced. The button is revealed
+// only when recording is actually possible, so it never dead-ends the user: getUserMedia
+// is absent outside a secure context (plain http on a LAN address hides it entirely).
+function setupRecorder() {
+  const btn = $('btn-record');
+  if (!btn || typeof MicRecorder === 'undefined') return;
+  if (!MicRecorder.supported() || !window.isSecureContext) return;
+
+  btn.hidden = false;
+  let handle = null;
+  let timer = null;
+
+  const idle = () => {
+    btn.textContent = '🎙 سجّل';
+    btn.classList.remove('active', 'recording');
+    clearInterval(timer);
+    timer = null;
+  };
+
+  btn.addEventListener('click', async () => {
+    if (handle) {                       // second click: stop and keep the clip
+      const active = handle;
+      handle = null;
+      idle();
+      try {
+        const file = await active.stop();
+        const secs = formatSeconds((Date.now() - active.startedAt) / 1000);
+        setTranscribeFile(file, `تسجيل ${secs}`);
+      } catch (e) {
+        setTranscribeStatus(String(e.message), 'error');
+      }
+      return;
+    }
+
+    try {
+      handle = await MicRecorder.start();
+    } catch (e) {
+      setTranscribeStatus(String(e.message), 'error');
+      showToast('تعذّر بدء التسجيل', 'error', 5000);
+      return;
+    }
+    btn.textContent = '⏹ إيقاف';
+    btn.classList.add('active', 'recording');
+    timer = setInterval(() => {
+      setTranscribeStatus(`● جاري التسجيل ${MicRecorder.fmtElapsed(Date.now() - handle.startedAt)}`);
+    }, 250);
+  });
+}
+
 // Wire the panel. Every lookup is guarded: the transcription section is optional markup,
 // and a page without it must still boot the primary controls.
 function setupTranscription() {
@@ -1038,16 +1097,12 @@ function setupTranscription() {
   if (!zone || !button) return;
 
   zone.querySelector('input').addEventListener('change', e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    transcribeFile = file;
-    zone.classList.add('has-file');
-    zone.querySelector('.zone-label').textContent = `✓ ${file.name}`;
-    setTranscribeStatus('');
+    setTranscribeFile(e.target.files[0]);
   });
   $('transcribe-punct').addEventListener('click', e => togglePrepOption(e.currentTarget));
   button.addEventListener('click', transcribeAudio);
   $('btn-transcribe-use').addEventListener('click', useTranscriptAsText);
+  setupRecorder();
 }
 
 // ── Select model ──────────────────────────────────────────────
