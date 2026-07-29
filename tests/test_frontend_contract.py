@@ -30,6 +30,9 @@ def js_globals(filename, names):
 
     `const` declarations are lexical, so they never land on the context object — the
     reader is appended to the same script to capture them from inside that scope.
+
+    i18n.js is prepended because both pages load it first and the catalogues below reach
+    for its `t()` from label getters; without it every one of those getters throws.
     """
     path = STATIC / filename
     reader = "globalThis.__out = JSON.stringify({%s});" % ", ".join(names)
@@ -53,7 +56,9 @@ def js_globals(filename, names):
           URL, URLSearchParams,
         }};
         vm.createContext(ctx);
-        vm.runInContext(fs.readFileSync({json.dumps(str(path))}, 'utf8') + {json.dumps(reader)}, ctx);
+        vm.runInContext(fs.readFileSync({json.dumps(str(STATIC / "i18n.js"))}, 'utf8')
+                        + fs.readFileSync({json.dumps(str(path))}, 'utf8')
+                        + {json.dumps(reader)}, ctx);
         process.stdout.write(ctx.__out);
     """
     out = subprocess.run(["node", "-e", driver], capture_output=True, text=True, check=True)

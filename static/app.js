@@ -14,13 +14,16 @@ const modelAudioUrl = (mid, filename) => appUrl(
 // The interface exposes exactly two models: the Saudi-HQ fine-tuned OmniVoice and the
 // stock one. Both ride the SAME worker (gateway aliases -> port 8082); fixedParams.variant
 // tells the worker which checkpoint to load. VoxCPM2/Fish are retired from the interface.
+// Every user-facing label below is a getter rather than a string: it re-resolves on each
+// access, so flipping the interface language updates them without rebuilding these
+// constants or touching the render sites that read `.label` / `.name`.
 const OMNI_SHARED = {
   params: [
-    { id: 'voice', label: 'الصوت', type: 'select', default: '',
+    { id: 'voice', get label() { return t('section.voice'); }, type: 'select', default: '',
       options: [
-        { value: '',      label: 'بدون استنساخ' },
-        { value: 'abeer', label: 'عبير — سعودية' },
-        { value: 'ahmed', label: 'أحمد — فصحى' },
+        { value: '',      get label() { return t('voice.none'); } },
+        { value: 'abeer', get label() { return t('voice.abeer'); } },
+        { value: 'ahmed', get label() { return t('voice.ahmed'); } },
       ] },
   ],
   emotionTags: ['[laughter]'],   // base model only documents [laughter]; [applause] is unsupported
@@ -32,33 +35,37 @@ const MODELS = {
   omnivoice_ft: {
     ...OMNI_SHARED,
     id: 'omnivoice_ft',
-    name: 'OmniVoice المحسّن',
+    get name() { return t('model.ft.name'); },
     icon: '⭐',
     specs: '0.6B · 24kHz · Saudi HQ FT',
-    role: 'أفضل نسخة — بعد الضبط الدقيق على بيانات سعودية عالية الجودة (saudi_hq_ft/checkpoint-2500). الخيار الافتراضي.',
-    traits: ['Saudi fine-tune', 'الأفضل للعربية', 'Voice cloning', '24kHz'],
-    profile: [
-      { label: 'أفضل استخدام', value: 'الإنتاج: نطق عربي/سعودي أفضل من الأصل، مع استنساخ الأصوات المضمّنة (عبير/أحمد).' },
-      { label: 'التحكم', value: 'اللهجة عبر لغة النموذج تلقائياً؛ الجنس/العمر/الأسلوب عبر instruct الإنجليزي + صوت مرجعي اختياري.' },
-      { label: 'ملاحظة', value: 'يتطلب أوزان الـ checkpoint على السيرفر (models/omnivoice/best_finetuned).' },
-    ],
-    compareNote: 'النسخة المحسّنة — قارِنها بالأصلية.',
+    get role() { return t('model.ft.role'); },
+    get traits() { return ['Saudi fine-tune', t('model.trait.arabic'), 'Voice cloning', '24kHz']; },
+    get profile() {
+      return [
+        { label: t('model.profile.bestUse'), value: t('model.ft.bestUse') },
+        { label: t('model.profile.control'), value: t('model.control') },
+        { label: t('model.profile.note'),    value: t('model.ft.note') },
+      ];
+    },
+    get compareNote() { return t('model.ft.compareNote'); },
     fixedParams: { variant: 'finetuned' },
   },
   omnivoice_base: {
     ...OMNI_SHARED,
     id: 'omnivoice_base',
-    name: 'OmniVoice الأصلي',
+    get name() { return t('model.base.name'); },
     icon: '🌐',
     specs: '0.6B · 24kHz · 600+ lang',
-    role: 'النموذج الأصلي k2-fsa/OmniVoice بدون ضبط — خط أساس للمقارنة، وأوسع تغطية لغات (600+).',
-    traits: ['600+ لغة', 'Arabic-ready', 'Voice design', '24kHz'],
-    profile: [
-      { label: 'أفضل استخدام', value: 'خط أساس للمقارنة مع النسخة المحسّنة، أو نقل صوت مرجعي بين اللغات.' },
-      { label: 'التحكم', value: 'اللهجة عبر لغة النموذج تلقائياً؛ الجنس/العمر/الأسلوب عبر instruct الإنجليزي + صوت مرجعي اختياري.' },
-      { label: 'ملاحظة', value: 'يشارك نفس العامل (worker)؛ التبديل بين النسختين يعيد تحميل النموذج (دقائق على CPU).' },
-    ],
-    compareNote: 'الأصل بدون ضبط — خط الأساس.',
+    get role() { return t('model.base.role'); },
+    get traits() { return [t('model.trait.langs'), 'Arabic-ready', 'Voice design', '24kHz']; },
+    get profile() {
+      return [
+        { label: t('model.profile.bestUse'), value: t('model.base.bestUse') },
+        { label: t('model.profile.control'), value: t('model.control') },
+        { label: t('model.profile.note'),    value: t('model.base.note') },
+      ];
+    },
+    get compareNote() { return t('model.base.compareNote'); },
     fixedParams: { variant: 'base' },
   },
 };
@@ -67,23 +74,23 @@ const MODELS = {
 // Language is locked to Arabic for every model; this picks the dialect that each
 // worker injects via its native lever (OmniVoice instruct, VoxCPM2 prefix).
 const DIALECTS = [
-  { id: 'msa',      label: 'الفصحى' },
-  { id: 'saudi',    label: 'سعودي' },
-  { id: 'egyptian', label: 'مصري' },
+  { id: 'msa',      get label() { return t('dialect.msa'); } },
+  { id: 'saudi',    get label() { return t('dialect.saudi'); } },
+  { id: 'egyptian', get label() { return t('dialect.egyptian'); } },
 ];
 const dialectLabel = id => (DIALECTS.find(d => d.id === id) || DIALECTS[0]).label;
 
 // Optional voice persona (empty id = let the model decide), injected alongside the dialect.
 const GENDERS = [
-  { id: '',       label: 'تلقائي' },
-  { id: 'male',   label: 'ذكر' },
-  { id: 'female', label: 'أنثى' },
+  { id: '',       get label() { return t('opt.auto'); } },
+  { id: 'male',   get label() { return t('gender.male'); } },
+  { id: 'female', get label() { return t('gender.female'); } },
 ];
 const AGES = [
-  { id: '',       label: 'تلقائي' },
-  { id: 'young',  label: 'شاب' },
-  { id: 'middle', label: 'متوسط' },
-  { id: 'old',    label: 'كبير السن' },
+  { id: '',       get label() { return t('opt.auto'); } },
+  { id: 'young',  get label() { return t('age.young'); } },
+  { id: 'middle', get label() { return t('age.middle'); } },
+  { id: 'old',    get label() { return t('age.old'); } },
 ];
 const attrLabel = (list, id) => (list.find(o => o.id === id) || list[0]).label;
 
@@ -96,10 +103,10 @@ const AGE_EN = { young: 'young adult', middle: 'middle-aged', old: 'elderly' };
 
 // Auto-compose agent: job presets (ids MUST match compose.py JOBS).
 const JOBS = [
-  { id: 'customer_service', label: 'خدمة العملاء' },
-  { id: 'booking',          label: 'وكيل حجوزات' },
-  { id: 'storytelling',     label: 'سرد قصة' },
-  { id: 'announcement',     label: 'إعلان' },
+  { id: 'customer_service', get label() { return t('persona.support'); } },
+  { id: 'booking',          get label() { return t('persona.booking'); } },
+  { id: 'storytelling',     get label() { return t('persona.story'); } },
+  { id: 'announcement',     get label() { return t('persona.announce'); } },
 ];
 
 // Reproduces each worker's injection so the user sees the exact string that reaches the model.
@@ -192,11 +199,11 @@ function formatSampleRate(value) {
 
 function rtfProfile(value) {
   const n = numeric(value);
-  if (n === null || n <= 0) return { tone: 'neutral', label: 'غير معروف' };
-  if (n <= 1) return { tone: 'fast', label: 'أسرع من الزمن الحقيقي' };
-  if (n <= 5) return { tone: 'ok', label: 'مقبول للتجارب' };
-  if (n <= 15) return { tone: 'slow', label: 'بطيء على CPU' };
-  return { tone: 'very-slow', label: 'بطيء جداً على CPU' };
+  if (n === null || n <= 0) return { tone: 'neutral', label: t('rtf.unknown') };
+  if (n <= 1) return { tone: 'fast', label: t('rtf.fast') };
+  if (n <= 5) return { tone: 'ok', label: t('rtf.ok') };
+  if (n <= 15) return { tone: 'slow', label: t('rtf.slow') };
+  return { tone: 'very-slow', label: t('rtf.verySlow') };
 }
 
 function metricGridHtml(meta) {
@@ -204,11 +211,11 @@ function metricGridHtml(meta) {
   return `
     <div class="metric-grid">
       <div class="metric-cell">
-        <span class="metric-label">زمن التوليد</span>
+        <span class="metric-label">${t('metric.elapsed')}</span>
         <strong class="metric-value">${formatSeconds(meta.elapsed_s)}</strong>
       </div>
       <div class="metric-cell">
-        <span class="metric-label">مدة الصوت</span>
+        <span class="metric-label">${t('metric.duration')}</span>
         <strong class="metric-value">${formatSeconds(meta.duration_s)}</strong>
       </div>
       <div class="metric-cell">
@@ -217,7 +224,7 @@ function metricGridHtml(meta) {
         <small>${rtf.label}</small>
       </div>
       <div class="metric-cell">
-        <span class="metric-label">العينة</span>
+        <span class="metric-label">${t('metric.rate')}</span>
         <strong class="metric-value">${formatSampleRate(meta.sample_rate)}</strong>
       </div>
     </div>
@@ -226,11 +233,11 @@ function metricGridHtml(meta) {
 
 function cloneLabel(key) {
   return {
-    ref_audio: 'صوت مرجعي',
-    ref_text: 'نص مرجعي',
-    ref_wav: 'مرجع Basic',
-    prompt_wav: 'صوت Prompt',
-    prompt_text: 'نص Prompt',
+    get ref_audio() { return t('clone.refAudio'); },
+    get ref_text() { return t('clone.refText'); },
+    get ref_wav() { return t('clone.refWav'); },
+    get prompt_wav() { return t('clone.promptWav'); },
+    get prompt_text() { return t('clone.promptText'); },
   }[key] || key;
 }
 
@@ -241,7 +248,7 @@ function optionSummary(mid, includeClone = true) {
   const vals = paramValues[mid] || {};
   const entries = (model.params || []).map(p => {
     const raw = Object.prototype.hasOwnProperty.call(vals, p.id) ? vals[p.id] : p.default;
-    let value = typeof raw === 'string' && !raw.trim() ? 'افتراضي' : raw;
+    let value = typeof raw === 'string' && !raw.trim() ? t('misc.default') : raw;
     if (p.type === 'select') {
       const match = (p.options || []).find(o => selectOptionValue(o) == raw);
       if (match && typeof match === 'object') value = match.label;
@@ -294,11 +301,11 @@ function renderModelCards() {
     const st = workerStatus[m.id] || 'offline';
     // 'loading' = worker is up but the model isn't in RAM yet (loads on demand).
     const isLoading = loadingModels.has(m.id);
-    const statusText = st === 'online'  ? '● متاح'
-                     : st === 'offline' ? '● غير متاح'
-                     : st === 'checking' ? '● جاري التحقق…'
-                     : isLoading        ? '● جاري التحميل…'
-                                        : '● متاح - غير محمّل';
+    const statusText = st === 'online'  ? t('st.online')
+                     : st === 'offline' ? t('st.offline')
+                     : st === 'checking' ? t('st.checking')
+                     : isLoading        ? t('st.loading')
+                                        : t('st.notLoaded');
     const statusCls = (st === 'loading' || st === 'checking') ? 'loading' : st;  // keep the blink while up-but-not-loaded
     const card = document.createElement('div');
     card.className = `model-card ${m.id} ${selectedModel === m.id ? 'active' : ''} ${st === 'offline' ? 'offline' : ''}`;
@@ -318,7 +325,7 @@ function renderModelCards() {
       <div class="mc-footer">
         <span class="mc-status ${statusCls}">${statusText}</span>
         ${st === 'loading'
-          ? `<button class="mc-load-btn" data-load="${m.id}" ${isLoading ? 'disabled' : ''}>${isLoading ? 'جاري التحميل…' : 'تحميل النموذج'}</button>`
+          ? `<button class="mc-load-btn" data-load="${m.id}" ${isLoading ? 'disabled' : ''}>${isLoading ? t('st.loadingBtn') : t('st.loadBtn')}</button>`
           : ''}
       </div>
     `;
@@ -337,17 +344,17 @@ async function loadModel(id) {
   loadingModels.add(id);
   renderModelCards();
   const name = (MODELS[id] && MODELS[id].name) || id;
-  showToast(`جاري تحميل ${name}… (قد يستغرق 2–3 دقائق)`, '', 4000);
+  showToast(t('st.loadingToast', { name }), '', 4000);
   try {
     const r = await fetch(appUrl(`api/${id}/load`), { method: 'POST' });
     if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
     loadingModels.delete(id);
     await pollStatus();                 // refresh badges immediately
-    showToast(`✓ تم تحميل ${name}`, 'success');
+    showToast(t('st.loadedToast', { name }), 'success');
   } catch (e) {
     loadingModels.delete(id);
     renderModelCards();
-    showToast(`تعذّر تحميل النموذج: ${String(e.message).slice(0, 160)}`, 'warn');
+    showToast(t('st.loadFailed', { err: String(e.message).slice(0, 160) }), 'warn');
   }
 }
 
@@ -413,20 +420,20 @@ function renderLanguageBar(body) {
   wrap.style.cssText = 'display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px';
 
   const lock = document.createElement('span');
-  lock.title = 'اللغة مثبّتة على العربية';
+  lock.title = t('lang.locked');
   lock.style.cssText = 'display:inline-flex;align-items:center;gap:4px;font-size:.72rem;font-weight:600;color:var(--txt2);background:#21262d;border:1px solid #30363d;border-radius:6px;padding:4px 8px';
-  lock.textContent = '🔒 العربية';
+  lock.textContent = t('lang.lockedChip');
   wrap.appendChild(lock);
 
-  wrap.appendChild(makeAttrSelect('اللهجة', 'dialect', DIALECTS));
-  wrap.appendChild(makeAttrSelect('الجنس',  'gender',  GENDERS));
-  wrap.appendChild(makeAttrSelect('العمر',  'age',     AGES));
+  wrap.appendChild(makeAttrSelect(t('attr.dialect'), 'dialect', DIALECTS));
+  wrap.appendChild(makeAttrSelect(t('attr.gender'), 'gender', GENDERS));
+  wrap.appendChild(makeAttrSelect(t('attr.age'), 'age', AGES));
   body.appendChild(wrap);
 
   const hint = document.createElement('div');
   hint.className = 'param-hint';
   hint.style.marginBottom = '8px';
-  hint.textContent = 'العربية مفروضة على كل النماذج؛ اختر اللهجة والجنس والعمر وتُحقن تلقائياً في كل طلب.';
+  hint.textContent = t('lang.lockedHint');
   body.appendChild(hint);
 
   const preview = document.createElement('div');
@@ -472,29 +479,29 @@ function updateModelInputPreview() {
 
   let html = `
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-      <span style="font-size:.7rem;color:var(--txt2);font-weight:700">📤 الإدخال الفعلي المُرسَل إلى النموذج</span>
+      <span style="font-size:.7rem;color:var(--txt2);font-weight:700">${t('ov.title')}</span>
       <button type="button" id="btn-input-override" class="tag-chip" style="flex-shrink:0">
-        ${ov.enabled ? '↺ رجوع للتلقائي' : '✏️ تعديل يدوي'}
+        ${ov.enabled ? t('ov.revert') : t('ov.edit')}
       </button>
     </div>`;
 
   if (!ov.enabled) {
     if (mi.instruct !== undefined) {
       const v = paramValues[selectedModel] || {};
-      html += codeLineHtml('لغة النموذج (language)', `${mi.lang} · العربية (${dialectLabel(v.dialect || 'msa')})`);
-      html += codeLineHtml('وصف الصوت (instruct)', mi.instruct);
-      html += codeLineHtml('النص (text)', mi.text);
+      html += codeLineHtml(t('ov.langLine'), `${mi.lang} · ${t('ov.arabic')} (${dialectLabel(v.dialect || 'msa')})`);
+      html += codeLineHtml(t('ov.instruct'), mi.instruct);
+      html += codeLineHtml(t('ov.text'), mi.text);
     } else {
-      html += codeLineHtml('النص المُرسَل (text)', mi.text);
+      html += codeLineHtml(t('ov.textSent'), mi.text);
     }
     el.innerHTML = html;
   } else {
-    if (mi.instruct !== undefined) html += editLineHtml('وصف الصوت (instruct)', 'ov-instruct');
-    html += editLineHtml('النص (text)', 'ov-text');
+    if (mi.instruct !== undefined) html += editLineHtml(t('ov.instruct'), 'ov-instruct');
+    html += editLineHtml(t('ov.text'), 'ov-text');
     const langNote = mi.lang
-      ? 'يُرسَل المحتوى أعلاه حرفياً (بدون حقن الجنس/العمر)؛ لهجة اللغة العربية تبقى مُطبَّقة عبر لغة النموذج.'
-      : 'يُرسَل المحتوى أعلاه إلى النموذج حرفياً (بدون حقن اللهجة/الجنس/العمر).';
-    html += `<div class="param-hint" style="margin-top:6px">وضع التعديل اليدوي: ${escapeHtml(langNote)} اترك الحقل فارغاً للرجوع إلى القيمة التلقائية.</div>`;
+      ? t('ov.noteDialect')
+      : t('ov.notePlain');
+    html += `<div class="param-hint" style="margin-top:6px">${escapeHtml(t('ov.hint', { note: langNote }))}</div>`;
     el.innerHTML = html;
     const t = $('ov-text');
     if (t) { t.value = ov.text; t.addEventListener('input', e => { ov.text = e.target.value; }); }
@@ -517,9 +524,9 @@ function sentInputHtml(meta) {
   if (!meta || (!meta.model_input && !meta.model_instruct)) return '';
   return `
     <div style="margin-top:10px;padding:8px 10px;background:#161b22;border:1px solid #30363d;border-radius:8px">
-      <div style="font-size:.7rem;color:var(--txt2);font-weight:700">📤 ما أُرسل فعلياً إلى النموذج</div>
-      ${meta.model_instruct ? codeLineHtml('وصف الصوت (instruct)', meta.model_instruct) : ''}
-      ${codeLineHtml('النص (text)', meta.model_input)}
+      <div style="font-size:.7rem;color:var(--txt2);font-weight:700">${t('ov.sent')}</div>
+      ${meta.model_instruct ? codeLineHtml(t('ov.instruct'), meta.model_instruct) : ''}
+      ${codeLineHtml(t('ov.text'), meta.model_input)}
     </div>`;
 }
 
@@ -531,7 +538,7 @@ function renderParams() {
   renderLanguageBar(body);
 
   if (!model.params.length) {
-    body.insertAdjacentHTML('beforeend', '<p class="param-empty">لا توجد معاملات إضافية.</p>');
+    body.insertAdjacentHTML('beforeend', `<p class="param-empty">${t('misc.noParams')}</p>`);
     return;
   }
 
@@ -601,7 +608,7 @@ function renderVoicePicker() {
   const model = MODELS[selectedModel];
   const voiceParam = (model.params || []).find(p => p.id === 'voice');
   if (!voiceParam) {
-    select.innerHTML = '<option value="">بدون استنساخ</option>';
+    select.innerHTML = `<option value="">${t('voice.none')}</option>`;
     select.disabled = true;
     return;
   }
@@ -636,7 +643,7 @@ function renderTags() {
     const btn = document.createElement('button');
     btn.className = 'tag-chip';
     btn.textContent = tag;
-    btn.title = 'أضف إلى النص';
+    btn.title = t('tag.add');
     btn.addEventListener('click', () => insertTag(tag));
     strip.appendChild(btn);
   }
@@ -672,8 +679,8 @@ function renderClonePanel() {
   }
 
   // Both interface models are OmniVoice variants with the same cloning fields.
-  body.appendChild(makeFileZone('ref_audio', 'الصوت المرجعي (WAV 5–30 ثانية)', 'audio/wav,audio/*'));
-  body.appendChild(makeTextRow('ref_text', 'نص الصوت المرجعي (اختياري)', 'النص المنطوق في الصوت المرجعي…'));
+  body.appendChild(makeFileZone('ref_audio', t('clone.zoneLabel'), 'audio/wav,audio/*'));
+  body.appendChild(makeTextRow('ref_text', t('clone.textLabel'), t('clone.textPh')));
 }
 
 function makeFileZone(key, label, accept) {
@@ -684,7 +691,7 @@ function makeFileZone(key, label, accept) {
   const zone = document.createElement('div');
   zone.className = 'file-zone';
   zone.dataset.key = key;
-  zone.innerHTML = `<span class="zone-label">اسحب ملف WAV هنا أو اضغط للاختيار</span><input type="file" accept="${accept}">`;
+  zone.innerHTML = `<span class="zone-label">${t('clone.drop')}</span><input type="file" accept="${accept}">`;
 
   const input = zone.querySelector('input');
   input.addEventListener('change', e => {
@@ -749,7 +756,7 @@ function updateCompareLabel() {
     ? Object.keys(MODELS).filter(mid => !['offline', 'checking'].includes(workerStatus[mid])).length
     : $$('#compare-checks input:checked').length;
   const label = $('compare-label');
-  if (label) label.textContent = n ? `قارن الآن (${n})` : 'لا توجد نماذج متاحة';
+  if (label) label.textContent = n ? t('cmp.runN', { n }) : t('cmp.none');
   // Keep the button clickable with empty text so the user gets an explanatory toast
   // instead of an inert control that looks broken.
   $('btn-compare').disabled = n === 0 || isGenerating || isComparing;
@@ -810,8 +817,8 @@ async function composeWithAI() {
   if (btn.disabled) return;
 
   btn.disabled = true;
-  $('compose-agent-label').textContent = '… جاري التأليف';
-  setComposeStatus('يكتب الوكيل النص ويضبط إعدادات النموذجين…');
+  $('compose-agent-label').textContent = t('ag.composing');
+  setComposeStatus(t('ag.composeBusy'));
   try {
     const r = await fetch(appUrl('api/compose'), {
       method: 'POST',
@@ -827,14 +834,14 @@ async function composeWithAI() {
     if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
     const result = await r.json();
     applyComposed(result);
-    setComposeStatus(result.notes ? `✓ ${result.notes}` : '✓ تم ضبط النموذجين', 'success');
-    showToast('تم تأليف النص وضبط النموذجين ✓', 'success');
+    setComposeStatus(result.notes ? `✓ ${result.notes}` : t('ag.composeDone'), 'success');
+    showToast(t('ag.composeToast'), 'success');
   } catch (e) {
-    setComposeStatus(`خطأ: ${String(e.message).slice(0, 220)}`, 'error');
-    showToast('تعذّر التأليف التلقائي', 'error', 5000);
+    setComposeStatus(`${t('misc.error')}: ${String(e.message).slice(0, 220)}`, 'error');
+    showToast(t('ag.composeFailed'), 'error', 5000);
   } finally {
     btn.disabled = false;
-    $('compose-agent-label').textContent = '✨ أكمل بالذكاء الاصطناعي';
+    $('compose-agent-label').textContent = t('ag.compose');
   }
 }
 
@@ -887,18 +894,18 @@ async function prepareText() {
   const btn  = $('btn-prep');
   if (btn.disabled) return;
   const text = $('text-input').value.trim();
-  if (!text) { showToast('لا يوجد نص لتحضيره', 'error'); return; }
+  if (!text) { showToast(t('ag.noText'), 'error'); return; }
 
   const normalize  = $('prep-normalize').dataset.on === '1';
   const diacritize = $('prep-diacritize').dataset.on === '1';
   if (!normalize && !diacritize) {
-    setPrepStatus('فعِّل «الأرقام→كلمات» أو «تشكيل» أولاً', 'error');
+    setPrepStatus(t('ag.pickOption'), 'error');
     return;
   }
 
   btn.disabled = true;
-  $('prep-label').textContent = '… جاري التحضير';
-  setPrepStatus('يحضّر الوكيل النص…');
+  $('prep-label').textContent = t('ag.preparing');
+  setPrepStatus(t('ag.prepBusy'));
   try {
     const r = await fetch(appUrl('api/prepare'), {
       method: 'POST',
@@ -913,13 +920,13 @@ async function prepareText() {
     const result = await r.json();
 
     showPrepPreview(text, result);
-    setPrepStatus(result.notes ? `✓ ${result.notes}` : '✓ جاهز — راجِع المقارنة ثم اعتمد', 'success');
+    setPrepStatus(result.notes ? `✓ ${result.notes}` : t('ag.prepDone'), 'success');
   } catch (e) {
-    setPrepStatus(`خطأ: ${String(e.message).slice(0, 220)}`, 'error');
-    showToast('تعذّر تحضير النص', 'error', 5000);
+    setPrepStatus(`${t('misc.error')}: ${String(e.message).slice(0, 220)}`, 'error');
+    showToast(t('ag.prepFailed'), 'error', 5000);
   } finally {
     btn.disabled = false;
-    $('prep-label').textContent = '✦ حضّر النص';
+    $('prep-label').textContent = t('ag.prep');
   }
 }
 
@@ -946,7 +953,7 @@ function applyPrep() {
   $('btn-prep-undo').hidden = false;
   $('text-input').value = pendingPrepText;
   hidePrepPreview();
-  showToast('تم اعتماد النص ✓ — راجِعه ثم ولّد', 'success');
+  showToast(t('ag.applied'), 'success');
   updateCharCount();
   updateSynthBtn();
   updateModelInputPreview();
@@ -991,7 +998,7 @@ function setTranscribeStatus(msg, type = '') { setStatusLine('transcribe-status'
 async function transcribeAudio() {
   const btn = $('btn-transcribe');
   if (btn.disabled) return;
-  if (!transcribeFile) { setTranscribeStatus('اختر ملفاً صوتياً أو سجّل مقطعاً أولاً', 'error'); return; }
+  if (!transcribeFile) { setTranscribeStatus(t('tr.needFile'), 'error'); return; }
 
   const fd = new FormData();
   fd.append('audio', transcribeFile, transcribeFile.name);
@@ -999,25 +1006,25 @@ async function transcribeAudio() {
   fd.append('punctuation', $('transcribe-punct').dataset.on === '1');
 
   btn.disabled = true;
-  $('transcribe-label').textContent = '… جاري التفريغ';
-  setTranscribeStatus('يفرّغ النموذج الصوت…');
+  $('transcribe-label').textContent = t('tr.running');
+  setTranscribeStatus(t('tr.busy'));
   try {
     const r = await fetch(appUrl('api/transcribe'), { method: 'POST', body: fd });
     if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
     const res = await r.json();
 
     transcriptText = (res.text || '').trim();
-    $('transcribe-text').textContent = transcriptText || '(لم يتعرّف النموذج على أي كلام)';
+    $('transcribe-text').textContent = transcriptText || t('tr.empty');
     $('transcribe-result').hidden = false;
     setTranscribeStatus(
-      `✓ ${formatSeconds(res.duration_s)} صوت في ${formatSeconds(res.elapsed_s)} · RTF ${formatRtf(res.rtf)}`,
+      `✓ ${formatSeconds(res.duration_s)} ${t('badge.audio')} → ${formatSeconds(res.elapsed_s)} · RTF ${formatRtf(res.rtf)}`,
       'success');
   } catch (e) {
-    setTranscribeStatus(`خطأ: ${String(e.message).slice(0, 220)}`, 'error');
-    showToast('تعذّر تفريغ الصوت', 'error', 5000);
+    setTranscribeStatus(`${t('misc.error')}: ${String(e.message).slice(0, 220)}`, 'error');
+    showToast(t('tr.failed'), 'error', 5000);
   } finally {
     btn.disabled = false;
-    $('transcribe-label').textContent = '▷ فرّغ الصوت';
+    $('transcribe-label').textContent = t('tr.run');
   }
 }
 
@@ -1025,7 +1032,7 @@ async function transcribeAudio() {
 function useTranscriptAsText() {
   if (!transcriptText) return;
   $('text-input').value = transcriptText;
-  showToast('تم نقل النص المُفرَّغ ✓', 'success');
+  showToast(t('tr.moved'), 'success');
   updateCharCount();
   updateSynthBtn();
 }
@@ -1053,7 +1060,7 @@ function setupRecorder() {
   let timer = null;
 
   const idle = () => {
-    btn.textContent = '🎙 سجّل';
+    btn.textContent = t('tr.record');
     btn.classList.remove('active', 'recording');
     clearInterval(timer);
     timer = null;
@@ -1067,7 +1074,7 @@ function setupRecorder() {
       try {
         const file = await active.stop();
         const secs = formatSeconds((Date.now() - active.startedAt) / 1000);
-        setTranscribeFile(file, `تسجيل ${secs}`);
+        setTranscribeFile(file, `${t('tr.clip')} ${secs}`);
       } catch (e) {
         setTranscribeStatus(String(e.message), 'error');
       }
@@ -1078,13 +1085,13 @@ function setupRecorder() {
       handle = await MicRecorder.start();
     } catch (e) {
       setTranscribeStatus(String(e.message), 'error');
-      showToast('تعذّر بدء التسجيل', 'error', 5000);
+      showToast(t('tr.recordFailed'), 'error', 5000);
       return;
     }
-    btn.textContent = '⏹ إيقاف';
+    btn.textContent = t('tr.stop');
     btn.classList.add('active', 'recording');
     timer = setInterval(() => {
-      setTranscribeStatus(`● جاري التسجيل ${MicRecorder.fmtElapsed(Date.now() - handle.startedAt)}`);
+      setTranscribeStatus(`${t('tr.recording')} ${MicRecorder.fmtElapsed(Date.now() - handle.startedAt)}`);
     }, 250);
   });
 }
@@ -1138,10 +1145,10 @@ function updateSynthBtn() {
     ? Object.keys(MODELS).some(mid => !['offline', 'checking'].includes(workerStatus[mid]))
     : !['offline', 'checking'].includes(workerStatus[selectedModel]);
   $('btn-synth').disabled = !hasText || isGenerating || isComparing || !available;
-  $('synth-label').textContent = checking ? 'جاري التحقق…' :
-    !available ? 'النموذج غير متاح' :
-    isGenerating || isComparing ? 'جاري التوليد…' :
-    useAll ? 'قارن النماذج' : 'توليد الصوت';
+  $('synth-label').textContent = checking ? t('synth.checking') :
+    !available ? t('synth.unavailable') :
+    isGenerating || isComparing ? t('synth.running') :
+    useAll ? t('synth.compare') : t('synth.run');
   updateCompareLabel();
 }
 
@@ -1279,12 +1286,12 @@ async function synthesize() {
   isGenerating = true;
   updateSynthBtn();
   $('synth-progress').classList.remove('hidden');
-  $('progress-hint').textContent = 'جاري التوليد…';
+  $('progress-hint').textContent = t('synth.running');
 
   let hintTimer = null;
   if (workerStatus[selectedModel] === 'loading') {
     hintTimer = setTimeout(() => {
-      $('progress-hint').textContent = 'جاري تحميل النموذج (قد يستغرق 1–2 دقيقة)…';
+      $('progress-hint').textContent = t('synth.loadingModel');
     }, 3000);
   }
 
@@ -1308,10 +1315,10 @@ async function synthesize() {
       instruct: currentInstruct(),
       params: { ...paramValues[selectedModel] },
     });
-    showToast('تم توليد الصوت بنجاح ✓', 'success');
+    showToast(t('synth.done'), 'success');
 
   } catch (e) {
-    showToast(`خطأ: ${e.message}`, 'error', 6000);
+    showToast(`${t('misc.error')}: ${e.message}`, 'error', 6000);
   } finally {
     clearTimeout(hintTimer);
     isGenerating = false;
@@ -1337,7 +1344,7 @@ async function loadPlayer(url, meta, text) {
   badges.innerHTML = `
     <span class="model-badge ${meta.model}">${escapeHtml(model.name || meta.model)}</span>
     <span class="rtf-badge rtf-${rtf.tone}">${rtf.label}</span>
-    <span class="rtf-badge">${formatSeconds(meta.elapsed_s)} توليد</span>
+    <span class="rtf-badge">${formatSeconds(meta.elapsed_s)} ${t('badge.generated')}</span>
   `;
 
   const insights = $('player-insights');
@@ -1513,8 +1520,8 @@ function applyHistoryCollapsedState() {
   card.classList.toggle('history-collapsed', historyCollapsed);
   list.setAttribute('aria-hidden', String(historyCollapsed));
   btn.setAttribute('aria-expanded', String(!historyCollapsed));
-  btn.textContent = historyCollapsed ? 'فتح' : 'طي';
-  btn.title = historyCollapsed ? 'فتح السجل' : 'طي السجل';
+  btn.textContent = historyCollapsed ? t('hist.expand') : t('hist.collapse');
+  btn.title = historyCollapsed ? t('hist.expandTitle') : t('hist.collapseTitle');
 }
 
 function toggleHistoryCollapsed() {
@@ -1555,8 +1562,8 @@ function renderHistory(filterModel = 'all') {
       ? `<div class="hi-instruct" title="${escapeAttr(instruct)}">🎙 ${escapeHtml(instruct.slice(0, 50))}</div>`
       : '';
     const metaBits = [
-      `${formatSeconds(item.elapsed_s)} توليد`,
-      `${formatSeconds(item.duration_s)} صوت`,
+      `${formatSeconds(item.elapsed_s)} ${t('badge.generated')}`,
+      `${formatSeconds(item.duration_s)} ${t('badge.audio')}`,
       `RTF ${formatRtf(item.rtf)}`,
       ago,
     ].filter(v => v && !v.startsWith('—'));
@@ -1568,8 +1575,8 @@ function renderHistory(filterModel = 'all') {
         <div class="hi-meta">${escapeHtml(metaBits.join(' · '))}</div>
       </div>
       <div class="hi-actions">
-        <button class="hi-btn play" title="تشغيل">▶</button>
-        <a class="hi-btn dl" href="${item.url}" download="${item.filename}" title="تنزيل">⬇</a>
+        <button class="hi-btn play" title="${t('hist.play')}">▶</button>
+        <a class="hi-btn dl" href="${item.url}" download="${item.filename}" title="${t('hist.download')}">⬇</a>
       </div>
     `;
     el.querySelector('.hi-btn.play').addEventListener('click', e => {
@@ -1594,10 +1601,10 @@ function playHistoryItem(item) {
 function formatAgo(ts) {
   if (!ts) return '';
   const diff = Math.floor((Date.now() - ts) / 1000);
-  if (diff < 60)   return `${diff}ث`;
-  if (diff < 3600) return `${Math.floor(diff/60)}د`;
-  if (diff < 86400)return `${Math.floor(diff/3600)}س`;
-  return `${Math.floor(diff/86400)}ي`;
+  if (diff < 60)   return `${diff}${t('ago.s')}`;
+  if (diff < 3600) return `${Math.floor(diff/60)}${t('ago.m')}`;
+  if (diff < 86400)return `${Math.floor(diff/3600)}${t('ago.h')}`;
+  return `${Math.floor(diff/86400)}${t('ago.d')}`;
 }
 
 // ── Load server history on startup ────────────────────────────
@@ -1655,8 +1662,8 @@ function miniPlayerHtml(mid, item, runId = null) {
   if (item.error) {
     return `
       ${miniTitleHtml(mid)}
-      <div class="mini-player-meta error">خطأ: ${escapeHtml(String(item.error).slice(0, 120))}</div>
-      <button class="mini-retry" data-run-id="${escapeAttr(runId || '')}" data-mid="${escapeAttr(mid)}" type="button">↻ إعادة المحاولة</button>
+      <div class="mini-player-meta error">${t('misc.error')}: ${escapeHtml(String(item.error).slice(0, 120))}</div>
+      <button class="mini-retry" data-run-id="${escapeAttr(runId || '')}" data-mid="${escapeAttr(mid)}" type="button">${t('cmp.retry')}</button>
       ${optionChipsHtml(options)}
     `;
   }
@@ -1697,15 +1704,15 @@ function renderCompareSummary(grid, results) {
   const summary = document.createElement('div');
   summary.className = 'compare-summary';
   summary.innerHTML = `
-    <div class="summary-title">ملخص المقارنة</div>
+    <div class="summary-title">${t('cmp.summary')}</div>
     <div class="summary-grid">
-      ${item('أسرع توليد', fastest, fastest ? formatSeconds(fastest.result.elapsed_s) : '')}
-      ${item('أفضل RTF', bestRtf, bestRtf ? `${formatRtf(bestRtf.result.rtf)} · ${rtfProfile(bestRtf.result.rtf).label}` : '')}
-      ${item('أعلى عينة', highestRate, highestRate ? formatSampleRate(highestRate.result.sample_rate) : '')}
+      ${item(t('cmp.fastest'), fastest, fastest ? formatSeconds(fastest.result.elapsed_s) : '')}
+      ${item(t('cmp.bestRtf'), bestRtf, bestRtf ? `${formatRtf(bestRtf.result.rtf)} · ${rtfProfile(bestRtf.result.rtf).label}` : '')}
+      ${item(t('cmp.highestRate'), highestRate, highestRate ? formatSampleRate(highestRate.result.sample_rate) : '')}
       <div class="summary-item">
-        <span>عدد النتائج</span>
+        <span>${t('cmp.count')}</span>
         <strong>${ok.length}/${results.length}</strong>
-        <small>${results.some(r => r.error) ? 'توجد أخطاء' : 'كلها اكتملت'}</small>
+        <small>${results.some(r => r.error) ? t('cmp.hasErrors') : t('cmp.allDone')}</small>
       </div>
     </div>
   `;
@@ -1750,7 +1757,7 @@ function loadCompareRuns() {
   // retryable errors instead of a stuck spinner.
   for (const run of compareRuns) {
     for (const item of run.items || []) {
-      if (item.pending) { delete item.pending; if (!item.result) item.error = item.error || 'لم تكتمل المقارنة'; }
+      if (item.pending) { delete item.pending; if (!item.result) item.error = item.error || t('cmp.incomplete'); }
     }
   }
 }
@@ -1775,7 +1782,7 @@ function deleteCompareRun(id) {
 
 function clearCompareRuns() {
   if (!compareRuns.length) return;
-  if (!confirm('مسح كل المقارنات المحفوظة؟')) return;
+  if (!confirm(t('cmp.confirmClear'))) return;
   compareRuns = [];
   persistCompareRuns();
   renderCompareLibrary();
@@ -1790,7 +1797,7 @@ function renderRunGrid(container, run) {
     mini.className = `mini-player ${item.mid} ${item.pending ? '' : 'done'}`;
     mini.id = `mini-${run.id}-${item.mid}`;
     mini.innerHTML = item.pending
-      ? `${miniTitleHtml(item.mid)}<div class="mini-spinner">في الانتظار…</div>${optionChipsHtml(item.options || optionSummary(item.mid, false))}`
+      ? `${miniTitleHtml(item.mid)}<div class="mini-spinner">${t('cmp.waiting')}</div>${optionChipsHtml(item.options || optionSummary(item.mid, false))}`
       : miniPlayerHtml(item.mid, item, run.id);
     container.appendChild(mini);
   }
@@ -1827,16 +1834,16 @@ function setAllCompareRunsExpanded(expand) {
 
 // Re-run a single failed (or any) model in a comparison, reusing the same text + captured params.
 async function retryCompareItem(runId, mid) {
-  if (isComparing) { showToast('انتظر حتى تكتمل المقارنة الحالية', 'warn'); return; }
+  if (isComparing) { showToast(t('cmp.busy'), 'warn'); return; }
   const run = compareRuns.find(r => r.id === runId);
-  if (!run) { showToast('تعذّر العثور على المقارنة', 'error'); return; }
+  if (!run) { showToast(t('cmp.notFound'), 'error'); return; }
   const idx = (run.items || []).findIndex(i => i.mid === mid);
   if (idx === -1) return;
 
   const prev = run.items[idx];
   const options = prev.options || optionSummary(mid, false);
   expandedCompareRuns.add(runId);   // make sure the run is visible while it retries
-  setMiniHtml(runId, mid, `${miniTitleHtml(mid)}<div class="mini-spinner">جاري إعادة المحاولة…</div>${optionChipsHtml(options)}`);
+  setMiniHtml(runId, mid, `${miniTitleHtml(mid)}<div class="mini-spinner">${t('cmp.retrying')}</div>${optionChipsHtml(options)}`);
 
   let item;
   try {
@@ -1847,10 +1854,10 @@ async function retryCompareItem(runId, mid) {
     const url = modelAudioUrl(mid, result.filename);
     addToHistory({ ...result, model: mid, text: run.text, url, options, timestamp: Date.now() });
     item = { mid, result, options, url, params: prev.params };
-    showToast('تمت إعادة التوليد ✓', 'success');
+    showToast(t('cmp.retried'), 'success');
   } catch (e) {
     item = { mid, error: e.message, options, params: prev.params };
-    showToast(`فشلت إعادة المحاولة: ${String(e.message).slice(0, 80)}`, 'error', 5000);
+    showToast(t('cmp.retryFailed', { err: String(e.message).slice(0, 80) }), 'error', 5000);
   }
 
   run.items[idx] = item;
@@ -1872,7 +1879,7 @@ function renderCompareLibrary() {
   const toggleAll = $('btn-toggle-compares');
   if (toggleAll) {
     const allOpen = compareRuns.every(r => expandedCompareRuns.has(r.id));
-    toggleAll.textContent = allOpen ? 'طيّ الكل' : 'فتح الكل';
+    toggleAll.textContent = allOpen ? t('cmp.collapseAll') : t('cmp.expandAll');
     toggleAll.dataset.expand = allOpen ? '0' : '1';
   }
 
@@ -1883,7 +1890,7 @@ function renderCompareLibrary() {
     const n = (run.items || []).length;
     const errs = (run.items || []).filter(i => i.error).length;
     const snippet = (run.text || '').slice(0, 70) || '—';
-    const meta = `${icons} · ${n} نماذج${errs ? ` · ${errs} خطأ` : ''} · ${formatAgo(run.timestamp)}`;
+    const meta = `${icons} · ${n} ${t('cmp.models')}${errs ? ` · ${errs} ${t('cmp.errors')}` : ''} · ${formatAgo(run.timestamp)}`;
 
     const itemEl = document.createElement('div');
     itemEl.className = `saved-compare-item ${expanded ? 'expanded' : ''}`;
@@ -1898,7 +1905,7 @@ function renderCompareLibrary() {
         <div class="sc-meta">${escapeHtml(meta)}</div>
       </div>
       <div class="sc-actions">
-        <button class="hi-btn sc-del" title="حذف">🗑</button>
+        <button class="hi-btn sc-del" title="${t('hist.delete')}">🗑</button>
       </div>`;
     head.addEventListener('click', e => {
       if (e.target.closest('.sc-actions')) return;
@@ -1920,21 +1927,21 @@ function renderCompareLibrary() {
 async function compareModels(compareAll = false) {
   if (isComparing) return;
   const text = $('text-input').value.trim();
-  if (!text) { showToast('أدخل نصاً أولاً', 'warn'); return; }
+  if (!text) { showToast(t('synth.needText'), 'warn'); return; }
 
   const toggle = $('use-all-models');
   const useAll = compareAll || !toggle || toggle.checked;
   const selected = useAll
     ? Object.keys(MODELS).filter(mid => workerStatus[mid] !== 'offline')
     : Array.from($$('#compare-checks input:checked')).map(e => e.value);
-  if (!selected.length) { showToast('اختر نموذجاً واحداً على الأقل', 'warn'); return; }
+  if (!selected.length) { showToast(t('cmp.needModel'), 'warn'); return; }
 
   isComparing = true;
   const btn = $('btn-compare');
   if (btn) btn.disabled = true;
   updateSynthBtn();
   $('synth-progress').classList.remove('hidden');
-  $('progress-hint').textContent = `جاري تحضير مقارنة ${selected.length} نماذج…`;
+  $('progress-hint').textContent = t('cmp.preparing', { n: selected.length });
 
   // Create the run up front and show it expanded at the top of the library, so the live
   // generation streams into the same card the user will keep and compare against later.
@@ -1958,11 +1965,11 @@ async function compareModels(compareAll = false) {
       const mid = selected[i];
       const idx = run.items.findIndex(it => it.mid === mid);
       const options = run.items[idx].options;
-      const progress = `جاري المقارنة ${i + 1}/${selected.length}`;
+      const progress = t('cmp.progress', { i: i + 1, n: selected.length });
       if ($('compare-label')) $('compare-label').textContent = progress;
       $('synth-label').textContent = progress;
-      $('progress-hint').textContent = `${progress} — قد يحتاج النموذج غير المحمّل عدة دقائق`;
-      setMiniHtml(run.id, mid, `${miniTitleHtml(mid)}<div class="mini-spinner">جاري التوليد…</div>${optionChipsHtml(options)}`);
+      $('progress-hint').textContent = t('cmp.progressHint', { p: progress });
+      setMiniHtml(run.id, mid, `${miniTitleHtml(mid)}<div class="mini-spinner">${t('cmp.generating')}</div>${optionChipsHtml(options)}`);
 
       let item;
       try {
@@ -1984,7 +1991,7 @@ async function compareModels(compareAll = false) {
     }
 
     const hadErr = run.items.some(r => r.error);
-    showToast(hadErr ? 'اكتملت المقارنة مع أخطاء' : 'اكتملت المقارنة', hadErr ? 'warn' : 'success');
+    showToast(hadErr ? t('cmp.doneErr') : t('cmp.done'), hadErr ? 'warn' : 'success');
   } catch (e) {
     const message = String(e.message || e).slice(0, 120);
     for (const item of run.items) {
@@ -1997,7 +2004,7 @@ async function compareModels(compareAll = false) {
       persistCompareRuns();
       renderCompareLibrary();
     } catch { /* the progress controls are still reset below */ }
-    showToast(`تعذّر بدء المقارنة: ${message}`, 'error', 6000);
+    showToast(t('cmp.startFailed', { err: message }), 'error', 6000);
   } finally {
     isComparing = false;
     currentCompareRunId = null;
@@ -2027,7 +2034,7 @@ function setAccordionOpen(sectionId, open) {
 
 // ── Clear history ─────────────────────────────────────────────
 function clearHistory() {
-  if (!confirm('هل تريد مسح جميع سجلات التوليد؟')) return;
+  if (!confirm(t('hist.confirmClear'))) return;
   historyItems = [];
   saveHistory();
   renderHistory();
@@ -2070,7 +2077,33 @@ function setupPrimaryActions() {
 }
 
 // ── Init ──────────────────────────────────────────────────────
+// Panels built imperatively hold text that `I18N.apply` cannot reach — it only rewrites
+// nodes carrying data-i18n. Re-render them whenever the language flips.
+function setupLanguageToggle() {
+  const btn = $('lang-toggle');
+  if (btn) btn.addEventListener('click', () => I18N.set(I18N.other()));
+
+  document.addEventListener('languagechange', () => {
+    try {
+      renderModelCards();
+      renderStatusBadges();
+      renderVoicePicker();
+      renderCompareChecks();
+      renderHistory($('history-filter') ? $('history-filter').value : 'all');
+      renderCompareLibrary();
+      updateSynthBtn();
+      updateCompareLabel();
+    } catch (e) {
+      console.error('Re-render after language change failed', e);
+    }
+  });
+}
+
 function init() {
+  // Paint the stored language before anything renders, so the first frame is correct.
+  I18N.apply();
+  setupLanguageToggle();
+
   initParamValues();
   loadHistory();
   loadHistoryCollapsed();
@@ -2100,7 +2133,7 @@ function init() {
     setupAudioEvents();
   } catch (e) {
     console.error('Optional UI initialization failed', e);
-    showToast('تم تشغيل الأزرار، لكن تعذّر استعادة بعض بيانات المتصفح القديمة', 'warn', 6000);
+    showToast(t('misc.bootWarn'), 'warn', 6000);
   }
 
   // Clear history

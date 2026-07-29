@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Arabic TTS Studio</title>
-  <link rel="stylesheet" href="style.css?v=17">
+  <link rel="stylesheet" href="style.css?v=18">
 </head>
 <body>
 
@@ -14,12 +14,14 @@
       <div class="brand-icon">🎙</div>
       <div class="brand-text">
         <span class="brand-en">Arabic TTS Studio</span>
-        <span class="brand-ar">استوديو تحويل النص إلى كلام</span>
+        <span class="brand-ar" data-i18n="brand.title">استوديو تحويل النص إلى كلام</span>
       </div>
     </div>
     <div class="status-row" id="status-row">
       <!-- status badges injected by JS -->
-      <a class="api-link" href="api.html">‹/› واجهة الـ API</a>
+      <button class="lang-toggle" id="lang-toggle" type="button"
+              data-i18n="lang.toggle" data-i18n-title="lang.toggleTitle">EN</button>
+      <a class="api-link" href="api.html" data-i18n="nav.api">‹/› واجهة الـ API</a>
     </div>
   </header>
 
@@ -31,7 +33,7 @@
 
       <!-- Model cards -->
       <section class="panel-section">
-        <h3 class="section-label">النموذج</h3>
+        <h3 class="section-label" data-i18n="section.model">النموذج</h3>
         <div class="model-cards" id="model-cards">
           <!-- Cards rendered by JS -->
         </div>
@@ -41,9 +43,9 @@
 
       <!-- Voice picker -->
       <section class="panel-section">
-        <h3 class="section-label">الصوت</h3>
+        <h3 class="section-label" data-i18n="section.voice">الصوت</h3>
         <div class="voice-picker">
-          <label class="param-label" for="voice-select">الصوت</label>
+          <label class="param-label" for="voice-select" data-i18n="section.voice">الصوت</label>
           <select class="param-select" id="voice-select"></select>
         </div>
       </section>
@@ -51,53 +53,53 @@
       <!-- Compare mode -->
       <section class="panel-section">
         <div class="compare-toggle">
-          <span>قارن نفس النص باستخدام كل النماذج المتاحة</span>
+          <span data-i18n="cmp.toggle">قارن نفس النص باستخدام كل النماذج المتاحة</span>
         </div>
         <div class="compare-checks hidden" id="compare-checks"></div>
         <button class="btn-compare" id="btn-compare" type="button" disabled>
-          <span id="compare-label">قارن الآن</span>
+          <span id="compare-label" data-i18n="cmp.run">قارن الآن</span>
         </button>
       </section>
 
       <!-- Transcription (ASR) — audio in, text out; fills the box below.
            Flat section, not an accordion: simplified mode no longer wires them up. -->
       <section class="panel-section">
-        <h3 class="section-label">📝 التفريغ الصوتي</h3>
-        <p class="compose-desc">ارفع مقطعاً صوتياً أو سجّل من الميكروفون ليحوّله النموذج إلى نص، ثم انقله إلى صندوق النص بالأسفل. المقاطع الطويلة تُقسَّم وتُدمج تلقائياً.</p>
+        <h3 class="section-label" data-i18n="section.transcribe">📝 التفريغ الصوتي</h3>
+        <p class="compose-desc" data-i18n="tr.desc">ارفع مقطعاً صوتياً أو سجّل من الميكروفون ليحوّله النموذج إلى نص، ثم انقله إلى صندوق النص بالأسفل. المقاطع الطويلة تُقسَّم وتُدمج تلقائياً.</p>
         <p class="model-credit">
-          <span>النموذج</span>
+          <span data-i18n="tr.modelLabel">النموذج</span>
           <a href="https://huggingface.co/NAMAA-Space/cohere-transcribe-arabic-07-2026-int8"
              target="_blank" rel="noopener noreferrer" dir="ltr"
              >NAMAA-Space/cohere-transcribe-arabic-07-2026-int8</a>
-          <small>نسخة NAMAA-Space المكمَّمة (INT8) من نموذج Cohere للتفريغ العربي — عربي/إنجليزي، 16kHz</small>
+          <small data-i18n="tr.modelNote">نسخة NAMAA-Space المكمَّمة (INT8) من نموذج Cohere للتفريغ العربي — عربي/إنجليزي، 16kHz</small>
         </p>
         <div class="file-zone" id="transcribe-zone">
-          <span class="zone-label">اسحب ملفاً صوتياً هنا أو اضغط للاختيار</span>
+          <span class="zone-label" data-i18n="tr.drop">اسحب ملفاً صوتياً هنا أو اضغط للاختيار</span>
           <input type="file" accept="audio/*">
         </div>
         <div class="prep-bar">
-          <select class="param-select" id="transcribe-lang" title="لغة التفريغ — النموذج يدعم العربية والإنجليزية فقط">
-            <option value="ar">عربي</option>
-            <option value="en">إنجليزي</option>
+          <select class="param-select" id="transcribe-lang" data-i18n-title="tr.langTitle">
+            <option value="ar" data-i18n="tr.langAr">عربي</option>
+            <option value="en" data-i18n="tr.langEn">إنجليزي</option>
           </select>
           <button class="prep-toggle active" id="transcribe-punct" data-on="1"
-            title="أطفئه للحصول على نص بلا علامات ترقيم وبأحرف صغيرة">علامات الترقيم</button>
+            data-i18n-title="tr.punctTitle" data-i18n="tr.punct">علامات الترقيم</button>
           <!-- Revealed by app.js only when the browser can actually record. -->
           <button class="prep-toggle" id="btn-record" hidden
-            title="سجّل مقطعاً من الميكروفون بدل رفع ملف">🎙 سجّل</button>
+            data-i18n-title="tr.recordTitle" data-i18n="tr.record">🎙 سجّل</button>
           <button class="btn-prep" id="btn-transcribe">
-            <span id="transcribe-label">▷ فرّغ الصوت</span>
+            <span id="transcribe-label" data-i18n="tr.run">▷ فرّغ الصوت</span>
           </button>
           <span class="compose-status" id="transcribe-status"></span>
         </div>
 
         <div class="prep-preview" id="transcribe-result" hidden>
           <div class="prep-diff-row">
-            <span class="prep-diff-tag tag-norm">النص المُفرَّغ</span>
+            <span class="prep-diff-tag tag-norm" data-i18n="tr.resultTag">النص المُفرَّغ</span>
             <div class="prep-diff-text" id="transcribe-text" dir="auto"></div>
           </div>
           <div class="prep-preview-actions">
-            <button class="btn-prep" id="btn-transcribe-use">✓ استخدمه كنص للتوليد</button>
+            <button class="btn-prep" id="btn-transcribe-use" data-i18n="tr.use">✓ استخدمه كنص للتوليد</button>
           </div>
         </div>
       </section>
@@ -105,18 +107,18 @@
       <!-- Text input -->
       <section class="panel-section">
         <h3 class="section-label">
-          النص
+          <span data-i18n="section.text">النص</span>
           <span class="char-count" id="char-count">0</span>
         </h3>
         <textarea
           id="text-input"
           dir="auto"
-          placeholder="اكتب النص العربي هنا…  |  Type text here…"
+          data-i18n-placeholder="text.placeholder"
           rows="6"
           spellcheck="false"
         ></textarea>
         <div class="input-footer simple-footer">
-          <button class="btn-ghost btn-xs" id="btn-clear-text">مسح</button>
+          <button class="btn-ghost btn-xs" id="btn-clear-text" data-i18n="text.clear">مسح</button>
         </div>
       </section>
 
@@ -124,13 +126,13 @@
       <div class="synth-wrap">
         <button class="btn-synth" id="btn-synth" disabled>
           <span class="synth-icon">▶</span>
-          <span id="synth-label">توليد الصوت</span>
+          <span id="synth-label" data-i18n="synth.run">توليد الصوت</span>
         </button>
         <div class="synth-progress hidden" id="synth-progress">
           <div class="progress-track">
             <div class="progress-fill indeterminate" id="progress-fill"></div>
           </div>
-          <span class="progress-hint" id="progress-hint">جاري التوليد…</span>
+          <span class="progress-hint" id="progress-hint" data-i18n="synth.running">جاري التوليد…</span>
         </div>
       </div>
 
@@ -141,11 +143,11 @@
 
       <!-- Audio player -->
       <section class="panel-section player-card" id="player-card">
-        <h3 class="section-label">المخرجات</h3>
+        <h3 class="section-label" data-i18n="section.output">المخرجات</h3>
 
         <div class="player-empty" id="player-empty">
           <div class="empty-icon">🔈</div>
-          <p>سيظهر الصوت المولّد هنا بعد الضغط على "توليد الصوت"</p>
+          <p data-i18n="player.empty">سيظهر الصوت المولّد هنا بعد الضغط على "توليد الصوت"</p>
         </div>
 
         <div class="player-content hidden" id="player-content">
@@ -161,7 +163,7 @@
               <span id="tot-time">0:00</span>
             </span>
             <span class="player-badges" id="player-badges"></span>
-            <a class="btn-dl" id="btn-dl" download>⬇ تنزيل</a>
+            <a class="btn-dl" id="btn-dl" download data-i18n="player.download">⬇ تنزيل</a>
           </div>
           <div class="player-insights" id="player-insights"></div>
           <audio id="audio-el" preload="metadata"></audio>
@@ -171,10 +173,10 @@
       <!-- Comparisons library: live + old runs, each expandable inline (hidden until one exists) -->
       <section class="panel-section saved-compare-card" id="saved-compare-card" hidden>
         <div class="history-header">
-          <h3 class="section-label">المقارنة</h3>
+          <h3 class="section-label" data-i18n="section.compare">المقارنة</h3>
           <div class="history-controls">
-            <button class="btn-ghost btn-xs" id="btn-toggle-compares" data-expand="1">فتح الكل</button>
-            <button class="btn-ghost btn-xs" id="btn-clear-compares">مسح الكل</button>
+            <button class="btn-ghost btn-xs" id="btn-toggle-compares" data-expand="1" data-i18n="cmp.expandAll">فتح الكل</button>
+            <button class="btn-ghost btn-xs" id="btn-clear-compares" data-i18n="cmp.clearAll">مسح الكل</button>
           </div>
         </div>
         <div class="saved-compare-list" id="saved-compare-list">
@@ -185,20 +187,20 @@
       <!-- History -->
       <section class="panel-section history-card">
         <div class="history-header">
-          <h3 class="section-label">السجل</h3>
+          <h3 class="section-label" data-i18n="section.history">السجل</h3>
           <div class="history-controls">
-            <button class="btn-ghost btn-xs" id="btn-toggle-history" aria-expanded="true" aria-controls="history-list">طي</button>
+            <button class="btn-ghost btn-xs" id="btn-toggle-history" aria-expanded="true" aria-controls="history-list" data-i18n="hist.collapse">طي</button>
             <select class="filter-select" id="history-filter">
-              <option value="all">كل النماذج</option>
-              <option value="omnivoice_ft">OmniVoice المحسّن</option>
-              <option value="omnivoice_base">OmniVoice الأصلي</option>
+              <option value="all" data-i18n="hist.all">كل النماذج</option>
+              <option value="omnivoice_ft" data-i18n="model.ft.name">OmniVoice المحسّن</option>
+              <option value="omnivoice_base" data-i18n="model.base.name">OmniVoice الأصلي</option>
             </select>
-            <button class="btn-ghost btn-xs" id="btn-clear-history">مسح الكل</button>
+            <button class="btn-ghost btn-xs" id="btn-clear-history" data-i18n="hist.clear">مسح الكل</button>
           </div>
         </div>
         <div class="history-list" id="history-list">
           <div class="history-empty" id="history-empty">
-            <p>لا توجد مقاطع صوتية بعد</p>
+            <p data-i18n="hist.empty">لا توجد مقاطع صوتية بعد</p>
           </div>
         </div>
       </section>
@@ -210,6 +212,7 @@
   <!-- Toast notification -->
   <div class="toast hidden" id="toast"></div>
 
+  <script src="i18n.js?v=1"></script>
   <script src="recorder.js?v=1"></script>
   <script src="app.js?v=30"></script>
 </body>

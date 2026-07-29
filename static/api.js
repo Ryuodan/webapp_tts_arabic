@@ -9,43 +9,41 @@ const ENDPOINTS = [
   {
     method: 'GET',
     path: '/api/status',
-    title: 'حالة جميع العمّال',
-    desc: 'حالة كل نموذج: هل العامل يعمل، وهل حُمِّل النموذج في الذاكرة بعد.',
+    get title() { return t('ep.status.title'); },
+    get desc() { return t('ep.status.desc'); },
     fields: [],
   },
   {
     method: 'POST',
     path: '/api/transcribe',
-    title: 'تفريغ صوتي (Cohere Transcribe Arabic INT8)',
-    desc: 'صوت ← نص عربي أو إنجليزي. يقبل wav/mp3/m4a/webm ويعيد أخذ العينات إلى 16kHz تلقائياً. '
-        + 'المقاطع الأطول من نافذة النموذج تُقسَّم وتُدمج نتائجها تلقائياً.',
+    get title() { return t('ep.tr.title'); },
+    get desc() { return t('ep.tr.desc'); },
     // Pinned in workers/transcribe_server.py — keep the two in step if it ever changes.
     model: {
       name: 'NAMAA-Space/cohere-transcribe-arabic-07-2026-int8',
       url: 'https://huggingface.co/NAMAA-Space/cohere-transcribe-arabic-07-2026-int8',
-      note: 'نسخة NAMAA-Space المكمَّمة (INT8) من نموذج Cohere للتفريغ العربي',
+      get note() { return t('ep.tr.model'); },
     },
     encoding: 'form',
     fields: [
-      { name: 'audio',       type: 'file',   required: true, note: 'ملف صوتي — يخضع لحد حجم الطلب في الخادم' },
-      { name: 'language',    type: 'select', options: ['ar', 'en'], value: 'ar', note: 'النموذج عربي/إنجليزي فقط' },
-      { name: 'punctuation', type: 'select', options: ['true', 'false'], value: 'true', note: 'false ⇐ نص بلا ترقيم' },
+      { name: 'audio',       type: 'file',   required: true, get note() { return t('ep.tr.audio'); } },
+      { name: 'language',    type: 'select', options: ['ar', 'en'], value: 'ar', get note() { return t('ep.tr.lang'); } },
+      { name: 'punctuation', type: 'select', options: ['true', 'false'], value: 'true', get note() { return t('ep.tr.punct'); } },
     ],
     returns: '{ text, language, filename, duration_s, elapsed_s, rtf, sample_rate }',
   },
   {
     method: 'POST',
     path: '/api/{model}/synthesize',
-    title: 'توليد كلام',
-    desc: 'نص ← ملف wav. المعاملات الإضافية تختلف بين النموذجين: '
-        + 'الاسمان أدناه نسختان من OmniVoice (المحسّنة والأصلية) تتشاركان نفس العامل.',
+    get title() { return t('ep.synth.title'); },
+    get desc() { return t('ep.synth.desc'); },
     encoding: 'form',
     fields: [
       { name: 'model',   type: 'select', in: 'path', options: ['omnivoice_ft', 'omnivoice_base'], value: 'omnivoice_ft' },
       { name: 'text',    type: 'text',   required: true, value: 'مرحباً، كيف حالك؟' },
       { name: 'dialect', type: 'select', options: ['msa', 'saudi', 'egyptian'], value: 'msa' },
-      { name: 'voice',   type: 'text',   value: '', note: 'اسم صوت مدمج، أو فارغ لصوت النموذج' },
-      { name: 'gender',  type: 'select', options: ['', 'male', 'female'], value: '', note: 'فارغ = اختيار النموذج' },
+      { name: 'voice',   type: 'text',   value: '', get note() { return t('ep.synth.voice'); } },
+      { name: 'gender',  type: 'select', options: ['', 'male', 'female'], value: '', get note() { return t('ep.synth.gender'); } },
       { name: 'age',     type: 'select', options: ['', 'young', 'middle', 'old'], value: '' },
     ],
     returns: '{ filename, model, model_input, duration_s, elapsed_s, rtf, sample_rate }',
@@ -53,8 +51,8 @@ const ENDPOINTS = [
   {
     method: 'POST',
     path: '/api/{model}/load',
-    title: 'تحميل نموذج مسبقاً',
-    desc: 'يحمّل أوزان النموذج في الذاكرة الآن بدل انتظار أول طلب. مفيد لتفادي بطء أول استدعاء.',
+    get title() { return t('ep.load.title'); },
+    get desc() { return t('ep.load.desc'); },
     fields: [
       { name: 'model', type: 'select', in: 'path', options: ['omnivoice_ft', 'omnivoice_base', 'transcribe'], value: 'transcribe' },
     ],
@@ -62,8 +60,8 @@ const ENDPOINTS = [
   {
     method: 'GET',
     path: '/api/{model}/status',
-    title: 'حالة نموذج واحد',
-    desc: 'نفس محتوى ‎/api/status‎ لكن لنموذج بعينه.',
+    get title() { return t('ep.one.title'); },
+    get desc() { return t('ep.one.desc'); },
     fields: [
       { name: 'model', type: 'select', in: 'path', options: ['omnivoice_ft', 'omnivoice_base', 'transcribe'], value: 'transcribe' },
     ],
@@ -71,8 +69,8 @@ const ENDPOINTS = [
   {
     method: 'GET',
     path: '/api/{model}/history',
-    title: 'سجل المخرجات',
-    desc: 'آخر الملفات المحفوظة على الخادم مع مدخلاتها. لـ transcribe يحتوي الحقل text على النص المُفرَّغ.',
+    get title() { return t('ep.hist.title'); },
+    get desc() { return t('ep.hist.desc'); },
     fields: [
       { name: 'model', type: 'select', in: 'path', options: ['omnivoice_ft', 'omnivoice_base', 'transcribe'], value: 'transcribe' },
       { name: 'limit', type: 'text', in: 'query', value: '10' },
@@ -82,8 +80,8 @@ const ENDPOINTS = [
   {
     method: 'POST',
     path: '/api/prepare',
-    title: 'تحضير النص (وكيل)',
-    desc: 'يحوّل الأرقام والتواريخ والاختصارات إلى كلمات منطوقة، ويضيف التشكيل اختيارياً. يعمل على النص فقط.',
+    get title() { return t('ep.prep.title'); },
+    get desc() { return t('ep.prep.desc'); },
     encoding: 'json',
     fields: [
       { name: 'text',       type: 'text',   required: true, value: 'الموعد 15/3/2026 الساعة 9:30 صباحاً' },
@@ -96,8 +94,8 @@ const ENDPOINTS = [
   {
     method: 'POST',
     path: '/api/compose',
-    title: 'التأليف التلقائي (وكيل)',
-    desc: 'يكتب نصاً عربياً للمهمة المطلوبة ويضبط إعدادات النموذجين. يتطلب OPENAI_API_KEY على الخادم.',
+    get title() { return t('ep.compose.title'); },
+    get desc() { return t('ep.compose.desc'); },
     encoding: 'json',
     fields: [
       { name: 'job',     type: 'select', required: true,
@@ -112,8 +110,8 @@ const ENDPOINTS = [
   {
     method: 'GET',
     path: '/audio/{model}/{filename}',
-    title: 'تنزيل ملف صوتي',
-    desc: 'يخدم أي ملف يظهر في السجل أو في ردّ التوليد/التفريغ. رابط مباشر — لا حاجة لتجربته من هنا.',
+    get title() { return t('ep.audio.title'); },
+    get desc() { return t('ep.audio.desc'); },
     fields: [
       { name: 'model',    type: 'select', in: 'path', options: ['omnivoice_ft', 'omnivoice_base', 'transcribe'], value: 'omnivoice_ft' },
       { name: 'filename', type: 'text',   in: 'path', value: 'omnivoice_xxxxxxxxxxxx.wav' },
@@ -201,11 +199,11 @@ function fieldControlHtml(f) {
   if (f.type === 'file')   return `
     <span class="api-file">
       <input type="file" name="${f.name}" accept="audio/*">
-      <button type="button" class="api-mic" hidden>🎙 سجّل</button>
+      <button type="button" class="api-mic" hidden>${t('tr.record')}</button>
       <span class="api-mic-state"></span>
     </span>`;
   if (f.type === 'select') return `<select name="${f.name}">${f.options.map(o =>
-    `<option value="${escapeHtml(o)}" ${o === f.value ? 'selected' : ''}>${escapeHtml(o || '(فارغ)')}</option>`
+    `<option value="${escapeHtml(o)}" ${o === f.value ? 'selected' : ''}>${escapeHtml(o || t('api.emptyOpt'))}</option>`
   ).join('')}</select>`;
   return `<input type="text" name="${f.name}" value="${escapeHtml(f.value ?? '')}" dir="auto">`;
 }
@@ -235,20 +233,20 @@ function cardHtml(spec) {
       <p class="api-desc">${escapeHtml(spec.desc)}</p>
       ${spec.model ? `
         <div class="api-model">
-          <span>النموذج</span>
+          <span>${t('api.model')}</span>
           <a href="${escapeHtml(spec.model.url)}" target="_blank" rel="noopener noreferrer"
              dir="ltr">${escapeHtml(spec.model.name)}</a>
           ${spec.model.note ? `<small>${escapeHtml(spec.model.note)}</small>` : ''}
         </div>` : ''}
-      ${spec.returns ? `<div class="api-returns"><span>يعيد</span><code>${escapeHtml(spec.returns)}</code></div>` : ''}
+      ${spec.returns ? `<div class="api-returns"><span>${t('api.returns')}</span><code>${escapeHtml(spec.returns)}</code></div>` : ''}
       <form class="api-form" data-id="${id}">
         ${spec.fields.map(fieldRowHtml).join('')}
-        ${spec.noTry ? '' : `<button type="submit" class="btn-prep api-run">▷ جرّب الآن</button>`}
+        ${spec.noTry ? '' : `<button type="submit" class="btn-prep api-run">${t('api.try')}</button>`}
       </form>
       <div class="api-curl">
         <div class="api-curl-head">
           <span>curl</span>
-          <button type="button" class="btn-ghost btn-xs api-copy">نسخ</button>
+          <button type="button" class="btn-ghost btn-xs api-copy">${t('api.copy')}</button>
         </div>
         <pre dir="ltr"><code class="api-curl-body"></code></pre>
       </div>
@@ -271,12 +269,12 @@ async function runEndpoint(spec, card) {
   const missing = spec.fields.find(f => f.required &&
     (f.type === 'file' ? !(values[f.name] instanceof File) : !String(values[f.name] ?? '').trim()));
   if (missing) {
-    showResponse(card, 0, `الحقل المطلوب "${missing.name}" فارغ`, 0);
+    showResponse(card, 0, t('api.missingField', { name: missing.name }), 0);
     return;
   }
 
   btn.disabled = true;
-  btn.textContent = '… جاري التنفيذ';
+  btn.textContent = t('api.running');
   box.hidden = false;
   const t0 = performance.now();
   try {
@@ -296,7 +294,7 @@ async function runEndpoint(spec, card) {
     showResponse(card, 0, String(e.message || e), performance.now() - t0);
   } finally {
     btn.disabled = false;
-    btn.textContent = '▷ جرّب الآن';
+    btn.textContent = t('api.try');
   }
 }
 
@@ -305,7 +303,7 @@ function showResponse(card, status, text, ms, parsed = null) {
   box.hidden = false;
   const ok = status >= 200 && status < 300;
   const statusEl = box.querySelector('.api-status');
-  statusEl.textContent = status ? `HTTP ${status}` : 'فشل الطلب';
+  statusEl.textContent = status ? `HTTP ${status}` : t('api.failed');
   statusEl.className = `api-status ${ok ? 'ok' : 'err'}`;
   box.querySelector('.api-timing').textContent = ms ? `${(ms / 1000).toFixed(2)}s` : '';
   box.querySelector('.api-response-body').textContent = text;
@@ -331,7 +329,7 @@ function wireMic(card, onChange) {
   let timer = null;
 
   const idle = () => {
-    btn.textContent = '🎙 سجّل';
+    btn.textContent = t('tr.record');
     btn.classList.remove('recording');
     clearInterval(timer);
     timer = null;
@@ -360,7 +358,7 @@ function wireMic(card, onChange) {
       state.textContent = e.message;   // already an Arabic, actionable reason
       return;
     }
-    btn.textContent = '⏹ إيقاف';
+    btn.textContent = t('tr.stop');
     btn.classList.add('recording');
     timer = setInterval(() => {
       state.textContent = `● ${MicRecorder.fmtElapsed(Date.now() - handle.startedAt)}`;
@@ -369,7 +367,11 @@ function wireMic(card, onChange) {
 }
 
 // ── Init ──────────────────────────────────────────────────────
-function init() {
+// The cards are template strings, not data-i18n nodes, so a language flip rebuilds them
+// wholesale. Any recorded clip or typed value is discarded with the old markup — an
+// acceptable trade on a playground, and the alternative (tagging every generated node)
+// would not survive the next endpoint added to the catalogue.
+function render() {
   $('api-base').textContent = window.location.origin;
   $('api-list').innerHTML = ENDPOINTS.map(cardHtml).join('');
 
@@ -389,10 +391,19 @@ function init() {
     });
     card.querySelector('.api-copy').addEventListener('click', e => {
       navigator.clipboard.writeText(curl.textContent);
-      e.currentTarget.textContent = 'تم النسخ ✓';
-      setTimeout(() => { e.currentTarget.textContent = 'نسخ'; }, 1500);
+      e.currentTarget.textContent = t('api.copied');
+      setTimeout(() => { e.currentTarget.textContent = t('api.copy'); }, 1500);
     });
   }
+}
+
+function init() {
+  I18N.apply();                       // paint the stored language before the first render
+  render();
+
+  const toggle = $('lang-toggle');
+  if (toggle) toggle.addEventListener('click', () => I18N.set(I18N.other()));
+  document.addEventListener('languagechange', () => { render(); I18N.apply(); });
 }
 
 document.addEventListener('DOMContentLoaded', init);

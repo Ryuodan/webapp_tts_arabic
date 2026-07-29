@@ -343,6 +343,18 @@ textarea { resize: vertical; }
   .prep-toggle.recording { animation: none; }
 }
 
+/* Interface-language switch. Sits with the header controls; the glyph is the language it
+   switches *to*, so it reads as an action rather than a status. */
+.lang-toggle {
+  min-width: 34px;
+  padding: 4px 10px;
+  font: inherit; font-size: .72rem; font-weight: 700;
+  color: var(--txt2); background: var(--bg3);
+  border: 1px solid var(--border); border-radius: 14px;
+  cursor: pointer; transition: var(--transition);
+}
+.lang-toggle:hover { color: var(--txt); border-color: var(--border2); }
+
 /* Which checkpoint is answering, linked to its model card. */
 .model-credit {
   display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;
