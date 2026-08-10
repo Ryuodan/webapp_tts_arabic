@@ -33,6 +33,7 @@ const ENDPOINTS = [
   {
     method: 'POST',
     path: '/api/transcribe',
+    slow: true,
     get title() { return t('ep.tr.title'); },
     get desc() { return t('ep.tr.desc'); },
     // Pinned in workers/transcribe_server.py — keep the two in step if it ever changes.
@@ -52,6 +53,7 @@ const ENDPOINTS = [
   {
     method: 'POST',
     path: '/api/{model}/synthesize',
+    slow: true, saves: 'wav',
     get title() { return t('ep.synth.title'); },
     get desc() { return t('ep.synth.desc'); },
     encoding: 'form',
@@ -69,6 +71,7 @@ const ENDPOINTS = [
   {
     method: 'POST',
     path: '/api/{model}/load',
+    slow: true,
     get title() { return t('ep.load.title'); },
     get desc() { return t('ep.load.desc'); },
     fields: [
@@ -128,6 +131,7 @@ const ENDPOINTS = [
   {
     method: 'GET',
     path: '/audio/{model}/{filename}',
+    binary: true,
     get title() { return t('ep.audio.title'); },
     get desc() { return t('ep.audio.desc'); },
     fields: [
@@ -172,10 +176,12 @@ function buildUrl(spec, values) {
 }
 
 // Body fields, minus the ones the user left empty (the server applies its own defaults).
+// A required file is the exception: it stays in so the snippets show the -F/files= line
+// before anything is picked, since a command copied without it just 422s.
 function bodyEntries(spec, values) {
   return fieldsIn(spec, 'body').filter(f => {
     const v = values[f.name];
-    return f.type === 'file' ? v instanceof File : str(v).trim() !== '';
+    return f.type === 'file' ? (v instanceof File || !!f.required) : str(v).trim() !== '';
   });
 }
 
@@ -192,7 +198,11 @@ function buildBody(spec, values) {
   const fd = new FormData();
   for (const f of entries) {
     const v = values[f.name];
-    v instanceof File ? fd.append(f.name, v, v.name) : fd.append(f.name, v);
+    if (f.type === 'file') {
+      if (v instanceof File) fd.append(f.name, v, v.name);   // the placeholder is snippet-only
+    } else {
+      fd.append(f.name, v);
+    }
   }
   return fd;
 }
@@ -214,6 +224,62 @@ function buildCurl(spec, values) {
     }
   }
   return parts.join(' \\\n     ');
+}
+
+// The same request as the curl line, in the shape most callers actually integrate. Two
+// things the raw JSON response only hints at are spelled out here: the long timeout a
+// cold model load needs, and the second call that fetches the wav /synthesize wrote.
+const pyStr = v => JSON.stringify(str(v));
+const fileArg = v => v instanceof File ? v.name : 'audio.wav';
+
+function buildPython(spec, values) {
+  const entries = bodyEntries(spec, values);
+  const files = entries.filter(f => f.type === 'file');
+  const plain = entries.filter(f => f.type !== 'file');
+  const lines = ['import requests', '',
+                 `BASE = ${pyStr(window.location.origin)}`,
+                 `url = BASE + ${pyStr(buildUrl(spec, values))}`, ''];
+  const args = ['url'];
+
+  if (spec.encoding === 'json' && plain.length) {
+    lines.push('payload = {');
+    for (const f of plain) {
+      const v = f.json === 'bool' ? (values[f.name] === 'true' ? 'True' : 'False')
+                                  : pyStr(values[f.name]);
+      lines.push(`    ${pyStr(f.name)}: ${v},`);
+    }
+    lines.push('}', '');
+    args.push('json=payload');
+  } else if (plain.length) {
+    // Fields left empty are omitted, exactly as the form posts them — the server defaults.
+    lines.push('data = {');
+    for (const f of plain) lines.push(`    ${pyStr(f.name)}: ${pyStr(values[f.name])},`);
+    lines.push('}', '');
+    args.push('data=data');
+  }
+  if (files.length) {
+    lines.push(`files = {${files.map(f =>
+      `${pyStr(f.name)}: open(${pyStr(fileArg(values[f.name]))}, "rb")`).join(', ')}}`, '');
+    args.push('files=files');
+  }
+
+  if (spec.slow) lines.push(`# ${t('api.pyTimeout')}`);
+  args.push(`timeout=${spec.slow ? 900 : 30}`);
+  lines.push(`r = requests.${spec.method.toLowerCase()}(${args.join(', ')})`,
+             'r.raise_for_status()');
+
+  if (spec.binary) {
+    lines.push('', `with open("audio.wav", "wb") as f:`, '    f.write(r.content)');
+  } else if (spec.saves === 'wav') {
+    lines.push('info = r.json()', 'print(info)', '',
+               `# ${t('api.pyDownload')}`,
+               'audio = requests.get(BASE + f"/audio/{info[\'model\']}/{info[\'filename\']}", timeout=300)',
+               'audio.raise_for_status()',
+               'with open("out.wav", "wb") as f:', '    f.write(audio.content)');
+  } else {
+    lines.push('print(r.json())');
+  }
+  return lines.join('\n');
 }
 
 // ── Rendering ─────────────────────────────────────────────────
@@ -267,12 +333,16 @@ function cardHtml(spec) {
         ${spec.fields.map(fieldRowHtml).join('')}
         ${spec.noTry ? '' : `<button type="submit" class="btn-prep api-run">${t('api.try')}</button>`}
       </form>
-      <div class="api-curl">
-        <div class="api-curl-head">
-          <span>curl</span>
+      <div class="api-snippets">
+        <div class="api-snippet-head">
+          <div class="api-tabs" role="tablist">
+            <button type="button" class="api-tab active" data-lang="curl">curl</button>
+            <button type="button" class="api-tab" data-lang="python">Python</button>
+          </div>
           <button type="button" class="btn-ghost btn-xs api-copy">${t('api.copy')}</button>
         </div>
-        <pre dir="ltr"><code class="api-curl-body"></code></pre>
+        <pre dir="ltr" data-lang="curl"><code class="api-snippet"></code></pre>
+        <pre dir="ltr" data-lang="python" hidden><code class="api-snippet"></code></pre>
       </div>
       <div class="api-response" hidden>
         <div class="api-response-head"><span class="api-status"></span><span class="api-timing"></span></div>
@@ -391,6 +461,19 @@ function wireMic(card, onChange) {
 }
 
 // ── Init ──────────────────────────────────────────────────────
+// Which snippet language is on show is a page-wide preference: a reader who wants Python
+// wants it on every card, so flipping one tab flips them all.
+let snippetLang = 'curl';
+
+function showSnippet(card) {
+  for (const tab of card.querySelectorAll('.api-tab')) {
+    tab.classList.toggle('active', tab.dataset.lang === snippetLang);
+  }
+  for (const pane of card.querySelectorAll('.api-snippets pre')) {
+    pane.hidden = pane.dataset.lang !== snippetLang;
+  }
+}
+
 // The cards are template strings, not data-i18n nodes, so a language flip rebuilds them
 // wholesale. Any recorded clip or typed value is discarded with the old markup — an
 // acceptable trade on a playground, and the alternative (tagging every generated node)
@@ -402,10 +485,18 @@ function render() {
   for (const spec of ENDPOINTS) {
     const card = $(`card-${slug(spec)}`);
     const form = card.querySelector('.api-form');
-    const curl = card.querySelector('.api-curl-body');
-    const refresh = () => { curl.textContent = buildCurl(spec, readValues(spec, form)); };
+    const panes = card.querySelectorAll('.api-snippets pre');
+    const build = { curl: buildCurl, python: buildPython };
+    const refresh = () => {
+      const values = readValues(spec, form);
+      for (const pane of panes) {
+        pane.querySelector('.api-snippet').textContent = build[pane.dataset.lang](spec, values);
+      }
+    };
+    const shown = () => card.querySelector('.api-snippets pre:not([hidden])');
 
     refresh();
+    showSnippet(card);
     wireMic(card, refresh);
     form.addEventListener('input', refresh);
     form.addEventListener('change', refresh);
@@ -413,8 +504,15 @@ function render() {
       e.preventDefault();
       if (!spec.noTry) runEndpoint(spec, card);
     });
+    for (const tab of card.querySelectorAll('.api-tab')) {
+      tab.addEventListener('click', () => {
+        snippetLang = tab.dataset.lang;   // one choice for the page, not per card
+        for (const c of document.querySelectorAll('.api-card')) showSnippet(c);
+      });
+    }
+
     card.querySelector('.api-copy').addEventListener('click', e => {
-      navigator.clipboard.writeText(curl.textContent);
+      navigator.clipboard.writeText(shown().querySelector('.api-snippet').textContent);
       e.currentTarget.textContent = t('api.copied');
       setTimeout(() => { e.currentTarget.textContent = t('api.copy'); }, 1500);
     });
