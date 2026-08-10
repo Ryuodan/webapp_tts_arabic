@@ -1,5 +1,22 @@
 'use strict';
 
+// ── Built-in voices ───────────────────────────────────────────
+// `voice` on /synthesize is a closed set — the ids under voices/ on the server — so it
+// renders as a dropdown instead of a free-text box the caller has to guess at. The list
+// here is what the repo ships; refreshVoices() swaps in whatever the worker actually
+// loaded, so a voice dropped into voices/ needs no edit to this file.
+let VOICE_IDS = ['abeer', 'ahmed'];
+const VOICE_LABELS = { abeer: 'voice.abeer', ahmed: 'voice.ahmed' };
+
+function voiceOptions() {
+  const opts = [{ value: '', get label() { return t('voice.none'); } }];
+  for (const id of VOICE_IDS) {
+    const key = VOICE_LABELS[id];
+    opts.push({ value: id, label: key ? `${id} — ${t(key)}` : id });
+  }
+  return opts;
+}
+
 // ── Endpoint catalogue ────────────────────────────────────────
 // One spec per endpoint drives everything on the page: the parameter table,
 // the curl snippet and the live try-it form. Adding an endpoint = adding an entry.
@@ -42,7 +59,8 @@ const ENDPOINTS = [
       { name: 'model',   type: 'select', in: 'path', options: ['omnivoice_ft', 'omnivoice_base'], value: 'omnivoice_ft' },
       { name: 'text',    type: 'text',   required: true, value: 'مرحباً، كيف حالك؟' },
       { name: 'dialect', type: 'select', options: ['msa', 'saudi', 'egyptian'], value: 'msa' },
-      { name: 'voice',   type: 'text',   value: '', get note() { return t('ep.synth.voice'); } },
+      { name: 'voice',   type: 'select', get options() { return voiceOptions(); }, value: '',
+        get note() { return t('ep.synth.voice'); } },
       { name: 'gender',  type: 'select', options: ['', 'male', 'female'], value: '', get note() { return t('ep.synth.gender'); } },
       { name: 'age',     type: 'select', options: ['', 'young', 'middle', 'old'], value: '' },
     ],
@@ -121,8 +139,14 @@ const ENDPOINTS = [
 ];
 
 const $ = id => document.getElementById(id);
-const escapeHtml = v => String(v ?? '').replace(/[&<>"']/g,
+const str = v => (v === null || v === undefined) ? '' : String(v);
+const escapeHtml = v => str(v).replace(/[&<>"']/g,
   c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// A select option is either a bare value or a {value, label} pair with a friendlier name.
+const isPair = o => o !== null && typeof o === 'object';
+const optValue = o => isPair(o) ? o.value : o;
+const optLabel = o => (isPair(o) ? o.label : o) || t('api.emptyOpt');
 
 const fieldsIn = (spec, where) => spec.fields.filter(f => (f.in || 'body') === where);
 const slug = spec => `${spec.method}-${spec.path}`.replace(/[^a-z0-9]+/gi, '-').toLowerCase();
@@ -134,15 +158,15 @@ function readValues(spec, form) {
   for (const f of spec.fields) {
     const el = form ? form.querySelector(`[name="${f.name}"]`) : null;
     out[f.name] = f.type === 'file' ? (el && el.files[0]) || null
-                                    : (el ? el.value : (f.value ?? ''));
+                                    : (el ? el.value : str(f.value));
   }
   return out;
 }
 
 function buildUrl(spec, values) {
-  let path = spec.path.replace(/\{(\w+)\}/g, (_, k) => encodeURIComponent(values[k] ?? ''));
+  let path = spec.path.replace(/\{(\w+)\}/g, (_, k) => encodeURIComponent(str(values[k])));
   const query = fieldsIn(spec, 'query')
-    .filter(f => String(values[f.name] ?? '').trim())
+    .filter(f => str(values[f.name]).trim())
     .map(f => `${f.name}=${encodeURIComponent(values[f.name])}`);
   return query.length ? `${path}?${query.join('&')}` : path;
 }
@@ -151,7 +175,7 @@ function buildUrl(spec, values) {
 function bodyEntries(spec, values) {
   return fieldsIn(spec, 'body').filter(f => {
     const v = values[f.name];
-    return f.type === 'file' ? v instanceof File : String(v ?? '').trim() !== '';
+    return f.type === 'file' ? v instanceof File : str(v).trim() !== '';
   });
 }
 
@@ -203,9 +227,9 @@ function fieldControlHtml(f) {
       <span class="api-mic-state"></span>
     </span>`;
   if (f.type === 'select') return `<select name="${f.name}">${f.options.map(o =>
-    `<option value="${escapeHtml(o)}" ${o === f.value ? 'selected' : ''}>${escapeHtml(o || t('api.emptyOpt'))}</option>`
+    `<option value="${escapeHtml(optValue(o))}" ${optValue(o) === f.value ? 'selected' : ''}>${escapeHtml(optLabel(o))}</option>`
   ).join('')}</select>`;
-  return `<input type="text" name="${f.name}" value="${escapeHtml(f.value ?? '')}" dir="auto">`;
+  return `<input type="text" name="${f.name}" value="${escapeHtml(f.value)}" dir="auto">`;
 }
 
 function fieldRowHtml(f) {
@@ -267,7 +291,7 @@ async function runEndpoint(spec, card) {
   const values = readValues(spec, form);
 
   const missing = spec.fields.find(f => f.required &&
-    (f.type === 'file' ? !(values[f.name] instanceof File) : !String(values[f.name] ?? '').trim()));
+    (f.type === 'file' ? !(values[f.name] instanceof File) : !str(values[f.name]).trim()));
   if (missing) {
     showResponse(card, 0, t('api.missingField', { name: missing.name }), 0);
     return;
@@ -397,9 +421,24 @@ function render() {
   }
 }
 
+// The worker reports the voices it loaded off disk; anything else leaves the bundled
+// list standing, so an offline worker still shows a usable dropdown.
+function refreshVoices() {
+  return fetch('/api/omnivoice_ft/status')
+    .then(r => r.json())
+    .then(health => {
+      const ids = Array.isArray(health.voices) ? health.voices : [];
+      if (!ids.length || ids.join() === VOICE_IDS.join()) return;
+      VOICE_IDS = ids;
+      render();                       // repaints every card; only fires when the list differs
+    })
+    .catch(() => {});
+}
+
 function init() {
   I18N.apply();                       // paint the stored language before the first render
   render();
+  refreshVoices();
 
   const toggle = $('lang-toggle');
   if (toggle) toggle.addEventListener('click', () => I18N.set(I18N.other()));

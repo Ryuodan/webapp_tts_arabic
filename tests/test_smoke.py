@@ -147,6 +147,16 @@ def test_frontend_is_reachable(stack, path):
 
 
 @pytest.mark.slow
+@pytest.mark.parametrize("path", ["/api", "/api/"])
+def test_api_docs_shortcut_redirects_to_the_page(stack, path):
+    """Relative Location only — nginx strips /arabic-tts/, so an absolute one escapes it."""
+    r = httpx.get(f"{stack}{path}", timeout=5, follow_redirects=False)
+    assert r.status_code == 302
+    assert not r.headers["location"].startswith("/")
+    assert httpx.get(f"{stack}{path}", timeout=5).status_code == 200
+
+
+@pytest.mark.slow
 def test_offline_workers_degrade_instead_of_erroring(stack):
     r = httpx.post(f"{stack}/api/omnivoice/synthesize", data={"text": "مرحباً"}, timeout=10)
     assert r.status_code == 503 and "start.sh" in r.json()["detail"]

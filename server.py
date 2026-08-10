@@ -12,7 +12,7 @@ from typing import Optional
 import httpx
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 BASE_DIR  = pathlib.Path(__file__).parent
@@ -322,6 +322,20 @@ async def prepare(request: Request):
     except Exception as e:                     # OpenAI / validation failure
         raise HTTPException(502, f"Prepare failed: {e}")
     return JSONResponse(result)
+
+
+@app.get("/api", include_in_schema=False)
+@app.get("/api/", include_in_schema=False)
+async def api_docs(request: Request):
+    """/api/ is where people look for the docs; the page itself is static/api.html.
+
+    Redirect rather than serve the file here: api.html links its CSS/JS relatively,
+    so served under /api/ every asset would 404. The target must stay relative too —
+    nginx proxy_passes with a trailing slash, so the app never sees the /arabic-tts/
+    prefix and an absolute /api.html would send the browser to the wrong host root.
+    """
+    target = "../api.html" if request.url.path.endswith("/") else "api.html"
+    return RedirectResponse(target, status_code=302)
 
 
 # Serve frontend — must be last so API routes take priority
