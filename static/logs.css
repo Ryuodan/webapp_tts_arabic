@@ -1,0 +1,139 @@
+/* Request-log console — layers on top of style.css (palette, header, buttons). */
+
+.logs-page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 20px 16px 60px;
+}
+.logs-intro { font-size: .82rem; color: var(--txt2); line-height: 1.9; margin-bottom: 14px; }
+
+/* ── Toolbar ───────────────────────────────────────────────── */
+.logs-toolbar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 12px; margin-bottom: 14px;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.logs-toolbar-label { font-size: .72rem; color: var(--txt3); }
+.logs-windows { display: flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.logs-windows button {
+  padding: 4px 12px; font-size: .72rem; color: var(--txt2);
+  background: var(--bg3); transition: var(--transition);
+}
+.logs-windows button + button { border-inline-start: 1px solid var(--border); }
+.logs-windows button:hover { color: var(--txt); }
+.logs-windows button.on { background: var(--omni-dim); color: var(--omni); }
+.logs-auto { display: flex; align-items: center; gap: 5px; font-size: .72rem; color: var(--txt2); cursor: pointer; }
+.logs-auto input { accent-color: var(--omni); cursor: pointer; }
+.logs-stored { margin-inline-start: auto; font-size: .68rem; color: var(--txt3); }
+.logs-danger:hover { border-color: var(--red); color: var(--red); }
+
+.logs-banner {
+  padding: 8px 12px; margin-bottom: 14px;
+  background: rgba(248,81,73,.08); border: 1px solid var(--red); border-radius: var(--radius);
+  font-size: .76rem; color: var(--red);
+}
+
+/* ── Headline tiles ────────────────────────────────────────── */
+.logs-tiles {
+  display: grid; gap: 10px; margin-bottom: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+.logs-tile {
+  padding: 10px 12px;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
+}
+.logs-tile-label { font-size: .68rem; color: var(--txt3); }
+.logs-tile-value { font-size: 1.15rem; font-weight: 600; color: var(--txt); margin-top: 3px; direction: ltr; text-align: start; }
+.logs-tile-sub { font-size: .65rem; color: var(--txt3); margin-top: 2px; direction: ltr; text-align: start; }
+.logs-tile.bad .logs-tile-value { color: var(--red); }
+
+/* ── Panels ────────────────────────────────────────────────── */
+.logs-panel {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 12px; margin-bottom: 14px;
+}
+.logs-panel-title { font-size: .74rem; font-weight: 600; color: var(--txt2); margin-bottom: 10px; }
+
+/* ── Timeline ──────────────────────────────────────────────── */
+/* Pure CSS bars: one column per bucket, height scaled to the busiest one. The error
+   share stacks under the success share so a spike of failures is visible at a glance. */
+.logs-timeline {
+  display: flex; align-items: flex-end; gap: 2px;
+  height: 110px; padding-bottom: 16px; position: relative;
+}
+.logs-bar { flex: 1; min-width: 2px; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; }
+.logs-bar-ok  { background: var(--omni); border-radius: 2px 2px 0 0; min-height: 1px; }
+.logs-bar-err { background: var(--red); }
+.logs-bar.empty { background: var(--bg4); height: 1px; align-self: flex-end; border-radius: 1px; }
+.logs-axis {
+  position: absolute; inset-inline: 0; bottom: 0;
+  display: flex; justify-content: space-between;
+  font-size: .6rem; color: var(--txt3); direction: ltr;
+}
+
+/* ── Tables ────────────────────────────────────────────────── */
+.logs-table-wrap { overflow-x: auto; }
+.logs-table { width: 100%; border-collapse: collapse; font-size: .72rem; }
+.logs-table th {
+  text-align: start; font-weight: 500; color: var(--txt3);
+  padding: 5px 8px; border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+.logs-table td { padding: 6px 8px; border-bottom: 1px solid var(--bg3); color: var(--txt2); white-space: nowrap; }
+.logs-table tr:last-child td { border-bottom: none; }
+.logs-table .num { direction: ltr; text-align: start; font-variant-numeric: tabular-nums; }
+.logs-table .route { direction: ltr; text-align: start; color: var(--txt); }
+.logs-table .bad { color: var(--red); }
+
+/* ── Filters ───────────────────────────────────────────────── */
+.logs-filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+.logs-filters select, .logs-filters input {
+  padding: 5px 8px; font-size: .72rem;
+  background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--txt);
+}
+.logs-filters input { flex: 1; min-width: 160px; }
+.logs-count { font-size: .68rem; color: var(--txt3); margin-inline-start: auto; }
+
+/* ── Request rows ──────────────────────────────────────────── */
+.logs-rows { display: flex; flex-direction: column; }
+.logs-empty { padding: 18px; text-align: center; font-size: .74rem; color: var(--txt3); }
+
+.logs-row { border-bottom: 1px solid var(--bg3); }
+.logs-row-head {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 7px 4px; text-align: start; transition: var(--transition);
+}
+.logs-row-head:hover { background: var(--bg3); }
+.logs-row.open .logs-row-head { background: var(--bg3); }
+.logs-time { font-size: .68rem; color: var(--txt3); direction: ltr; font-variant-numeric: tabular-nums; }
+.logs-method {
+  font-size: .62rem; font-weight: 700; letter-spacing: .04em; direction: ltr;
+  padding: 1px 6px; border-radius: 3px; background: var(--bg4); color: var(--txt2);
+}
+.logs-method.m-get    { background: rgba(88,166,255,.14); color: #58a6ff; }
+.logs-method.m-post   { background: rgba(63,185,80,.14);  color: var(--green); }
+.logs-method.m-delete { background: rgba(248,81,73,.14);  color: var(--red); }
+.logs-path {
+  direction: ltr; font-size: .72rem; color: var(--txt);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1;
+}
+.logs-status { font-size: .68rem; font-weight: 700; direction: ltr; }
+.logs-status.ok  { color: var(--green); }
+.logs-status.err { color: var(--red); }
+.logs-took { font-size: .68rem; color: var(--txt2); direction: ltr; font-variant-numeric: tabular-nums; min-width: 56px; text-align: end; }
+
+.logs-detail { padding: 4px 10px 14px; display: grid; gap: 10px; }
+.logs-detail-meta { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: .68rem; color: var(--txt3); }
+.logs-detail-meta b { color: var(--txt2); font-weight: 500; }
+.logs-detail-meta span { direction: ltr; }
+.logs-block-label { font-size: .68rem; color: var(--txt3); margin-bottom: 4px; }
+.logs-detail pre {
+  margin: 0; padding: 9px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+  font-size: .71rem; line-height: 1.7; color: var(--txt2);
+  white-space: pre-wrap; word-break: break-word;
+  max-height: 260px; overflow: auto; direction: ltr; text-align: start;
+}
+.logs-detail pre.err { border-color: var(--red); color: var(--red); }
+.logs-detail audio { width: 100%; }
+.logs-more { display: block; margin: 10px auto 0; }

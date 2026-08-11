@@ -140,7 +140,8 @@ def test_warm_up_and_per_model_status(stack):
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize("path", ["/", "/api.html", "/app.js", "/api.js", "/api.css"])
+@pytest.mark.parametrize("path", ["/", "/api.html", "/logs.html", "/app.js", "/api.js",
+                                  "/api.css", "/logs.js", "/logs.css"])
 def test_frontend_is_reachable(stack, path):
     r = httpx.get(f"{stack}{path}", timeout=5)
     assert r.status_code == 200 and r.content

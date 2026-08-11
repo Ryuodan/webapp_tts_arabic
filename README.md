@@ -54,9 +54,10 @@ minutes and ~6–7 GB RAM).
 ## Architecture
 
 ```
-static/           frontend (vanilla JS, RTL Arabic UI)
+static/           frontend (vanilla JS, RTL Arabic UI) — studio, API console, log console
 server.py         gateway :8025 — serves the frontend, proxies /api/* to workers,
                   keeps only one heavyweight model in RAM (single-model mode)
+reqlog.py         request log: body summarising, SQLite store, ASGI middleware
 workers/          omnivoice_server.py :8082 — the only active worker; handles both
                   model variants (`variant` form field) and built-in voices
 compose.py        ✨ Auto-Compose agent: job + persona -> Arabic script + settings
@@ -68,6 +69,26 @@ models/omnivoice/ fine-tuned checkpoint (split parts + metadata + assembly docs)
 Key endpoints: `POST /api/{model}/synthesize` (`model` ∈ `omnivoice_ft`,
 `omnivoice_base`), `GET /api/status`, `GET /api/{model}/history`,
 `GET /audio/{model}/{file}`, `POST /api/compose`, `POST /api/prepare`.
+
+## Request log — 📊 سجل الطلبات
+
+Every `/api/` call the gateway serves is recorded and browsable at
+**[logs.html](static/logs.html)** (linked from the header of both other pages):
+
+- **Usage** — request volume over time, per-endpoint call counts, error counts,
+  average/median/p95/slowest response times, bytes in and out.
+- **Per request** — what was sent, what came back, the HTTP status, the elapsed
+  time and the caller, filterable by endpoint, status, time window or free text.
+  Rows for a synthesis carry a player for the wav that call produced.
+
+Storage is a SQLite file at `$TTS_WORKDIR/logs/requests.db`, capped at
+`TTS_LOG_RETENTION` rows (default 5000). **Uploaded audio is never stored** — a
+file part is reduced to its name, type and size, text fields are clipped, and the
+UI's status-polling calls are skipped unless `TTS_LOG_STATUS_POLLS=1`. Set
+`TTS_LOG_REQUESTS=0` to turn the whole thing off; see [.env.example](.env.example).
+
+The same data is available over HTTP: `GET /api/logs`, `GET /api/logs/stats`,
+`GET /api/logs/{id}`, `DELETE /api/logs`.
 
 ## The fine-tuned checkpoint
 

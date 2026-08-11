@@ -6,6 +6,7 @@ import asyncio
 import json
 import os
 import pathlib
+import time
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -14,6 +15,8 @@ import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+
+from reqlog import RequestLog, RequestLogMiddleware
 
 BASE_DIR  = pathlib.Path(__file__).parent
 STATIC    = BASE_DIR / "static"
@@ -52,8 +55,40 @@ MODEL_VARIANT = {
     "omnivoice_base": "base",
 }
 
-SINGLE_MODEL_MODE = os.getenv("TTS_SINGLE_MODEL", "1").lower() not in {"0", "false", "no", "off"}
+
+def _flag(name: str, default: str = "1") -> bool:
+    return os.getenv(name, default).lower() not in {"0", "false", "no", "off"}
+
+
+SINGLE_MODEL_MODE = _flag("TTS_SINGLE_MODEL")
 MAX_REQUEST_BYTES = int(os.getenv("TTS_MAX_REQUEST_BYTES", str(32 * 1024 * 1024)))
+
+# ── Request log ───────────────────────────────────────────────
+LOG_REQUESTS  = _flag("TTS_LOG_REQUESTS")
+LOG_DB        = pathlib.Path(os.getenv("TTS_LOG_DB", str(WORKDIR / "logs" / "requests.db"))).expanduser()
+LOG_RETENTION = int(os.getenv("TTS_LOG_RETENTION", "5000"))
+# Status polling is the UI's heartbeat (every few seconds, per model); off by default so
+# it does not bury the calls anyone actually wants to investigate.
+LOG_STATUS_POLLS = _flag("TTS_LOG_STATUS_POLLS", "0")
+
+request_log: Optional[RequestLog] = None
+if LOG_REQUESTS:
+    try:
+        request_log = RequestLog(LOG_DB, retention=LOG_RETENTION)
+    except Exception as e:                       # unwritable workdir, locked file, …
+        print(f"[gateway] request logging disabled: {e}")
+
+
+def _should_log(scope) -> bool:
+    path = scope.get("path", "")
+    if not path.startswith("/api/"):
+        return False
+    if path.startswith("/api/logs"):             # the console reading its own history
+        return False
+    if not LOG_STATUS_POLLS and (path == "/api/status" or path.endswith("/status")):
+        return False
+    return True
+
 
 _client: Optional[httpx.AsyncClient] = None
 _model_gate = asyncio.Lock()
@@ -96,6 +131,11 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Arabic TTS Studio", lifespan=lifespan, docs_url=None, redoc_url=None)
+
+# `app.routes` is the live list the router matches against, so passing it here keeps the
+# route templates resolvable no matter how many endpoints are declared further down.
+app.add_middleware(RequestLogMiddleware, store=request_log, routes=app.routes,
+                   should_log=_should_log)
 
 
 @app.middleware("http")
@@ -336,6 +376,48 @@ async def api_docs(request: Request):
     """
     target = "../api.html" if request.url.path.endswith("/") else "api.html"
     return RedirectResponse(target, status_code=302)
+
+
+# ── Request log (the usage console reads these) ───────────────
+def _log_store() -> RequestLog:
+    if request_log is None:
+        raise HTTPException(503, "Request logging is disabled (TTS_LOG_REQUESTS=0)")
+    return request_log
+
+
+@app.get("/api/logs")
+async def list_logs(limit: int = 50, offset: int = 0, hours: float = 0,
+                    route: str = "", method: str = "", model: str = "",
+                    status: str = "", q: str = ""):
+    """Recorded requests, newest first. `status` takes `ok`, `error` or an HTTP code."""
+    store = _log_store()
+    since = time.time() - hours * 3600 if hours > 0 else None
+    return await asyncio.to_thread(
+        store.query, limit=max(1, min(limit, 200)), offset=max(0, offset),
+        route=route or None, method=method or None, model=model or None,
+        status=status or None, since=since, q=q or None)
+
+
+@app.get("/api/logs/stats")
+async def log_stats(hours: float = 24, buckets: int = 24):
+    """Totals, per-endpoint timings and a request timeline for the window."""
+    store = _log_store()
+    return await asyncio.to_thread(store.stats, hours=hours,
+                                   buckets=max(1, min(buckets, 200)))
+
+
+@app.get("/api/logs/{log_id}")
+async def log_detail(log_id: int):
+    entry = await asyncio.to_thread(_log_store().get, log_id)
+    if entry is None:
+        raise HTTPException(404, f"No log entry {log_id}")
+    return entry
+
+
+@app.delete("/api/logs")
+async def clear_logs():
+    deleted = await asyncio.to_thread(_log_store().clear)
+    return {"deleted": deleted}
 
 
 # Serve frontend — must be last so API routes take priority

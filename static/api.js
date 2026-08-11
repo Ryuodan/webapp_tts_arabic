@@ -130,6 +130,50 @@ const ENDPOINTS = [
   },
   {
     method: 'GET',
+    path: '/api/logs',
+    get title() { return t('ep.logs.title'); },
+    get desc() { return t('ep.logs.desc'); },
+    fields: [
+      { name: 'hours',  type: 'text',   in: 'query', value: '24', get note() { return t('ep.logs.hours'); } },
+      { name: 'limit',  type: 'text',   in: 'query', value: '20' },
+      { name: 'offset', type: 'text',   in: 'query', value: '0' },
+      { name: 'route',  type: 'text',   in: 'query', value: '', get note() { return t('ep.logs.route'); } },
+      { name: 'status', type: 'select', in: 'query', options: ['', 'ok', 'error'], value: '', get note() { return t('ep.logs.status'); } },
+      { name: 'q',      type: 'text',   in: 'query', value: '', get note() { return t('ep.logs.q'); } },
+    ],
+    returns: '{ items: [ { id, ts, method, path, route, model, status, duration_ms, req_bytes, resp_bytes, request, response, error } ], total }',
+  },
+  {
+    method: 'GET',
+    path: '/api/logs/stats',
+    get title() { return t('ep.logstats.title'); },
+    get desc() { return t('ep.logstats.desc'); },
+    fields: [
+      { name: 'hours',   type: 'text', in: 'query', value: '24' },
+      { name: 'buckets', type: 'text', in: 'query', value: '24', get note() { return t('ep.logstats.buckets'); } },
+    ],
+    returns: '{ totals: { count, errors, error_rate, avg_ms, p50_ms, p95_ms, max_ms }, endpoints: [...], timeline: [...] }',
+  },
+  {
+    method: 'GET',
+    path: '/api/logs/{log_id}',
+    get title() { return t('ep.logone.title'); },
+    get desc() { return t('ep.logone.desc'); },
+    fields: [
+      { name: 'log_id', type: 'text', in: 'path', value: '1' },
+    ],
+  },
+  {
+    method: 'DELETE',
+    path: '/api/logs',
+    get title() { return t('ep.logclear.title'); },
+    get desc() { return t('ep.logclear.desc'); },
+    fields: [],
+    returns: '{ deleted }',
+    noTry: true,          // destructive — the log console has this behind a confirmation
+  },
+  {
+    method: 'GET',
     path: '/audio/{model}/{filename}',
     binary: true,
     get title() { return t('ep.audio.title'); },

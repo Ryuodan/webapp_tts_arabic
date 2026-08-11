@@ -431,7 +431,8 @@ def test_compose_requires_a_job(gateway):
 
 # ── Static hosting ────────────────────────────────────────────
 @pytest.mark.parametrize("path", ["/", "/index.html", "/api.html", "/app.js", "/api.js",
-                                  "/style.css", "/api.css"])
+                                  "/style.css", "/api.css",
+                                  "/logs.html", "/logs.js", "/logs.css"])
 def test_frontend_assets_are_served(gateway, path):
     assert gateway.get(path).status_code == 200
 

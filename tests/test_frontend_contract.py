@@ -210,6 +210,29 @@ def test_the_api_console_page_loads_its_own_assets():
         assert (STATIC / asset).exists()
 
 
-def test_the_studio_and_console_link_to_each_other():
-    assert 'href="api.html"' in (STATIC / "index.html").read_text(encoding="utf-8")
-    assert 'href="index.html"' in (STATIC / "api.html").read_text(encoding="utf-8")
+def test_the_log_console_page_loads_its_own_assets():
+    html = (STATIC / "logs.html").read_text(encoding="utf-8")
+    for asset in ("style.css", "logs.css", "logs.js", "i18n.js"):
+        assert asset in html
+        assert (STATIC / asset).exists()
+
+
+def test_the_log_console_binds_only_to_ids_its_page_declares():
+    """logs.js reaches for page elements everywhere, not just in init() — all must exist."""
+    html = (STATIC / "logs.html").read_text(encoding="utf-8")
+    bound = set(re.findall(r"\$\('([\w-]+)'\)", (STATIC / "logs.js").read_text(encoding="utf-8")))
+    assert bound, "no bindings found — the extraction pattern went stale"
+
+    missing = [i for i in bound if f'id="{i}"' not in html]
+    assert not missing, f"logs.js reaches for ids absent from logs.html: {sorted(missing)}"
+
+
+@pytest.mark.parametrize("page,links", [
+    ("index.html", ("api.html", "logs.html")),
+    ("api.html",   ("index.html", "logs.html")),
+    ("logs.html",  ("index.html", "api.html")),
+])
+def test_every_page_links_to_the_other_two(page, links):
+    html = (STATIC / page).read_text(encoding="utf-8")
+    for target in links:
+        assert f'href="{target}"' in html, f"{page} does not link to {target}"
