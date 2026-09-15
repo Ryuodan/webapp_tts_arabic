@@ -582,8 +582,6 @@ function init() {
   render();
   refreshVoices();
 
-  const toggle = $('lang-toggle');
-  if (toggle) toggle.addEventListener('click', () => I18N.set(I18N.other()));
   document.addEventListener('languagechange', () => { render(); I18N.apply(); });
 }
 

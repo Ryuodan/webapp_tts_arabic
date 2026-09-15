@@ -37,14 +37,14 @@ const MicRecorder = (() => {
   // insecure origin are the two the user can actually act on.
   function reason(err) {
     if (!window.isSecureContext) {
-      return 'الميكروفون يحتاج اتصالاً آمناً (https) — افتح الصفحة عبر https أو localhost';
+      return t('rec.insecure');
     }
-    if (!supported()) return 'المتصفح لا يدعم التسجيل الصوتي';
+    if (!supported()) return t('rec.unsupported');
     const name = err && err.name;
-    if (name === 'NotAllowedError')  return 'رُفض إذن الميكروفون — اسمح به من إعدادات المتصفح';
-    if (name === 'NotFoundError')    return 'لا يوجد ميكروفون متاح';
-    if (name === 'NotReadableError') return 'الميكروفون مستخدم من تطبيق آخر';
-    return (err && err.message) || 'تعذّر بدء التسجيل';
+    if (name === 'NotAllowedError')  return t('rec.denied');
+    if (name === 'NotFoundError')    return t('rec.notFound');
+    if (name === 'NotReadableError') return t('rec.busy');
+    return (err && err.message) || t('rec.failed');
   }
 
   /**
@@ -77,7 +77,7 @@ const MicRecorder = (() => {
             stream.getTracks().forEach(t => t.stop());
             const type = rec.mimeType || fmt.mime || 'audio/webm';
             const blob = new Blob(chunks, { type });
-            if (!blob.size) { reject(new Error('لم يُسجَّل أي صوت')); return; }
+            if (!blob.size) { reject(new Error(t('rec.empty'))); return; }
             // Suffix follows the container the recorder actually used, not the request.
             const ext = (CANDIDATES.find(c => type.startsWith(c.mime.split(';')[0])) || fmt).ext;
             resolve(new File([blob], `recording${ext}`, { type }));

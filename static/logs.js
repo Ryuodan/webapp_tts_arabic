@@ -306,8 +306,6 @@ function init() {
     renderStats();
     renderRows();
   });
-  const toggle = $('lang-toggle');
-  if (toggle) toggle.addEventListener('click', () => I18N.set(I18N.other()));
 
   refresh(false);
 }

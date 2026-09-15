@@ -63,7 +63,7 @@ const I18N = (() => {
     'tr.clip':            { ar: 'تسجيل', en: 'recording' },
 
     // ── Text box ──────────────────────────────────────────────
-    'text.placeholder':   { ar: 'اكتب النص العربي هنا…  |  Type text here…', en: 'Type your text here…  |  اكتب النص هنا…' },
+    'text.placeholder':   { ar: 'اكتب النص العربي هنا…  |  Type text here…', en: 'Type your text here…' },
     'text.clear':         { ar: 'مسح', en: 'Clear' },
 
     // ── Synthesis ─────────────────────────────────────────────
@@ -428,6 +428,15 @@ const I18N = (() => {
     'logs.sizes':         { ar: 'الحجم (وارد/صادر)', en: 'Size (in / out)' },
     'logs.noBody':        { ar: '(بلا محتوى)', en: '(no body)' },
 
+    // ── Microphone (recorder.js) ──────────────────────────────
+    'rec.insecure':       { ar: 'الميكروفون يحتاج اتصالاً آمناً (https) — افتح الصفحة عبر https أو localhost', en: 'The microphone needs a secure connection (https) — open the page over https or localhost' },
+    'rec.unsupported':    { ar: 'المتصفح لا يدعم التسجيل الصوتي', en: 'This browser does not support audio recording' },
+    'rec.denied':         { ar: 'رُفض إذن الميكروفون — اسمح به من إعدادات المتصفح', en: 'Microphone permission denied — allow it in your browser settings' },
+    'rec.notFound':       { ar: 'لا يوجد ميكروفون متاح', en: 'No microphone available' },
+    'rec.busy':           { ar: 'الميكروفون مستخدم من تطبيق آخر', en: 'The microphone is in use by another application' },
+    'rec.failed':         { ar: 'تعذّر بدء التسجيل', en: 'Could not start recording' },
+    'rec.empty':          { ar: 'لم يُسجَّل أي صوت', en: 'No audio was recorded' },
+
     // ── Misc ──────────────────────────────────────────────────
     'misc.default':       { ar: 'افتراضي', en: 'default' },
     'misc.noParams':      { ar: 'لا توجد معاملات إضافية.', en: 'No additional parameters.' },
@@ -438,13 +447,9 @@ const I18N = (() => {
   const SUPPORTED = ['ar', 'en'];
   const DIR = { ar: 'rtl', en: 'ltr' };
 
-  let current = (() => {
-    try {
-      const saved = localStorage.getItem(STORE_KEY);
-      if (SUPPORTED.includes(saved)) return saved;
-    } catch { /* private mode: fall through to the default */ }
-    return 'ar';
-  })();
+  // The interface ships English-only: no page renders the toggle any more, and a stored
+  // 'ar' from before is ignored. The Arabic strings stay so the toggle can come back.
+  let current = 'en';
 
   // Missing keys render as the key itself rather than blank — a visible failure is
   // easier to spot and fix than a silently empty label.

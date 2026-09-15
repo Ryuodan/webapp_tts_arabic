@@ -63,7 +63,7 @@ textarea { resize: vertical; }
 .brand-icon { font-size: 28px; line-height: 1; }
 .brand-text { display: flex; flex-direction: column; gap: 1px; }
 .brand-en { font-size: 1.05rem; font-weight: 600; color: var(--txt); letter-spacing: .02em; }
-.brand-ar { font-size: .8rem; color: var(--txt2); direction: rtl; }
+.brand-ar { font-size: .8rem; color: var(--txt2); }
 
 .status-row {
   display: flex;
@@ -175,7 +175,7 @@ textarea { resize: vertical; }
   background: var(--bg3);
   cursor: pointer;
   transition: var(--transition);
-  text-align: right;
+  text-align: start;
   user-select: none;
 }
 .model-card:hover { border-color: var(--border2); background: var(--bg4); }
@@ -192,7 +192,7 @@ textarea { resize: vertical; }
 .mc-main    { min-width: 0; flex: 1; }
 .mc-name    { font-size: .78rem; font-weight: 700; direction: ltr; text-align: left; }
 .mc-specs   { font-size: .65rem; color: var(--txt2); margin-top: 1px; line-height: 1.4; direction: ltr; text-align: left; }
-.mc-role    { font-size: .7rem; color: var(--txt2); margin-top: 7px; line-height: 1.55; direction: rtl; }
+.mc-role    { font-size: .7rem; color: var(--txt2); margin-top: 7px; line-height: 1.55; }
 .mc-traits  { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 7px; }
 .mc-traits span {
   padding: 2px 6px;
@@ -229,14 +229,12 @@ textarea { resize: vertical; }
   padding: 0 12px 12px;
 }
 .voice-picker .param-label {
-  direction: rtl;
-  text-align: right;
+  text-align: start;
 }
 .voice-picker .param-select {
   width: 100%;
   padding: 8px 10px;
   font-size: .82rem;
-  direction: rtl;
 }
 .simple-footer {
   justify-content: flex-start;
@@ -326,7 +324,6 @@ textarea { resize: vertical; }
   font-family: inherit;
   cursor: pointer;
   transition: var(--transition);
-  direction: rtl;
 }
 .prep-toggle:hover { border-color: var(--border2); color: var(--txt); }
 .prep-toggle.active {
@@ -362,7 +359,7 @@ textarea { resize: vertical; }
 /* Which checkpoint is answering, linked to its model card. */
 .model-credit {
   display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;
-  margin: 0 0 10px; font-size: .7rem; color: var(--txt3); direction: rtl;
+  margin: 0 0 10px; font-size: .7rem; color: var(--txt3);
 }
 .model-credit a {
   color: var(--omni); text-decoration: none;
@@ -381,7 +378,6 @@ textarea { resize: vertical; }
   font-family: inherit;
   cursor: pointer;
   transition: var(--transition);
-  direction: rtl;
 }
 .btn-prep:hover:not(:disabled) { border-color: var(--purple); color: var(--purple); }
 .btn-prep:disabled { color: var(--txt2); cursor: progress; opacity: .8; }
@@ -432,7 +428,7 @@ textarea { resize: vertical; }
   font-size: .65rem;
   color: var(--txt2);
   cursor: pointer;
-  direction: rtl;
+  unicode-bidi: plaintext;
   transition: var(--transition);
   max-width: 140px;
   overflow: hidden;
@@ -475,7 +471,6 @@ textarea { resize: vertical; }
   border-radius: var(--radius);
   background: var(--bg3);
   border: 1px solid var(--border);
-  direction: rtl;
 }
 .model-insights.fish { border-color: rgba(240,136,62,.35); }
 .model-insights.omnivoice { border-color: rgba(88,166,255,.35); }
@@ -570,8 +565,7 @@ textarea { resize: vertical; }
   font-size: .68rem;
   color: var(--txt3);
   line-height: 1.45;
-  direction: rtl;
-  text-align: right;
+  text-align: start;
 }
 
 .param-select {
@@ -604,7 +598,6 @@ textarea { resize: vertical; }
 .clone-row-label {
   font-size: .7rem;
   color: var(--txt2);
-  direction: rtl;
 }
 .file-zone {
   border: 1.5px dashed var(--border2);
@@ -724,7 +717,7 @@ textarea { resize: vertical; }
 .btn-compare:disabled { color: var(--txt3); border-color: var(--border); background: var(--bg3); cursor: not-allowed; }
 
 /* ── Auto-compose agent ─────────────────────────────────────── */
-.compose-desc { font-size: .75rem; color: var(--txt2); line-height: 1.55; margin-bottom: 8px; direction: rtl; }
+.compose-desc { font-size: .75rem; color: var(--txt2); line-height: 1.55; margin-bottom: 8px; }
 .compose-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .compose-row { display: flex; align-items: center; gap: 8px; }
 .compose-row .param-label { white-space: nowrap; }
@@ -743,7 +736,7 @@ textarea { resize: vertical; }
 }
 .btn-compose-agent:hover:not(:disabled) { border-color: var(--omni); color: var(--omni); }
 .btn-compose-agent:disabled { color: var(--txt2); cursor: progress; opacity: .8; }
-.compose-status { margin-top: 6px; font-size: .72rem; color: var(--txt2); line-height: 1.5; direction: rtl; min-height: 1em; }
+.compose-status { margin-top: 6px; font-size: .72rem; color: var(--txt2); line-height: 1.5; min-height: 1em; }
 .compose-status.success { color: var(--vox); }
 .compose-status.error { color: #f85149; }
 
@@ -760,7 +753,7 @@ textarea { resize: vertical; }
   text-align: center;
 }
 .empty-icon { font-size: 2rem; opacity: .4; }
-.player-empty p { font-size: .78rem; line-height: 1.5; max-width: 220px; direction: rtl; }
+.player-empty p { font-size: .78rem; line-height: 1.5; max-width: 220px; }
 
 .player-content { padding: 10px 12px 12px; }
 
@@ -846,7 +839,6 @@ textarea { resize: vertical; }
   font-size: .72rem;
   color: var(--txt2);
   line-height: 1.5;
-  direction: rtl;
 }
 .metric-grid {
   display: grid;
@@ -945,7 +937,7 @@ textarea { resize: vertical; }
 .mini-player-title {
   font-size: .75rem;
   font-weight: 600;
-  text-align: right;
+  text-align: start;
   padding-bottom: 4px;
   border-bottom: 1px solid var(--border);
   display: flex;
@@ -969,7 +961,7 @@ textarea { resize: vertical; }
 /* Keep the option chips uniform across models so cards line up */
 .mini-player .option-chips { margin-top: auto; }
 .mini-player .option-chip { font-size: .6rem; }
-.mini-player-meta { font-size: .65rem; color: var(--txt3); text-align: right; line-height: 1.45; direction: rtl; }
+.mini-player-meta { font-size: .65rem; color: var(--txt3); text-align: start; line-height: 1.45; }
 .mini-player-meta.error { color: var(--red); }
 .mini-spinner { font-size: .75rem; color: var(--txt3); text-align: center; padding: 10px 0; animation: blink .8s infinite; }
 .mini-retry {
@@ -1049,7 +1041,6 @@ textarea { resize: vertical; }
   font-size: .7rem;
   color: var(--txt2);
   cursor: pointer;
-  direction: rtl;
 }
 .history-list {
   padding: 0 8px 8px;
@@ -1081,9 +1072,9 @@ textarea { resize: vertical; }
 .history-item.playing.omnivoice_nasser { border-color: var(--nasser); background: var(--nasser-dim); }
 
 .hi-badge { flex-shrink: 0; }
-.hi-info  { flex: 1; min-width: 0; direction: rtl; }
-.hi-filename { font-size: .72rem; color: var(--txt); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hi-instruct { font-size: .66rem; color: var(--txt2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hi-info  { flex: 1; min-width: 0; }
+.hi-filename { unicode-bidi: plaintext; font-size: .72rem; color: var(--txt); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hi-instruct { unicode-bidi: plaintext; font-size: .66rem; color: var(--txt2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hi-meta { font-size: .65rem; color: var(--txt3); direction: ltr; }
 .hi-actions { display: flex; gap: 4px; flex-shrink: 0; }
 .hi-btn {
@@ -1119,8 +1110,8 @@ textarea { resize: vertical; }
 }
 .sc-caret { flex-shrink: 0; color: var(--txt3); font-size: .8rem; width: 12px; text-align: center; }
 .saved-compare-item.expanded .sc-caret { color: var(--omni); }
-.sc-info { flex: 1; min-width: 0; direction: rtl; }
-.sc-snippet { font-size: .74rem; color: var(--txt); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sc-info { flex: 1; min-width: 0; }
+.sc-snippet { unicode-bidi: plaintext; font-size: .74rem; color: var(--txt); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sc-meta { font-size: .66rem; color: var(--txt3); margin-top: 2px; }
 .sc-actions { display: flex; gap: 4px; flex-shrink: 0; }
 .hi-btn.sc-del:hover  { color: #f85149; border-color: #f85149; }
@@ -1192,7 +1183,6 @@ textarea { resize: vertical; }
 #transcribe-body .prep-bar,
 #transcribe-body .prep-preview { margin: 0; padding-inline: 0; }
 #transcribe-body .prep-bar { padding-top: 0; }
-#transcribe-body .param-select { direction: rtl; }
 
 /* ── API console link (header, both pages) ───────────────── */
 .api-link {

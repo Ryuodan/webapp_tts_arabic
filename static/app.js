@@ -2114,9 +2114,6 @@ function setupPrimaryActions() {
 // Panels built imperatively hold text that `I18N.apply` cannot reach — it only rewrites
 // nodes carrying data-i18n. Re-render them whenever the language flips.
 function setupLanguageToggle() {
-  const btn = $('lang-toggle');
-  if (btn) btn.addEventListener('click', () => I18N.set(I18N.other()));
-
   document.addEventListener('languagechange', () => {
     try {
       renderModelCards();
