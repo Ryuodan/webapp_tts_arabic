@@ -57,7 +57,7 @@ def main():
     ap.add_argument("text", nargs="?", help="Arabic text to speak")
     ap.add_argument("--base", default=BASE, help=f"gateway URL (default {BASE})")
     ap.add_argument("--model", default="omnivoice_ft",
-                    choices=["omnivoice_ft", "omnivoice_base"])
+                    choices=["omnivoice_ft", "omnivoice_nasser", "omnivoice_base"])
     ap.add_argument("--dialect", default="msa", choices=["msa", "saudi", "egyptian"])
     ap.add_argument("--voice", default="", help="built-in voice id; empty = the model's own")
     ap.add_argument("--gender", default="", choices=["", "male", "female"])

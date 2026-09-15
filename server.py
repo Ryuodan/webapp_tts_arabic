@@ -26,11 +26,12 @@ OUTPUT_DIRS = {
     # Keep old Fish/VoxCPM2 recordings serveable, but they are no longer active workers.
     "fish":      WORKDIR / "outputs",
     "voxcpm2":   WORKDIR / "outputs_voxcpm2",
-    # The two interface models are OmniVoice variants sharing one worker + output dir.
-    "omnivoice":      WORKDIR / "outputs_omnivoice",
-    "omnivoice_ft":   WORKDIR / "outputs_omnivoice",
-    "omnivoice_base": WORKDIR / "outputs_omnivoice",
-    "transcribe":     WORKDIR / "outputs_transcribe",
+    # The interface models are OmniVoice variants sharing one worker + output dir.
+    "omnivoice":        WORKDIR / "outputs_omnivoice",
+    "omnivoice_ft":     WORKDIR / "outputs_omnivoice",
+    "omnivoice_base":   WORKDIR / "outputs_omnivoice",
+    "omnivoice_nasser": WORKDIR / "outputs_omnivoice",
+    "transcribe":       WORKDIR / "outputs_transcribe",
 }
 
 _OMNIVOICE_URL = "http://127.0.0.1:8082"
@@ -38,9 +39,10 @@ _OMNIVOICE_URL = "http://127.0.0.1:8082"
 # Speech-out (TTS) workers — only these answer /api/{model}/synthesize.
 TTS_WORKERS = {
     # Aliases for the SAME worker; the frontend fixes the `variant` form field per model.
-    "omnivoice":      _OMNIVOICE_URL,
-    "omnivoice_ft":   _OMNIVOICE_URL,
-    "omnivoice_base": _OMNIVOICE_URL,
+    "omnivoice":        _OMNIVOICE_URL,
+    "omnivoice_ft":     _OMNIVOICE_URL,
+    "omnivoice_base":   _OMNIVOICE_URL,
+    "omnivoice_nasser": _OMNIVOICE_URL,
 }
 # Speech-in (ASR) worker — answers /api/transcribe.
 ASR_WORKER = "http://127.0.0.1:8084"
@@ -51,8 +53,9 @@ WORKER_URLS = {**TTS_WORKERS, "transcribe": ASR_WORKER}
 
 # Which worker-side model variant each alias warms on /load ("" = worker default).
 MODEL_VARIANT = {
-    "omnivoice_ft":   "finetuned",
-    "omnivoice_base": "base",
+    "omnivoice_ft":     "finetuned",
+    "omnivoice_base":   "base",
+    "omnivoice_nasser": "nasser",   # always clones the built-in Nasser voice (worker-enforced)
 }
 
 
@@ -174,7 +177,8 @@ async def status():
     return results
 
 
-async def _proxy_post(url: str, model: str, request: Request, timeout_msg: str) -> JSONResponse:
+async def _proxy_post(url: str, model: str, request: Request, timeout_msg: str,
+                      params: Optional[dict] = None) -> JSONResponse:
     """Forward a multipart request to a worker under the memory policy, return its JSON.
 
     The body is size-capped and buffered rather than streamed: the cap is what keeps a
@@ -188,7 +192,7 @@ async def _proxy_post(url: str, model: str, request: Request, timeout_msg: str) 
     async with _model_gate:
         await _unload_other_models(model)
         try:
-            r = await _client.post(url, content=body, headers=headers)
+            r = await _client.post(url, content=body, headers=headers, params=params)
         except httpx.ConnectError:
             raise HTTPException(503, f"{model} worker is not running — check start.sh")
         except httpx.ReadTimeout:
@@ -203,8 +207,12 @@ async def _proxy_post(url: str, model: str, request: Request, timeout_msg: str) 
 async def synthesize(model: str, request: Request):
     if model not in TTS_WORKERS:
         raise HTTPException(404, f"Unknown model: {model}")
+    # The alias decides the checkpoint, not the caller's form: a curl or script that never
+    # sends `variant` must still get the model it addressed. The worker ranks this first.
+    variant = MODEL_VARIANT.get(model, "")
     return await _proxy_post(f"{TTS_WORKERS[model]}/synthesize", model, request,
-                             f"{model} synthesis timed out (>15 min)")
+                             f"{model} synthesis timed out (>15 min)",
+                             params={"variant": variant} if variant else None)
 
 
 @app.post("/api/transcribe")

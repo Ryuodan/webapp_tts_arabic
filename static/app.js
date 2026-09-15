@@ -11,9 +11,11 @@ const modelAudioUrl = (mid, filename) => appUrl(
 );
 
 // ── Model definitions ────────────────────────────────────────
-// The interface exposes exactly two models: the Saudi-HQ fine-tuned OmniVoice and the
-// stock one. Both ride the SAME worker (gateway aliases -> port 8082); fixedParams.variant
-// tells the worker which checkpoint to load. VoxCPM2/Fish are retired from the interface.
+// The interface exposes three models: the Saudi-HQ fine-tuned OmniVoice, the Nasser
+// single-speaker fine-tune and the stock one. All ride the SAME worker (gateway aliases ->
+// port 8082); fixedParams.variant tells the worker which checkpoint to load. A model with
+// `lockedVoice` always clones that built-in voice — the worker enforces it, the UI just
+// stops offering a choice. VoxCPM2/Fish are retired from the interface.
 // Every user-facing label below is a getter rather than a string: it re-resolves on each
 // access, so flipping the interface language updates them without rebuilding these
 // constants or touching the render sites that read `.label` / `.name`.
@@ -24,6 +26,7 @@ const OMNI_SHARED = {
         { value: '',      get label() { return t('voice.none'); } },
         { value: 'abeer', get label() { return t('voice.abeer'); } },
         { value: 'ahmed', get label() { return t('voice.ahmed'); } },
+        { value: 'nasser', get label() { return t('voice.nasser'); } },
       ] },
   ],
   emotionTags: ['[laughter]'],   // base model only documents [laughter]; [applause] is unsupported
@@ -49,6 +52,26 @@ const MODELS = {
     },
     get compareNote() { return t('model.ft.compareNote'); },
     fixedParams: { variant: 'finetuned' },
+  },
+  omnivoice_nasser: {
+    ...OMNI_SHARED,
+    id: 'omnivoice_nasser',
+    get name() { return t('model.nasser.name'); },
+    icon: '🎙️',
+    specs: '0.6B · 24kHz · Nasser Najdi FT · step 800',
+    get role() { return t('model.nasser.role'); },
+    get traits() { return [t('model.trait.najdi'), t('model.trait.nasserVoice'), 'Najdi male', '24kHz']; },
+    get profile() {
+      return [
+        { label: t('model.profile.bestUse'), value: t('model.nasser.bestUse') },
+        { label: t('model.profile.control'), value: t('model.nasser.control') },
+        { label: t('model.profile.note'),    value: t('model.nasser.note') },
+      ];
+    },
+    get compareNote() { return t('model.nasser.compareNote'); },
+    get cloneHint() { return t('clone.lockedNasser'); },
+    lockedVoice: 'nasser',
+    fixedParams: { variant: 'nasser', voice: 'nasser' },
   },
   omnivoice_base: {
     ...OMNI_SHARED,
@@ -135,7 +158,7 @@ const SAMPLE_SENTENCES = [
 
 // ── State ─────────────────────────────────────────────────────
 let selectedModel = 'omnivoice_ft';
-let workerStatus  = { omnivoice_ft: 'checking', omnivoice_base: 'checking' };
+let workerStatus  = Object.fromEntries(Object.keys(MODELS).map(mid => [mid, 'checking']));
 let loadingModels = new Set();   // models with an in-flight /load request
 let statusPollInFlight = false;
 let statusPollTimer = null;
@@ -286,10 +309,11 @@ function showToast(msg, type = '', duration = 3000) {
 // ── Init param values ─────────────────────────────────────────
 function initParamValues() {
   for (const [mid, m] of Object.entries(MODELS)) {
-    paramValues[mid] = { dialect: 'msa', gender: '', age: '', ...(m.fixedParams || {}) };   // Arabic forced; persona auto
+    paramValues[mid] = { dialect: 'msa', gender: '', age: '' };   // Arabic forced; persona auto
     for (const p of m.params) {
       paramValues[mid][p.id] = p.default;
     }
+    Object.assign(paramValues[mid], m.fixedParams || {});   // pinned values beat param defaults
   }
 }
 
@@ -613,6 +637,14 @@ function renderVoicePicker() {
     return;
   }
 
+  if (model.lockedVoice) {
+    const locked = voiceParam.options.find(o => o.value === model.lockedVoice);
+    select.innerHTML = `<option value="${escapeHtml(model.lockedVoice)}" selected>
+      ${escapeHtml(locked ? locked.label : model.lockedVoice)}</option>`;
+    select.disabled = true;
+    return;
+  }
+
   const current = (paramValues[selectedModel] && paramValues[selectedModel].voice) || '';
   select.disabled = false;
   select.innerHTML = voiceParam.options.map(o => `
@@ -623,7 +655,7 @@ function renderVoicePicker() {
 
   select.onchange = e => {
     for (const mid of Object.keys(MODELS)) {
-      if (paramValues[mid]) paramValues[mid].voice = e.target.value;
+      if (paramValues[mid] && !MODELS[mid].lockedVoice) paramValues[mid].voice = e.target.value;
     }
   };
 }
@@ -678,7 +710,10 @@ function renderClonePanel() {
     body.appendChild(hint);
   }
 
-  // Both interface models are OmniVoice variants with the same cloning fields.
+  // A locked-voice model clones its own speaker only; the hint above is all it shows.
+  if (model.lockedVoice) return;
+
+  // The other interface models are OmniVoice variants with the same cloning fields.
   body.appendChild(makeFileZone('ref_audio', t('clone.zoneLabel'), 'audio/wav,audio/*'));
   body.appendChild(makeTextRow('ref_text', t('clone.textLabel'), t('clone.textPh')));
 }
@@ -857,9 +892,8 @@ function applyComposed(result) {
     v.dialect = dialect; v.gender = gender; v.age = age;
     if (manualOverride[mid]) manualOverride[mid].enabled = false;
   }
-  // Same instruct for both OmniVoice variants (compose's voxcpm2 fields are unused now).
-  paramValues.omnivoice_ft.speaker = result.omnivoice_instruct || '';
-  paramValues.omnivoice_base.speaker = result.omnivoice_instruct || '';
+  // Same instruct for every OmniVoice variant (compose's voxcpm2 fields are unused now).
+  for (const mid of Object.keys(MODELS)) paramValues[mid].speaker = result.omnivoice_instruct || '';
 
   // One shared plain-Arabic script (each engine applies its own style mechanism).
   $('text-input').value = result.text || '';
@@ -1415,7 +1449,7 @@ async function drawWaveform(url, mid = selectedModel) {
     ctx.fillRect(0, 0, W, H);
 
     // Color based on model
-    const color = mid === 'omnivoice_base' ? '#3fb950' : '#58a6ff';
+    const color = mid === 'omnivoice_base' ? '#3fb950' : mid === 'omnivoice_nasser' ? '#bc8cff' : '#58a6ff';
     ctx.fillStyle = color + '90';
 
     for (let i = 0; i < W; i++) {
@@ -1616,7 +1650,7 @@ async function loadServerHistory() {
       if (!r.ok) continue;
       const files = await r.json();
       for (const f of files) {
-        // Both interface models share one output dir; assign each clip to the card whose
+        // All interface models share one output dir; assign each clip to the card whose
         // variant generated it. Clips predating variant tracking ran the fine-tuned default.
         const variant = (f.params && f.params.variant) || 'finetuned';
         if (variant !== MODELS[mid].fixedParams.variant) continue;

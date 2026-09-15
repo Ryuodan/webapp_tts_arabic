@@ -1,4 +1,17 @@
-# OmniVoice fine-tuned model
+# OmniVoice fine-tuned models
+
+Two fine-tuned checkpoints ship here, both as split parts:
+
+| Dir | Variant / card | Source | Metadata |
+| --- | --- | --- | --- |
+| `best_finetuned/` | `finetuned` / `omnivoice_ft` | `saudi_hq_ft/checkpoint-2500` | `best_finetuned_checkpoint.json` |
+| `nasser_800/` | `nasser` / `omnivoice_nasser` | `najdi_male_ft_cont/checkpoint-400` (global step 800) | `nasser_800_checkpoint.json` |
+
+`bash scripts/assemble_omnivoice_checkpoint.sh` rebuilds both (or name one); `start.sh`
+runs it automatically when parts are newer than the assembled file. The Nasser
+variant always clones `voices/nasser`.
+
+## Saudi-HQ checkpoint (`best_finetuned/`)
 
 The best Saudi-HQ fine-tuned checkpoint (`saudi_hq_ft/checkpoint-2500`,
 eval/loss 4.4111) ships WITH the repo in `best_finetuned/`. GitHub rejects

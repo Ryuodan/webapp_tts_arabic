@@ -108,6 +108,7 @@ const I18N = (() => {
     'voice.none':         { ar: 'بدون استنساخ', en: 'No cloning' },
     'voice.abeer':        { ar: 'عبير — سعودية', en: 'Abeer — Saudi' },
     'voice.ahmed':        { ar: 'أحمد — فصحى',   en: 'Ahmed — MSA' },
+    'voice.nasser':       { ar: 'ناصر — نجدي',   en: 'Nasser — Najdi' },
 
     // ── Compare ───────────────────────────────────────────────
     'cmp.toggle':         { ar: 'قارن نفس النص باستخدام كل النماذج المتاحة', en: 'Compare the same text across every available model' },
@@ -176,6 +177,14 @@ const I18N = (() => {
       en: 'The stock k2-fsa/OmniVoice checkpoint, unmodified — a comparison baseline with the widest language coverage (600+).',
     },
     'model.base.compareNote': { ar: 'الأصل بدون ضبط — خط الأساس.', en: 'Unmodified base — the baseline.' },
+    'model.nasser.name':  { ar: 'OmniVoice ناصر النجدي', en: 'OmniVoice Nasser Najdi' },
+    'model.nasser.role': {
+      ar: 'ضبط دقيق على صوت ناصر (نجدي، ذكر) لـ 800 خطوة (najdi_male_ft_cont/checkpoint-400). يستنسخ صوت ناصر دائماً.',
+      en: 'Fine-tuned on Nasser (Najdi male) for 800 steps (najdi_male_ft_cont/checkpoint-400). Always clones Nasser’s voice.',
+    },
+    'model.nasser.compareNote': { ar: 'صوت ناصر النجدي — ثابت دائماً.', en: 'Nasser’s Najdi voice — always.' },
+    'model.trait.najdi':  { ar: 'نجدي', en: 'Najdi' },
+    'model.trait.nasserVoice': { ar: 'صوت ناصر ثابت', en: 'Fixed Nasser voice' },
     'model.trait.arabic': { ar: 'الأفضل للعربية', en: 'Best for Arabic' },
     'model.trait.langs':  { ar: '600+ لغة', en: '600+ languages' },
 
@@ -185,6 +194,18 @@ const I18N = (() => {
     'model.ft.bestUse': {
       ar: 'الإنتاج: نطق عربي/سعودي أفضل من الأصل، مع استنساخ الأصوات المضمّنة (عبير/أحمد).',
       en: 'Production: better Arabic/Saudi pronunciation than the base, with cloning of the bundled voices (Abeer/Ahmed).',
+    },
+    'model.nasser.bestUse': {
+      ar: 'مساعد خدمة عملاء نجدي بصوت ناصر — أقرب تشابه لصوته في التقييم.',
+      en: 'A Najdi customer-support agent in Nasser’s voice — the closest match to him in evaluation.',
+    },
+    'model.nasser.control': {
+      ar: 'الصوت مثبّت على ناصر (لا يُقبل صوت مرجعي آخر)؛ اللهجة عبر لغة النموذج، والأسلوب عبر instruct.',
+      en: 'The voice is pinned to Nasser (no other reference is accepted); dialect rides the model language, style via instruct.',
+    },
+    'model.nasser.note': {
+      ar: 'يتطلب أوزان الـ checkpoint على السيرفر (models/omnivoice/nasser_800).',
+      en: 'Requires the checkpoint weights on the server (models/omnivoice/nasser_800).',
     },
     'model.base.bestUse': {
       ar: 'خط أساس للمقارنة مع النسخة المحسّنة، أو نقل صوت مرجعي بين اللغات.',
@@ -237,6 +258,10 @@ const I18N = (() => {
     'clone.zoneLabel':    { ar: 'الصوت المرجعي (WAV 5–30 ثانية)', en: 'Reference audio (WAV, 5–30 s)' },
     'clone.textLabel':    { ar: 'نص الصوت المرجعي (اختياري)', en: 'Reference transcript (optional)' },
     'clone.textPh':       { ar: 'النص المنطوق في الصوت المرجعي…', en: 'What is spoken in the reference clip…' },
+    'clone.lockedNasser': {
+      ar: 'هذا النموذج يستنسخ صوت ناصر دائماً — لا يمكن تغيير الصوت المرجعي.',
+      en: 'This model always clones Nasser’s voice — the reference cannot be changed.',
+    },
     'clone.drop':         { ar: 'اسحب ملف WAV هنا أو اضغط للاختيار', en: 'Drop a WAV here, or click to choose' },
     'tag.add':            { ar: 'أضف إلى النص', en: 'Add to the text' },
 
@@ -259,9 +284,9 @@ const I18N = (() => {
 
     // ── Compose / prepare agents ──────────────────────────────
     'ag.composing':       { ar: '… جاري التأليف', en: '… composing' },
-    'ag.composeBusy':     { ar: 'يكتب الوكيل النص ويضبط إعدادات النموذجين…', en: 'The agent is writing the text and tuning both models…' },
-    'ag.composeDone':     { ar: '✓ تم ضبط النموذجين', en: '✓ Both models configured' },
-    'ag.composeToast':    { ar: 'تم تأليف النص وضبط النموذجين ✓', en: 'Text composed and models configured ✓' },
+    'ag.composeBusy':     { ar: 'يكتب الوكيل النص ويضبط إعدادات النماذج…', en: 'The agent is writing the text and tuning the models…' },
+    'ag.composeDone':     { ar: '✓ تم ضبط النماذج', en: '✓ All models configured' },
+    'ag.composeToast':    { ar: 'تم تأليف النص وضبط النماذج ✓', en: 'Text composed and models configured ✓' },
     'ag.composeFailed':   { ar: 'تعذّر التأليف التلقائي', en: 'Auto-compose failed' },
     'ag.compose':         { ar: '✨ أكمل بالذكاء الاصطناعي', en: '✨ Complete with AI' },
     'ag.noText':          { ar: 'لا يوجد نص لتحضيره', en: 'No text to prepare' },
@@ -306,8 +331,8 @@ const I18N = (() => {
     'ep.tr.lang':         { ar: 'النموذج عربي/إنجليزي فقط', en: 'The model handles Arabic/English only' },
     'ep.tr.punct':        { ar: 'false ⇐ نص بلا ترقيم', en: 'false ⇒ text without punctuation' },
     'ep.synth.title':     { ar: 'توليد كلام', en: 'Speech synthesis' },
-    'ep.synth.desc':      { ar: 'نص ← ملف wav. المعاملات الإضافية تختلف بين النموذجين: الاسمان أدناه نسختان من OmniVoice (المحسّنة والأصلية) تتشاركان نفس العامل.',
-                            en: 'Text → a wav file. Extra parameters differ per model: the two names below are OmniVoice variants (fine-tuned and base) sharing one worker.' },
+    'ep.synth.desc':      { ar: 'نص ← ملف wav. الأسماء أدناه نسخ من OmniVoice (المحسّنة، ناصر النجدي، والأصلية) تتشارك نفس العامل. omnivoice_nasser يستنسخ صوت ناصر دائماً ويتجاهل voice والصوت المرجعي.',
+                            en: 'Text → a wav file. The names below are OmniVoice variants (fine-tuned, Nasser Najdi and base) sharing one worker. omnivoice_nasser always clones Nasser and ignores voice and any reference audio.' },
     'ep.synth.voice':     { ar: 'اسم صوت مدمج، أو فارغ لصوت النموذج', en: 'A bundled voice name, or empty for the model’s own voice' },
     'ep.synth.gender':    { ar: 'فارغ = اختيار النموذج', en: 'empty = let the model choose' },
     'ep.load.title':      { ar: 'تحميل نموذج مسبقاً', en: 'Preload a model' },
@@ -322,8 +347,8 @@ const I18N = (() => {
     'ep.prep.desc':       { ar: 'يحوّل الأرقام والتواريخ والاختصارات إلى كلمات منطوقة، ويضيف التشكيل اختيارياً. يعمل على النص فقط.',
                             en: 'Turns numbers, dates and abbreviations into spoken words, and optionally adds diacritics. Text only.' },
     'ep.compose.title':   { ar: 'التأليف التلقائي (وكيل)', en: 'Auto-compose (agent)' },
-    'ep.compose.desc':    { ar: 'يكتب نصاً عربياً للمهمة المطلوبة ويضبط إعدادات النموذجين. يتطلب OPENAI_API_KEY على الخادم.',
-                            en: 'Writes Arabic text for the requested task and tunes both models. Requires OPENAI_API_KEY on the server.' },
+    'ep.compose.desc':    { ar: 'يكتب نصاً عربياً للمهمة المطلوبة ويضبط إعدادات النماذج. يتطلب OPENAI_API_KEY على الخادم.',
+                            en: 'Writes Arabic text for the requested task and tunes the models. Requires OPENAI_API_KEY on the server.' },
     'ep.logs.title':      { ar: 'سجل الطلبات', en: 'Request log' },
     'ep.logs.desc':       { ar: 'الطلبات المسجَّلة من الأحدث إلى الأقدم، ومعها المدخلات والمخرجات والزمن المستغرق. صفحة العرض: logs.html',
                             en: 'Recorded requests, newest first, with their input, output and elapsed time. The console for it is logs.html.' },

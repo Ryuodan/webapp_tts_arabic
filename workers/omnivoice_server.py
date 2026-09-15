@@ -13,7 +13,7 @@ import uuid
 
 import soundfile as sf
 import uvicorn
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 
 from _common import WORKDIR, output_dir, register_audio_route, write_sidecar
 
@@ -37,12 +37,38 @@ def _finetuned_model_id() -> str | None:
     return None
 
 
-# Selectable model variants; "finetuned" is present only when its weights exist.
+# Nasser (Najdi male) single-speaker fine-tune: najdi_male_ft continued to global step 800,
+# i.e. najdi_male_ft_cont/checkpoint-400 (see models/omnivoice/nasser_800_checkpoint.json).
+# Shipped as split parts like the Saudi-HQ one; the training project is the fallback source.
+REPO_NASSER_CHECKPOINT = REPO_DIR / "models" / "omnivoice" / "nasser_800"
+FINETUNE_PROJECT = pathlib.Path(
+    os.getenv("OMNIVOICE_FINETUNE_DIR", str(REPO_DIR.parent / "omnivoice-finetune"))).expanduser()
+NASSER_CHECKPOINT = FINETUNE_PROJECT / "checkpoints" / "najdi_male_ft_cont" / "checkpoint-400"
+
+
+def _nasser_model_id() -> str | None:
+    env = os.getenv("OMNIVOICE_NASSER_MODEL_ID")
+    if env:
+        return env
+    for candidate in (REPO_NASSER_CHECKPOINT, NASSER_CHECKPOINT):
+        if (candidate / "model.safetensors").exists():
+            return str(candidate)
+    return None
+
+
+# Selectable model variants; the fine-tunes are present only when their weights exist.
 MODEL_VARIANTS = {"base": OMNIVOICE_BASE_MODEL_ID}
 _ft_id = _finetuned_model_id()
 if _ft_id:
     MODEL_VARIANTS["finetuned"] = _ft_id
+_nasser_id = _nasser_model_id()
+if _nasser_id:
+    MODEL_VARIANTS["nasser"] = _nasser_id
 DEFAULT_VARIANT = "finetuned" if "finetuned" in MODEL_VARIANTS else "base"
+
+# Variants tuned on a single speaker always clone that speaker's built-in voice: the request's
+# `voice`, uploaded reference and reference text are ignored for them.
+VARIANT_VOICES = {"nasser": "nasser"}
 OMNIVOICE_DEVICE = os.getenv("OMNIVOICE_DEVICE", "auto")
 MODEL_IDLE_SECONDS = int(os.getenv("TTS_MODEL_IDLE_SECONDS", "900"))
 MAX_TEXT_CHARS = int(os.getenv("TTS_MAX_TEXT_CHARS", "8000"))
@@ -250,6 +276,7 @@ async def health():
         "model_id": MODEL_VARIANTS[active_variant or DEFAULT_VARIANT],
         "finetuned_available": "finetuned" in MODEL_VARIANTS,
         "voices": sorted(_BUILTIN_VOICES),
+        "variant_voices": {k: v for k, v in VARIANT_VOICES.items() if k in MODEL_VARIANTS},
         "status": "ok",
         "ready": bool(_models),
         "model_loaded": bool(_models),
@@ -295,35 +322,42 @@ async def synthesize(
     model_instruct_override: str = Form(""),
     ref_audio: UploadFile | None = File(None),
     ref_text: str | None = Form(None),
+    route_variant: str = Query("", alias="variant"),
 ):
     _validate_text(text)
     _validate_text(model_input_override, "model_input_override")
     _validate_text(ref_text or "", "ref_text")
 
-    voice_id = (voice or "").strip().lower()
-    builtin = _BUILTIN_VOICES.get(voice_id) if voice_id else None
-    if voice_id and not builtin:
-        raise HTTPException(400, f"Unknown built-in voice: {voice_id}")
-
-    req_variant = (variant or "").strip().lower() or DEFAULT_VARIANT
+    # ?variant= is set by the gateway from the model alias and outranks the form field.
+    req_variant = (route_variant or variant or "").strip().lower() or DEFAULT_VARIANT
     if req_variant not in MODEL_VARIANTS:
         available = ", ".join(sorted(MODEL_VARIANTS))
         raise HTTPException(400, f"Model variant '{req_variant}' is not available on this server "
                                  f"(available: {available})")
 
-    ref_tmp = await _save_upload_tmp(ref_audio)
+    pinned_voice = VARIANT_VOICES.get(req_variant)
+    voice_id = pinned_voice or (voice or "").strip().lower()
+    builtin = _BUILTIN_VOICES.get(voice_id) if voice_id else None
+    if pinned_voice and not builtin:
+        raise HTTPException(503, f"Variant '{req_variant}' requires the built-in voice "
+                                 f"'{pinned_voice}', which is missing from {VOICES_DIR}")
+    if voice_id and not builtin:
+        raise HTTPException(400, f"Unknown built-in voice: {voice_id}")
+
+    ref_tmp = None if pinned_voice else await _save_upload_tmp(ref_audio)
+    user_ref_text = "" if pinned_voice else (ref_text or "").strip()
 
     out_path = OUT_DIR / f"omnivoice_{uuid.uuid4().hex[:12]}.wav"
     # Non-empty overrides are used verbatim (frontend manual-edit mode).
     eff_text = (model_input_override or "").strip() or text
     kwargs: dict = {"text": eff_text}
-    # A user-uploaded reference always wins over a built-in voice.
+    # A user-uploaded reference always wins over a built-in voice (never over a pinned one).
     if ref_tmp:
         kwargs["ref_audio"] = ref_tmp
     elif builtin:
         kwargs["ref_audio"] = builtin["ref_audio_path"]
-    if ref_text and ref_text.strip():
-        kwargs["ref_text"] = ref_text.strip()
+    if user_ref_text:
+        kwargs["ref_text"] = user_ref_text
     elif not ref_tmp and builtin and builtin.get("ref_text"):
         kwargs["ref_text"] = builtin["ref_text"]
 

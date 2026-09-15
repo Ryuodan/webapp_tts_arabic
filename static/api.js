@@ -5,8 +5,8 @@
 // renders as a dropdown instead of a free-text box the caller has to guess at. The list
 // here is what the repo ships; refreshVoices() swaps in whatever the worker actually
 // loaded, so a voice dropped into voices/ needs no edit to this file.
-let VOICE_IDS = ['abeer', 'ahmed'];
-const VOICE_LABELS = { abeer: 'voice.abeer', ahmed: 'voice.ahmed' };
+let VOICE_IDS = ['abeer', 'ahmed', 'nasser'];
+const VOICE_LABELS = { abeer: 'voice.abeer', ahmed: 'voice.ahmed', nasser: 'voice.nasser' };
 
 function voiceOptions() {
   const opts = [{ value: '', get label() { return t('voice.none'); } }];
@@ -58,7 +58,7 @@ const ENDPOINTS = [
     get desc() { return t('ep.synth.desc'); },
     encoding: 'form',
     fields: [
-      { name: 'model',   type: 'select', in: 'path', options: ['omnivoice_ft', 'omnivoice_base'], value: 'omnivoice_ft' },
+      { name: 'model',   type: 'select', in: 'path', options: ['omnivoice_ft', 'omnivoice_nasser', 'omnivoice_base'], value: 'omnivoice_ft' },
       { name: 'text',    type: 'text',   required: true, value: 'مرحباً، كيف حالك؟' },
       { name: 'dialect', type: 'select', options: ['msa', 'saudi', 'egyptian'], value: 'msa' },
       { name: 'voice',   type: 'select', get options() { return voiceOptions(); }, value: '',
@@ -75,7 +75,7 @@ const ENDPOINTS = [
     get title() { return t('ep.load.title'); },
     get desc() { return t('ep.load.desc'); },
     fields: [
-      { name: 'model', type: 'select', in: 'path', options: ['omnivoice_ft', 'omnivoice_base', 'transcribe'], value: 'transcribe' },
+      { name: 'model', type: 'select', in: 'path', options: ['omnivoice_ft', 'omnivoice_nasser', 'omnivoice_base', 'transcribe'], value: 'transcribe' },
     ],
   },
   {
@@ -84,7 +84,7 @@ const ENDPOINTS = [
     get title() { return t('ep.one.title'); },
     get desc() { return t('ep.one.desc'); },
     fields: [
-      { name: 'model', type: 'select', in: 'path', options: ['omnivoice_ft', 'omnivoice_base', 'transcribe'], value: 'transcribe' },
+      { name: 'model', type: 'select', in: 'path', options: ['omnivoice_ft', 'omnivoice_nasser', 'omnivoice_base', 'transcribe'], value: 'transcribe' },
     ],
   },
   {
@@ -93,7 +93,7 @@ const ENDPOINTS = [
     get title() { return t('ep.hist.title'); },
     get desc() { return t('ep.hist.desc'); },
     fields: [
-      { name: 'model', type: 'select', in: 'path', options: ['omnivoice_ft', 'omnivoice_base', 'transcribe'], value: 'transcribe' },
+      { name: 'model', type: 'select', in: 'path', options: ['omnivoice_ft', 'omnivoice_nasser', 'omnivoice_base', 'transcribe'], value: 'transcribe' },
       { name: 'limit', type: 'text', in: 'query', value: '10' },
     ],
     returns: '[ { filename, model, text, params, duration_s, rtf, mtime, size_bytes } ]',
@@ -179,7 +179,7 @@ const ENDPOINTS = [
     get title() { return t('ep.audio.title'); },
     get desc() { return t('ep.audio.desc'); },
     fields: [
-      { name: 'model',    type: 'select', in: 'path', options: ['omnivoice_ft', 'omnivoice_base', 'transcribe'], value: 'omnivoice_ft' },
+      { name: 'model',    type: 'select', in: 'path', options: ['omnivoice_ft', 'omnivoice_nasser', 'omnivoice_base', 'transcribe'], value: 'omnivoice_ft' },
       { name: 'filename', type: 'text',   in: 'path', value: 'omnivoice_xxxxxxxxxxxx.wav' },
     ],
     noTry: true,

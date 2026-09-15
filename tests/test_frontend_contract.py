@@ -124,10 +124,21 @@ def test_the_ui_models_are_routable_tts_workers():
 
 
 def test_each_interface_model_pins_a_worker_variant():
-    """Both cards hit the same worker, so the variant is the only thing telling them apart."""
-    for model in app_js("MODELS"):
+    """Every card hits the same worker, so the variant is the only thing telling them apart."""
+    models = app_js("MODELS")
+    for model, spec in models.items():
         assert gateway.MODEL_VARIANT.get(model), model
-    assert len({gateway.TTS_WORKERS[m] for m in app_js("MODELS")}) == 1
+        assert spec["fixedParams"]["variant"] == gateway.MODEL_VARIANT[model], model
+    assert len({gateway.TTS_WORKERS[m] for m in models}) == 1
+
+
+def test_locked_voices_match_the_worker_pins():
+    """A card that shows a fixed voice must be the variant the worker pins to that voice."""
+    locked = {spec["fixedParams"]["variant"]: spec["lockedVoice"]
+              for spec in app_js("MODELS").values() if spec.get("lockedVoice")}
+    assert locked == omnivoice_server.VARIANT_VOICES
+    for voice in locked.values():
+        assert voice in omnivoice_server._BUILTIN_VOICES, voice
 
 
 def test_transcription_is_not_a_synthesis_model():

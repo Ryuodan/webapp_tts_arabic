@@ -16,6 +16,8 @@
   --omni-dim:    rgba(88,166,255,.15);
   --vox:         #3fb950;
   --vox-dim:     rgba(63,185,80,.15);
+  --nasser:      #bc8cff;
+  --nasser-dim:  rgba(188,140,255,.15);
 
   --green:       #3fb950;
   --red:         #f85149;
@@ -182,6 +184,7 @@ textarea { resize: vertical; }
 .model-card.active.voxcpm2  { border-color: var(--vox);   background: var(--vox-dim);  }
 .model-card.active.omnivoice_ft  { border-color: var(--omni); background: var(--omni-dim); }
 .model-card.active.omnivoice_base{ border-color: var(--vox);  background: var(--vox-dim);  }
+.model-card.active.omnivoice_nasser{ border-color: var(--nasser); background: var(--nasser-dim); }
 .model-card.offline { opacity: .45; }
 
 .mc-header { display: flex; align-items: center; gap: 8px; }
@@ -216,6 +219,7 @@ textarea { resize: vertical; }
 .model-card.voxcpm2  .mc-load-btn:hover:not(:disabled) { border-color: var(--vox);  color: var(--vox);  }
 .model-card.omnivoice_ft   .mc-load-btn:hover:not(:disabled) { border-color: var(--omni); color: var(--omni); }
 .model-card.omnivoice_base .mc-load-btn:hover:not(:disabled) { border-color: var(--vox);  color: var(--vox);  }
+.model-card.omnivoice_nasser .mc-load-btn:hover:not(:disabled) { border-color: var(--nasser); color: var(--nasser); }
 .mc-load-btn:disabled { opacity: .65; cursor: default; animation: blink .8s infinite; }
 
 /* ── Simple voice picker ───────────────────────────────────── */
@@ -478,6 +482,7 @@ textarea { resize: vertical; }
 .model-insights.voxcpm2 { border-color: rgba(63,185,80,.35); }
 .model-insights.omnivoice_ft   { border-color: rgba(88,166,255,.35); }
 .model-insights.omnivoice_base { border-color: rgba(63,185,80,.35); }
+.model-insights.omnivoice_nasser { border-color: rgba(188,140,255,.35); }
 .insight-head {
   display: flex;
   align-items: flex-start;
@@ -677,6 +682,7 @@ textarea { resize: vertical; }
 .btn-synth.voxcpm2  { background: var(--vox);  }
 .btn-synth.omnivoice_ft  { background: var(--omni); }
 .btn-synth.omnivoice_base{ background: var(--vox);  }
+.btn-synth.omnivoice_nasser{ background: var(--nasser); }
 
 .synth-icon { font-size: .8rem; }
 .synth-progress { display: flex; flex-direction: column; gap: 6px; }
@@ -795,6 +801,7 @@ textarea { resize: vertical; }
 .btn-play.vox  { background: var(--vox); }
 .btn-play.voxcpm2        { background: var(--vox); }
 .btn-play.omnivoice_base { background: var(--vox); }
+.btn-play.omnivoice_nasser { background: var(--nasser); }
 .btn-play:hover { filter: brightness(1.15); transform: scale(1.05); }
 
 .time-display { font-size: .75rem; color: var(--txt2); font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -813,6 +820,7 @@ textarea { resize: vertical; }
 .model-badge.voxcpm2  { background: var(--vox-dim);   color: var(--vox);  }
 .model-badge.omnivoice_ft  { background: var(--omni-dim); color: var(--omni); }
 .model-badge.omnivoice_base{ background: var(--vox-dim);  color: var(--vox);  }
+.model-badge.omnivoice_nasser{ background: var(--nasser-dim); color: var(--nasser); }
 .rtf-badge {
   padding: 2px 7px;
   border-radius: 10px;
@@ -955,6 +963,7 @@ textarea { resize: vertical; }
 .mini-player.voxcpm2  .mini-player-title { color: var(--vox); }
 .mini-player.omnivoice_ft   .mini-player-title { color: var(--omni); }
 .mini-player.omnivoice_base .mini-player-title { color: var(--vox); }
+.mini-player.omnivoice_nasser .mini-player-title { color: var(--nasser); }
 .mini-player audio { width: 100%; min-width: 0; height: 32px; accent-color: var(--omni); }
 .mini-player .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 /* Keep the option chips uniform across models so cards line up */
@@ -1069,6 +1078,7 @@ textarea { resize: vertical; }
 .history-item.playing.fish     { border-color: var(--fish); background: var(--fish-dim); }
 .history-item.playing.voxcpm2  { border-color: var(--vox);  background: var(--vox-dim); }
 .history-item.playing.omnivoice_base { border-color: var(--vox); background: var(--vox-dim); }
+.history-item.playing.omnivoice_nasser { border-color: var(--nasser); background: var(--nasser-dim); }
 
 .hi-badge { flex-shrink: 0; }
 .hi-info  { flex: 1; min-width: 0; direction: rtl; }

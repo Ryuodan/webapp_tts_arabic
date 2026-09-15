@@ -102,9 +102,26 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+# ── assemble checkpoints pulled as split parts ─────────────────
+# git carries each fine-tuned model.safetensors as part-* chunks. Rebuild it when it is
+# missing or a pull brought newer parts, so `git pull && bash start.sh` is the whole update.
+for ckpt in "${SCRIPT_DIR}"/models/omnivoice/*/; do
+  name="$(basename "$ckpt")"
+  compgen -G "${ckpt}model.safetensors.part-*" >/dev/null || continue
+  out="${ckpt}model.safetensors"
+  if [[ ! -f "$out" ]] || [[ -n "$(find "$ckpt" -maxdepth 1 -name 'model.safetensors.part-*' -newer "$out" -print -quit)" ]]; then
+    log "Assembling checkpoint ${name} from its git parts (one-time, ~1 min)..."
+    if bash "${SCRIPT_DIR}/scripts/assemble_omnivoice_checkpoint.sh" "$name"; then
+      touch "$out"   # parts unchanged in content: skip the re-check next start
+    else
+      log "⚠  Could not assemble ${name} — its model card will show offline."
+    fi
+  fi
+done
+
 # ── start workers ───────────────────────────────────────────────
-# Fish S2 Pro and VoxCPM2 are intentionally disabled; the interface exposes only the
-# two OmniVoice variants (fine-tuned + base), which share the single worker below,
+# Fish S2 Pro and VoxCPM2 are intentionally disabled; the interface exposes the three
+# OmniVoice variants (fine-tuned, Nasser, base), which share the single worker below,
 # plus the ASR worker that backs transcription.
 start_worker omnivoice-tts  "${SCRIPT_DIR}/workers/omnivoice_server.py"  8082
 start_worker transcribe-asr "${SCRIPT_DIR}/workers/transcribe_server.py" 8084

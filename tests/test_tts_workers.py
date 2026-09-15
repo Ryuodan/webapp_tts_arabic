@@ -93,6 +93,78 @@ def test_omni_writes_audio_metrics_and_sidecar(omni):
     assert meta["params"] == {"speaker": "whisper", "voice": "", "variant": "base"}
 
 
+# ── Nasser: a single-speaker variant pinned to its built-in voice ──
+@pytest.fixture
+def nasser(tmp_path, monkeypatch, fake_omnivoice):
+    ckpt = tmp_path / "najdi_male_ft_cont" / "checkpoint-400"
+    ckpt.mkdir(parents=True)
+    module = fresh_import("omnivoice_server", monkeypatch,
+                          {"OMNIVOICE_OUT_DIR": tmp_path / "out",
+                           "OMNIVOICE_NASSER_MODEL_ID": ckpt})
+    client = TestClient(module.app)
+    client.module, client.rec, client.ckpt = module, fake_omnivoice, ckpt
+    return client
+
+
+def test_nasser_variant_is_offered_with_its_pinned_voice(nasser):
+    health = nasser.get("/health").json()
+    assert health["variants"]["nasser"] == str(nasser.ckpt)
+    assert health["variant_voices"] == {"nasser": "nasser"}
+    assert "nasser" in health["voices"]
+    assert health["default_variant"] != "nasser"      # never the implicit choice
+
+
+def test_nasser_weights_resolve_repo_first_then_training_project(omni, tmp_path, monkeypatch):
+    repo, project = tmp_path / "repo_nasser", tmp_path / "project_nasser"
+    monkeypatch.delenv("OMNIVOICE_NASSER_MODEL_ID", raising=False)
+    monkeypatch.setattr(omni.module, "REPO_NASSER_CHECKPOINT", repo)
+    monkeypatch.setattr(omni.module, "NASSER_CHECKPOINT", project)
+    assert omni.module._nasser_model_id() is None          # no weights anywhere -> no variant
+
+    project.mkdir(); (project / "model.safetensors").touch()
+    assert omni.module._nasser_model_id() == str(project)
+
+    repo.mkdir(); (repo / "model.safetensors").touch()
+    assert omni.module._nasser_model_id() == str(repo)
+
+
+def test_nasser_always_clones_nasser(nasser):
+    body = nasser.post("/synthesize", data={"text": "مرحباً", "variant": "nasser"}).json()
+    kwargs = nasser.rec["generate_kwargs"]
+    voice = nasser.module._BUILTIN_VOICES["nasser"]
+    assert nasser.rec["from_pretrained"][0] == str(nasser.ckpt)
+    assert kwargs["ref_audio"] == voice["ref_audio_path"] and kwargs["ref_text"] == voice["ref_text"]
+    assert body["voice"] == "nasser" and body["model_variant"] == "nasser"
+
+
+def test_nasser_ignores_another_voice_an_upload_and_a_transcript(nasser, wav_file):
+    nasser.post("/synthesize",
+                data={"text": "مرحباً", "variant": "nasser", "voice": "abeer", "ref_text": "نص آخر"},
+                files={"ref_audio": ("ref.wav", wav_file.read_bytes(), "audio/wav")})
+    kwargs = nasser.rec["generate_kwargs"]
+    voice = nasser.module._BUILTIN_VOICES["nasser"]
+    assert kwargs["ref_audio"] == voice["ref_audio_path"] and kwargs["ref_text"] == voice["ref_text"]
+
+
+def test_the_route_variant_outranks_the_form_field(nasser):
+    """The gateway pins ?variant= from the alias; a stale form value must not win."""
+    body = nasser.post("/synthesize?variant=nasser",
+                       data={"text": "مرحباً", "variant": "base"}).json()
+    assert body["model_variant"] == "nasser"
+
+
+def test_other_variants_can_still_borrow_the_nasser_voice(nasser):
+    nasser.post("/synthesize", data={"text": "مرحباً", "variant": "base", "voice": "nasser"})
+    assert nasser.rec["generate_kwargs"]["ref_audio"] == \
+        nasser.module._BUILTIN_VOICES["nasser"]["ref_audio_path"]
+
+
+def test_nasser_without_its_voice_files_is_a_503(nasser, tmp_path, monkeypatch):
+    monkeypatch.setattr(nasser.module, "_BUILTIN_VOICES", {})
+    r = nasser.post("/synthesize", data={"text": "مرحباً", "variant": "nasser"})
+    assert r.status_code == 503 and "nasser" in r.json()["detail"]
+
+
 def test_omni_generation_failure_is_a_500(omni):
     omni.rec["error"] = "CUDA OOM"
     r = omni.post("/synthesize", data={"text": "مرحباً"})
