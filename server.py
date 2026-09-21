@@ -30,7 +30,7 @@ OUTPUT_DIRS = {
     "omnivoice":        WORKDIR / "outputs_omnivoice",
     "omnivoice_ft":     WORKDIR / "outputs_omnivoice",
     "omnivoice_base":   WORKDIR / "outputs_omnivoice",
-    "omnivoice_nasser": WORKDIR / "outputs_omnivoice",
+    "omnivoice_najdi":  WORKDIR / "outputs_omnivoice",
     "transcribe":       WORKDIR / "outputs_transcribe",
 }
 
@@ -42,7 +42,7 @@ TTS_WORKERS = {
     "omnivoice":        _OMNIVOICE_URL,
     "omnivoice_ft":     _OMNIVOICE_URL,
     "omnivoice_base":   _OMNIVOICE_URL,
-    "omnivoice_nasser": _OMNIVOICE_URL,
+    "omnivoice_najdi":  _OMNIVOICE_URL,
 }
 # Speech-in (ASR) worker — answers /api/transcribe.
 ASR_WORKER = "http://127.0.0.1:8084"
@@ -55,7 +55,8 @@ WORKER_URLS = {**TTS_WORKERS, "transcribe": ASR_WORKER}
 MODEL_VARIANT = {
     "omnivoice_ft":     "finetuned",
     "omnivoice_base":   "base",
-    "omnivoice_nasser": "nasser",   # always clones the built-in Nasser voice (worker-enforced)
+    # Clones Nasser for gender=male and Joud for gender=female — nothing else (worker-enforced).
+    "omnivoice_najdi":  "najdi",
 }
 
 

@@ -1,0 +1,12 @@
+{
+  "id": "joud",
+  "label": "جود — نجدية",
+  "gender": "female",
+  "language": "ars",
+  "ref_audio": "joud_ref_6s.wav",
+  "ref_text": "هلا والله بأم فهد، طال عمرك. أنا تغريد من تأمين الضمان. كيف حالك اليوم؟",
+  "sample_rate": 24000,
+  "duration_s": 6.18,
+  "source": "omnivoice-finetune/data/najdi_mix_v2/wavs/b6839b968563.wav (test split, id najdi_mix_b6839b968563)",
+  "notes": "Joud, Najdi female support agent ('Joud - Saudi Gentle & Warm'). Held-out test clip, deliberately the same support-agent greeting as voices/nasser so the two sound like the same call from either side. The omnivoice_najdi model clones it whenever gender=female."
+}

@@ -1,0 +1,37 @@
+{
+  "model": "OmniVoice",
+  "fine_tune_run": "najdi_mix_v2_ft",
+  "selected_checkpoint": "omnivoice-finetune/checkpoints/najdi_mix_v2_ft/checkpoint-1000",
+  "global_step": 1000,
+  "local_alias": "models/omnivoice/najdi_mix_1000",
+  "lineage": "k2-fsa/OmniVoice -> najdi_mix_v2_ft (1,200 steps, lr 3e-5, both Najdi voices)",
+  "speakers": {
+    "male": "Nasser AlJubaily — Najdi male support agent (clone voice: voices/nasser)",
+    "female": "Joud — Saudi Gentle & Warm, Najdi female support agent (clone voice: voices/joud)"
+  },
+  "clone_voice": "gender=male -> voices/nasser, gender=female -> voices/joud (the omnivoice_najdi model accepts no other reference)",
+  "training_data": {
+    "dataset": "data/najdi_mix_v2 (najdi_tts_mix_v2, 24 kHz)",
+    "clips": {"train": 6811, "val": 369, "test": 384},
+    "by_voice_train": {"Nasser AlJubaily - Authentic Saudi Pro": 3088, "Joud - Saudi Gentle & Warm": 3723}
+  },
+  "selection": {
+    "criterion": "lowest eval loss over the run's 24 checkpoints",
+    "eval_loss": 3.7266,
+    "runner_up": {"step": 500, "eval_loss": 3.7315},
+    "final_step": {"step": 1200, "eval_loss": 3.804},
+    "source": "omnivoice-finetune/checkpoints/najdi_mix_v2_ft/train.log"
+  },
+  "artifact": {
+    "model_safetensors_bytes": 2450344144,
+    "model_safetensors_sha256": "fefa4d22ce4f171cbc09d386791dd04ae1bdfe8c44bb971ec15d72c5c5c9409f",
+    "config_json_sha256": "958f818c4e5b92a8a465784338431604b10f1b4a1a6e430dbb1412deae7dcdc6",
+    "tokenizer_json_sha256": "408f669b7e2b045fdf54201d815bd364e6667dbd845115da81239c40bc6dcfd1",
+    "train_config_json_sha256": "e5cc0ebac95b3410db7a1d7461554805a0b9f546be9250e0282dbf5e8ec6d48c",
+    "parts": 25,
+    "part_bytes": 99614720
+  },
+  "optimizer_state": "not copied (optimizer.bin, scheduler.bin, random_states_0.pkl are training-only)",
+  "replaces": "models/omnivoice/nasser_800 (najdi_male_ft_cont/checkpoint-400) — the Nasser-only fine-tune, removed",
+  "selected_on": "2026-09-21"
+}

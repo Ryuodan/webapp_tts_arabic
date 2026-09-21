@@ -8,5 +8,5 @@
   "sample_rate": 24000,
   "duration_s": 6.27,
   "source": "omnivoice-finetune/data/najdi_male/wavs/17a4d2672c6c.wav (test split, id najdi_male_17a4d2672c6c)",
-  "notes": "Nasser, Najdi male support agent. Held-out test clip used as the clone reference in the najdi_male eval and in Nasser Voice Compare. The omnivoice_nasser model (najdi_male_ft_cont/checkpoint-400, global step 800) always clones this voice."
+  "notes": "Nasser, Najdi male support agent. Held-out test clip used as the clone reference in the najdi_male eval and in Nasser Voice Compare. The omnivoice_najdi model (najdi_mix_v2_ft/checkpoint-1000) clones this voice whenever gender=male; voices/joud is its female counterpart."
 }

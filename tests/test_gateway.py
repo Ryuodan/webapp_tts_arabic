@@ -14,7 +14,7 @@ from conftest import fresh_import, write_wav
 
 # Every OmniVoice alias is the same worker; only the ASR worker has its own port.
 PORTS = {"omnivoice": 8082, "omnivoice_ft": 8082, "omnivoice_base": 8082,
-         "omnivoice_nasser": 8082, "transcribe": 8084}
+         "omnivoice_najdi": 8082, "transcribe": 8084}
 
 
 @pytest.fixture
@@ -61,7 +61,7 @@ def test_status_reports_every_worker(gateway):
     assert set(body) == set(gateway.server.WORKER_URLS) | {"_memory_policy"}
     assert body["transcribe"]["model_loaded"] is False
     # Every OmniVoice alias shares one worker, so they report one health payload.
-    for alias in ("omnivoice", "omnivoice_ft", "omnivoice_base", "omnivoice_nasser"):
+    for alias in ("omnivoice", "omnivoice_ft", "omnivoice_base", "omnivoice_najdi"):
         assert body[alias]["model_loaded"] is True
 
 
@@ -144,7 +144,7 @@ def test_synthesize_offline_worker_is_503(gateway):
 
 
 @pytest.mark.parametrize("model,variant", [
-    ("omnivoice_ft", "finetuned"), ("omnivoice_base", "base"), ("omnivoice_nasser", "nasser"),
+    ("omnivoice_ft", "finetuned"), ("omnivoice_base", "base"), ("omnivoice_najdi", "najdi"),
 ])
 def test_synthesize_tells_the_worker_which_variant_the_alias_means(gateway, model, variant):
     """A caller that never sends `variant` must still reach the checkpoint it addressed."""
@@ -272,7 +272,7 @@ def test_transcribe_timeout_is_504(gateway):
 
 
 # ── load / per-model status ───────────────────────────────────
-@pytest.mark.parametrize("model", ["omnivoice", "omnivoice_ft", "omnivoice_base", "omnivoice_nasser",
+@pytest.mark.parametrize("model", ["omnivoice", "omnivoice_ft", "omnivoice_base", "omnivoice_najdi",
                                    "transcribe"])
 def test_load_and_status_cover_every_worker(gateway, model):
     stub(gateway, model, "/load", {"status": "loaded"})

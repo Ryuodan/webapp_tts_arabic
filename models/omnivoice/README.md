@@ -5,11 +5,12 @@ Two fine-tuned checkpoints ship here, both as split parts:
 | Dir | Variant / card | Source | Metadata |
 | --- | --- | --- | --- |
 | `best_finetuned/` | `finetuned` / `omnivoice_ft` | `saudi_hq_ft/checkpoint-2500` | `best_finetuned_checkpoint.json` |
-| `nasser_800/` | `nasser` / `omnivoice_nasser` | `najdi_male_ft_cont/checkpoint-400` (global step 800) | `nasser_800_checkpoint.json` |
+| `najdi_mix_1000/` | `najdi` / `omnivoice_najdi` | `najdi_mix_v2_ft/checkpoint-1000` (best eval loss, 3.7266) | `najdi_mix_1000_checkpoint.json` |
 
 `bash scripts/assemble_omnivoice_checkpoint.sh` rebuilds both (or name one); `start.sh`
-runs it automatically when parts are newer than the assembled file. The Nasser
-variant always clones `voices/nasser`.
+runs it automatically when parts are newer than the assembled file. The Najdi variant
+clones `voices/nasser` for `gender=male` and `voices/joud` for `gender=female`, and
+accepts no other reference. It replaces the Nasser-only `nasser_800/` checkpoint.
 
 ## Saudi-HQ checkpoint (`best_finetuned/`)
 
