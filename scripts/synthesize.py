@@ -21,13 +21,13 @@ BASE = "http://127.0.0.1:8025"
 TIMEOUT = httpx.Timeout(connect=5.0, read=900.0, write=60.0, pool=5.0)
 
 
-def voices(base=BASE, model="omnivoice_ft"):
+def voices(base=BASE, model="omnivoice_base"):
     """The built-in voice ids the worker loaded — the same list the API console shows."""
     health = httpx.get(f"{base}/api/{model}/status", timeout=10.0).json()
     return health.get("voices", [])
 
 
-def synthesize(text, model="omnivoice_ft", dialect="msa", voice="", gender="", age="",
+def synthesize(text, model="omnivoice_najdi", dialect="msa", voice="", gender="", age="",
                base=BASE):
     """POST the form and return the response JSON.
 
@@ -56,8 +56,8 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("text", nargs="?", help="Arabic text to speak")
     ap.add_argument("--base", default=BASE, help=f"gateway URL (default {BASE})")
-    ap.add_argument("--model", default="omnivoice_ft",
-                    choices=["omnivoice_ft", "omnivoice_najdi", "omnivoice_base"])
+    ap.add_argument("--model", default="omnivoice_najdi",
+                    choices=["omnivoice_najdi", "omnivoice_base"])
     ap.add_argument("--dialect", default="msa", choices=["msa", "saudi", "egyptian"])
     ap.add_argument("--voice", default="", help="built-in voice id; empty = the model's own")
     ap.add_argument("--gender", default="", choices=["", "male", "female"])

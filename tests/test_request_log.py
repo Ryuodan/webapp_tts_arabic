@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 import reqlog
 from conftest import fresh_import
 
-PORTS = {"omnivoice_ft": 8082, "transcribe": 8084}
+PORTS = {"omnivoice_najdi": 8082, "transcribe": 8084}
 
 
 # ── Fixtures ──────────────────────────────────────────────────
@@ -237,17 +237,17 @@ def test_stats_window_excludes_older_rows(store):
 
 # ── Middleware, through the gateway ───────────────────────────
 def test_a_proxied_call_is_logged_with_its_inputs_outputs_and_timing(gateway):
-    stub(gateway, "omnivoice_ft", "/synthesize", {"filename": "o.wav", "model": "omnivoice_ft"})
+    stub(gateway, "omnivoice_najdi", "/synthesize", {"filename": "o.wav", "model": "omnivoice_najdi"})
 
-    gateway.post("/api/omnivoice_ft/synthesize", data={"text": "مرحباً", "dialect": "saudi"})
+    gateway.post("/api/omnivoice_najdi/synthesize", data={"text": "مرحباً", "dialect": "saudi"})
 
     item = rows(gateway)[0]
-    assert item["method"] == "POST" and item["path"] == "/api/omnivoice_ft/synthesize"
+    assert item["method"] == "POST" and item["path"] == "/api/omnivoice_najdi/synthesize"
     assert item["route"] == "/api/{model}/synthesize"    # rows group by the route template
-    assert item["model"] == "omnivoice_ft"
+    assert item["model"] == "omnivoice_najdi"
     assert item["status"] == 200 and item["ok"] is True
     assert item["request"] == {"text": "مرحباً", "dialect": "saudi"}
-    assert item["response"] == {"filename": "o.wav", "model": "omnivoice_ft"}
+    assert item["response"] == {"filename": "o.wav", "model": "omnivoice_najdi"}
     assert item["duration_ms"] >= 0 and item["error"] is None
     assert item["req_bytes"] > 0 and item["resp_bytes"] > 0
 
@@ -267,9 +267,9 @@ def test_an_upload_is_logged_without_its_audio(gateway):
 
 
 def test_a_failing_call_records_the_status_and_the_reason(gateway):
-    stub(gateway, "omnivoice_ft", "/synthesize", httpx.Response(500, text="CUDA OOM"))
+    stub(gateway, "omnivoice_najdi", "/synthesize", httpx.Response(500, text="CUDA OOM"))
 
-    gateway.post("/api/omnivoice_ft/synthesize", data={"text": "hi"})
+    gateway.post("/api/omnivoice_najdi/synthesize", data={"text": "hi"})
 
     item = rows(gateway)[0]
     assert item["status"] == 500 and item["ok"] is False
@@ -277,16 +277,16 @@ def test_a_failing_call_records_the_status_and_the_reason(gateway):
 
 
 def test_the_query_string_is_kept_on_the_logged_path(gateway):
-    gateway.get("/api/omnivoice_ft/history?limit=5")
-    assert rows(gateway)[0]["path"] == "/api/omnivoice_ft/history?limit=5"
+    gateway.get("/api/omnivoice_najdi/history?limit=5")
+    assert rows(gateway)[0]["path"] == "/api/omnivoice_najdi/history?limit=5"
 
 
 def test_status_polling_and_the_console_itself_are_not_logged(gateway):
-    stub(gateway, "omnivoice_ft", "/health", {"model_loaded": True})
+    stub(gateway, "omnivoice_najdi", "/health", {"model_loaded": True})
     stub(gateway, "transcribe", "/health", {"model_loaded": True})
 
     gateway.get("/api/status")
-    gateway.get("/api/omnivoice_ft/status")
+    gateway.get("/api/omnivoice_najdi/status")
     gateway.get("/api/logs/stats")
     gateway.get("/api/logs")
 
@@ -300,22 +300,22 @@ def test_non_api_paths_are_not_logged(gateway):
 
 
 def test_the_console_endpoints_filter_the_same_way_the_store_does(gateway):
-    stub(gateway, "omnivoice_ft", "/synthesize", {"filename": "o.wav"})
+    stub(gateway, "omnivoice_najdi", "/synthesize", {"filename": "o.wav"})
     stub(gateway, "transcribe", "/transcribe", httpx.Response(503, text="down"))
-    gateway.post("/api/omnivoice_ft/synthesize", data={"text": "hi"})
+    gateway.post("/api/omnivoice_najdi/synthesize", data={"text": "hi"})
     gateway.post("/api/transcribe", files={"audio": ("c.wav", b"x")})
 
     assert len(rows(gateway)) == 2
     assert len(rows(gateway, status="error")) == 1
     assert len(rows(gateway, route="/api/transcribe")) == 1
-    assert len(rows(gateway, model="omnivoice_ft")) == 1
+    assert len(rows(gateway, model="omnivoice_najdi")) == 1
     assert len(rows(gateway, q="down")) == 1
     assert len(rows(gateway, hours=0.0001)) == 2          # both are seconds old
 
 
 def test_a_single_entry_is_addressable_by_id(gateway):
-    stub(gateway, "omnivoice_ft", "/synthesize", {"filename": "o.wav"})
-    gateway.post("/api/omnivoice_ft/synthesize", data={"text": "hi"})
+    stub(gateway, "omnivoice_najdi", "/synthesize", {"filename": "o.wav"})
+    gateway.post("/api/omnivoice_najdi/synthesize", data={"text": "hi"})
 
     log_id = rows(gateway)[0]["id"]
     assert gateway.get(f"/api/logs/{log_id}").json()["id"] == log_id
@@ -323,8 +323,8 @@ def test_a_single_entry_is_addressable_by_id(gateway):
 
 
 def test_stats_and_clear_are_exposed(gateway):
-    stub(gateway, "omnivoice_ft", "/synthesize", {"filename": "o.wav"})
-    gateway.post("/api/omnivoice_ft/synthesize", data={"text": "hi"})
+    stub(gateway, "omnivoice_najdi", "/synthesize", {"filename": "o.wav"})
+    gateway.post("/api/omnivoice_najdi/synthesize", data={"text": "hi"})
 
     stats = gateway.get("/api/logs/stats?hours=24").json()
     assert stats["totals"]["count"] == 1
@@ -337,11 +337,11 @@ def test_stats_and_clear_are_exposed(gateway):
 
 def test_a_broken_log_never_breaks_the_request(gateway, monkeypatch):
     """Logging is bookkeeping — a failure in it must not cost the caller their response."""
-    stub(gateway, "omnivoice_ft", "/synthesize", {"filename": "o.wav"})
+    stub(gateway, "omnivoice_najdi", "/synthesize", {"filename": "o.wav"})
     monkeypatch.setattr(gateway.server.request_log, "record",
                         lambda entry: (_ for _ in ()).throw(RuntimeError("disk full")))
 
-    r = gateway.post("/api/omnivoice_ft/synthesize", data={"text": "hi"})
+    r = gateway.post("/api/omnivoice_najdi/synthesize", data={"text": "hi"})
     assert r.status_code == 200 and r.json()["filename"] == "o.wav"
 
 

@@ -59,7 +59,7 @@ const ENDPOINTS = [
     get desc() { return t('ep.synth.desc'); },
     encoding: 'form',
     fields: [
-      { name: 'model',   type: 'select', in: 'path', options: ['omnivoice_ft', 'omnivoice_najdi', 'omnivoice_base'], value: 'omnivoice_ft' },
+      { name: 'model',   type: 'select', in: 'path', options: ['omnivoice_najdi', 'omnivoice_base'], value: 'omnivoice_najdi' },
       { name: 'text',    type: 'text',   required: true, value: 'مرحباً، كيف حالك؟' },
       { name: 'dialect', type: 'select', options: ['msa', 'saudi', 'egyptian'], value: 'msa' },
       { name: 'voice',   type: 'select', get options() { return voiceOptions(); }, value: '',
@@ -76,7 +76,7 @@ const ENDPOINTS = [
     get title() { return t('ep.load.title'); },
     get desc() { return t('ep.load.desc'); },
     fields: [
-      { name: 'model', type: 'select', in: 'path', options: ['omnivoice_ft', 'omnivoice_najdi', 'omnivoice_base', 'transcribe'], value: 'transcribe' },
+      { name: 'model', type: 'select', in: 'path', options: ['omnivoice_najdi', 'omnivoice_base', 'transcribe'], value: 'transcribe' },
     ],
   },
   {
@@ -85,7 +85,7 @@ const ENDPOINTS = [
     get title() { return t('ep.one.title'); },
     get desc() { return t('ep.one.desc'); },
     fields: [
-      { name: 'model', type: 'select', in: 'path', options: ['omnivoice_ft', 'omnivoice_najdi', 'omnivoice_base', 'transcribe'], value: 'transcribe' },
+      { name: 'model', type: 'select', in: 'path', options: ['omnivoice_najdi', 'omnivoice_base', 'transcribe'], value: 'transcribe' },
     ],
   },
   {
@@ -94,7 +94,7 @@ const ENDPOINTS = [
     get title() { return t('ep.hist.title'); },
     get desc() { return t('ep.hist.desc'); },
     fields: [
-      { name: 'model', type: 'select', in: 'path', options: ['omnivoice_ft', 'omnivoice_najdi', 'omnivoice_base', 'transcribe'], value: 'transcribe' },
+      { name: 'model', type: 'select', in: 'path', options: ['omnivoice_najdi', 'omnivoice_base', 'transcribe'], value: 'transcribe' },
       { name: 'limit', type: 'text', in: 'query', value: '10' },
     ],
     returns: '[ { filename, model, text, params, duration_s, rtf, mtime, size_bytes } ]',
@@ -180,7 +180,7 @@ const ENDPOINTS = [
     get title() { return t('ep.audio.title'); },
     get desc() { return t('ep.audio.desc'); },
     fields: [
-      { name: 'model',    type: 'select', in: 'path', options: ['omnivoice_ft', 'omnivoice_najdi', 'omnivoice_base', 'transcribe'], value: 'omnivoice_ft' },
+      { name: 'model',    type: 'select', in: 'path', options: ['omnivoice_najdi', 'omnivoice_base', 'transcribe'], value: 'omnivoice_najdi' },
       { name: 'filename', type: 'text',   in: 'path', value: 'omnivoice_xxxxxxxxxxxx.wav' },
     ],
     noTry: true,
@@ -567,7 +567,7 @@ function render() {
 // The worker reports the voices it loaded off disk; anything else leaves the bundled
 // list standing, so an offline worker still shows a usable dropdown.
 function refreshVoices() {
-  return fetch('/api/omnivoice_ft/status')
+  return fetch('/api/omnivoice_base/status')
     .then(r => r.json())
     .then(health => {
       const ids = Array.isArray(health.voices) ? health.voices : [];

@@ -37,24 +37,6 @@ const OMNI_SHARED = {
 };
 
 const MODELS = {
-  omnivoice_ft: {
-    ...OMNI_SHARED,
-    id: 'omnivoice_ft',
-    get name() { return t('model.ft.name'); },
-    icon: '⭐',
-    specs: '0.6B · 24kHz · Saudi HQ FT',
-    get role() { return t('model.ft.role'); },
-    get traits() { return ['Saudi fine-tune', t('model.trait.arabic'), 'Voice cloning', '24kHz']; },
-    get profile() {
-      return [
-        { label: t('model.profile.bestUse'), value: t('model.ft.bestUse') },
-        { label: t('model.profile.control'), value: t('model.control') },
-        { label: t('model.profile.note'),    value: t('model.ft.note') },
-      ];
-    },
-    get compareNote() { return t('model.ft.compareNote'); },
-    fixedParams: { variant: 'finetuned' },
-  },
   omnivoice_najdi: {
     ...OMNI_SHARED,
     id: 'omnivoice_najdi',
@@ -178,7 +160,7 @@ const SAMPLE_SENTENCES = [
 ];
 
 // ── State ─────────────────────────────────────────────────────
-let selectedModel = 'omnivoice_ft';
+let selectedModel = 'omnivoice_najdi';
 let workerStatus  = Object.fromEntries(Object.keys(MODELS).map(mid => [mid, 'checking']));
 let loadingModels = new Set();   // models with an in-flight /load request
 let statusPollInFlight = false;
@@ -668,12 +650,26 @@ function renderVoicePicker() {
     return;
   }
 
-  const pinned = pinnedVoiceFor(model, (paramValues[selectedModel] || {}).gender);
-  if (pinned) {
-    const locked = voiceParam.options.find(o => o.value === pinned);
-    select.innerHTML = `<option value="${escapeHtml(pinned)}" selected>
-      ${escapeHtml(locked ? locked.label : pinned)}</option>`;
-    select.disabled = true;
+  // A gender-pinned model offers only its own cast here; picking a voice sets the gender
+  // that selects it (the worker keys on gender), keeping the gender control in step.
+  const byGender = model.lockedVoiceByGender;
+  if (byGender) {
+    const pinned = pinnedVoiceFor(model, (paramValues[selectedModel] || {}).gender);
+    select.disabled = false;
+    select.innerHTML = Object.values(byGender).map(v => {
+      const opt = voiceParam.options.find(o => o.value === v);
+      return `<option value="${escapeHtml(v)}" ${v === pinned ? 'selected' : ''}>
+        ${escapeHtml(opt ? opt.label : v)}</option>`;
+    }).join('');
+    select.onchange = e => {
+      const gender = Object.keys(byGender).find(g => byGender[g] === e.target.value);
+      paramValues[selectedModel].gender = gender;
+      paramValues[selectedModel].voice  = e.target.value;
+      const genderSelect = $('p-gender');
+      if (genderSelect) genderSelect.value = gender;
+      renderClonePanel();
+      updateModelInputPreview();
+    };
     return;
   }
 
@@ -1683,7 +1679,8 @@ async function loadServerHistory() {
       const files = await r.json();
       for (const f of files) {
         // All interface models share one output dir; assign each clip to the card whose
-        // variant generated it. Clips predating variant tracking ran the fine-tuned default.
+        // variant generated it. Clips predating variant tracking ran the since-removed
+        // Saudi-HQ fine-tune, so they match no card.
         const variant = (f.params && f.params.variant) || 'finetuned';
         if (variant !== MODELS[mid].fixedParams.variant) continue;
         if (!existing.has(f.filename)) {

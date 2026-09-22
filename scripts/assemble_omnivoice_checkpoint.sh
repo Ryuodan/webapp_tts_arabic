@@ -1,21 +1,19 @@
 #!/usr/bin/env bash
-# Reassemble the fine-tuned OmniVoice checkpoints from the split parts committed to git.
+# Reassemble the fine-tuned OmniVoice checkpoint from the split parts committed to git.
 #
 # GitHub rejects files over 100 MB, so each 2.45 GB model.safetensors under models/omnivoice/
 # is versioned as model.safetensors.part-* chunks. Run this once after cloning or pulling;
 # the OmniVoice worker then picks the checkpoints up automatically.
 #
-#   best_finetuned  Saudi-HQ fine-tune (saudi_hq_ft/checkpoint-2500)     -> finetuned variant
 #   najdi_mix_1000  Najdi Nasser+Joud fine-tune (najdi_mix_v2_ft, step 1000) -> najdi variant
 #
-# Usage: bash scripts/assemble_omnivoice_checkpoint.sh [best_finetuned|najdi_mix_1000 ...]
+# Usage: bash scripts/assemble_omnivoice_checkpoint.sh [najdi_mix_1000 ...]
 #        (no arguments = every checkpoint)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../models/omnivoice" && pwd)"
 
 declare -A EXPECTED_SHA=(
-  [best_finetuned]="5f2b8938ccdcebe95038caef452dd945bbada1e0c3ac34b2956ed2ed293a7e3f"
   [najdi_mix_1000]="fefa4d22ce4f171cbc09d386791dd04ae1bdfe8c44bb971ec15d72c5c5c9409f"
 )
 
@@ -65,7 +63,7 @@ assemble() {
 }
 
 names=("$@")
-[[ ${#names[@]} -eq 0 ]] && names=(best_finetuned najdi_mix_1000)
+[[ ${#names[@]} -eq 0 ]] && names=(najdi_mix_1000)
 
 status=0
 for name in "${names[@]}"; do

@@ -28,7 +28,6 @@ OUTPUT_DIRS = {
     "voxcpm2":   WORKDIR / "outputs_voxcpm2",
     # The interface models are OmniVoice variants sharing one worker + output dir.
     "omnivoice":        WORKDIR / "outputs_omnivoice",
-    "omnivoice_ft":     WORKDIR / "outputs_omnivoice",
     "omnivoice_base":   WORKDIR / "outputs_omnivoice",
     "omnivoice_najdi":  WORKDIR / "outputs_omnivoice",
     "transcribe":       WORKDIR / "outputs_transcribe",
@@ -40,7 +39,6 @@ _OMNIVOICE_URL = "http://127.0.0.1:8082"
 TTS_WORKERS = {
     # Aliases for the SAME worker; the frontend fixes the `variant` form field per model.
     "omnivoice":        _OMNIVOICE_URL,
-    "omnivoice_ft":     _OMNIVOICE_URL,
     "omnivoice_base":   _OMNIVOICE_URL,
     "omnivoice_najdi":  _OMNIVOICE_URL,
 }
@@ -53,7 +51,6 @@ WORKER_URLS = {**TTS_WORKERS, "transcribe": ASR_WORKER}
 
 # Which worker-side model variant each alias warms on /load ("" = worker default).
 MODEL_VARIANT = {
-    "omnivoice_ft":     "finetuned",
     "omnivoice_base":   "base",
     # Clones Nasser for gender=male and Joud for gender=female — nothing else (worker-enforced).
     "omnivoice_najdi":  "najdi",

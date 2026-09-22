@@ -13,8 +13,8 @@ from fastapi.testclient import TestClient
 from conftest import fresh_import, write_wav
 
 # Every OmniVoice alias is the same worker; only the ASR worker has its own port.
-PORTS = {"omnivoice": 8082, "omnivoice_ft": 8082, "omnivoice_base": 8082,
-         "omnivoice_najdi": 8082, "transcribe": 8084}
+PORTS = {"omnivoice": 8082, "omnivoice_base": 8082, "omnivoice_najdi": 8082,
+         "transcribe": 8084}
 
 
 @pytest.fixture
@@ -61,7 +61,7 @@ def test_status_reports_every_worker(gateway):
     assert set(body) == set(gateway.server.WORKER_URLS) | {"_memory_policy"}
     assert body["transcribe"]["model_loaded"] is False
     # Every OmniVoice alias shares one worker, so they report one health payload.
-    for alias in ("omnivoice", "omnivoice_ft", "omnivoice_base", "omnivoice_najdi"):
+    for alias in ("omnivoice", "omnivoice_base", "omnivoice_najdi"):
         assert body[alias]["model_loaded"] is True
 
 
@@ -144,7 +144,7 @@ def test_synthesize_offline_worker_is_503(gateway):
 
 
 @pytest.mark.parametrize("model,variant", [
-    ("omnivoice_ft", "finetuned"), ("omnivoice_base", "base"), ("omnivoice_najdi", "najdi"),
+    ("omnivoice_base", "base"), ("omnivoice_najdi", "najdi"),
 ])
 def test_synthesize_tells_the_worker_which_variant_the_alias_means(gateway, model, variant):
     """A caller that never sends `variant` must still reach the checkpoint it addressed."""
@@ -175,15 +175,15 @@ def test_synthesize_propagates_worker_error(gateway):
 # ── Single-model memory policy ────────────────────────────────
 def test_synthesis_unloads_the_other_workers_first(gateway):
     """One checkpoint resident at a time — the ASR model must release before TTS runs."""
-    stub(gateway, "omnivoice_ft", "/synthesize", {"filename": "o.wav"})
+    stub(gateway, "omnivoice_najdi", "/synthesize", {"filename": "o.wav"})
     stub(gateway, "transcribe", "/unload", {"status": "unloaded"})
 
-    gateway.post("/api/omnivoice_ft/synthesize", data={"text": "مرحباً"})
+    gateway.post("/api/omnivoice_najdi/synthesize", data={"text": "مرحباً"})
 
     calls = [(r.url.port, r.url.path) for r in gateway.seen]
     assert (PORTS["transcribe"], "/unload") in calls
     assert calls.index((PORTS["transcribe"], "/unload")) < \
-        calls.index((PORTS["omnivoice_ft"], "/synthesize"))
+        calls.index((PORTS["omnivoice_najdi"], "/synthesize"))
 
 
 def test_transcription_unloads_the_tts_worker_first(gateway):
@@ -200,10 +200,10 @@ def test_transcription_unloads_the_tts_worker_first(gateway):
 
 def test_aliases_of_the_active_worker_are_not_unloaded(gateway):
     """The three OmniVoice aliases are one process; unloading it mid-request would thrash."""
-    stub(gateway, "omnivoice_ft", "/synthesize", {"filename": "o.wav"})
+    stub(gateway, "omnivoice_najdi", "/synthesize", {"filename": "o.wav"})
     stub(gateway, "transcribe", "/unload", {"status": "unloaded"})
 
-    gateway.post("/api/omnivoice_ft/synthesize", data={"text": "مرحباً"})
+    gateway.post("/api/omnivoice_najdi/synthesize", data={"text": "مرحباً"})
 
     unloads = {r.url.port for r in gateway.seen if r.url.path == "/unload"}
     assert PORTS["omnivoice"] not in unloads
@@ -211,15 +211,15 @@ def test_aliases_of_the_active_worker_are_not_unloaded(gateway):
 
 def test_a_dead_worker_does_not_block_the_unload_sweep(gateway):
     """Best-effort: an offline peer must not fail the request that triggered the sweep."""
-    stub(gateway, "omnivoice_ft", "/synthesize", {"filename": "o.wav"})
+    stub(gateway, "omnivoice_najdi", "/synthesize", {"filename": "o.wav"})
     stub(gateway, "transcribe", "/unload", httpx.ConnectError("down"))
 
-    r = gateway.post("/api/omnivoice_ft/synthesize", data={"text": "مرحباً"})
+    r = gateway.post("/api/omnivoice_najdi/synthesize", data={"text": "مرحباً"})
     assert r.status_code == 200
 
 
 def test_unload_endpoint_is_exposed_for_every_worker(gateway):
-    for model in ("omnivoice_ft", "transcribe"):
+    for model in ("omnivoice_najdi", "transcribe"):
         stub(gateway, model, "/unload", {"status": "unloaded"})
         assert gateway.post(f"/api/{model}/unload").json() == {"status": "unloaded"}
     assert gateway.post("/api/nope/unload").status_code == 404
@@ -238,7 +238,7 @@ def test_oversized_request_is_rejected_before_reaching_a_worker(gateway):
 
 def test_oversized_synthesis_is_rejected_too(gateway):
     gateway.server.MAX_REQUEST_BYTES = 1024
-    r = gateway.post("/api/omnivoice_ft/synthesize",
+    r = gateway.post("/api/omnivoice_najdi/synthesize",
                      files={"ref": ("r.wav", b"\x00" * 4096)})
     assert r.status_code == 413
 
@@ -272,8 +272,7 @@ def test_transcribe_timeout_is_504(gateway):
 
 
 # ── load / per-model status ───────────────────────────────────
-@pytest.mark.parametrize("model", ["omnivoice", "omnivoice_ft", "omnivoice_base", "omnivoice_najdi",
-                                   "transcribe"])
+@pytest.mark.parametrize("model", ["omnivoice", "omnivoice_base", "omnivoice_najdi", "transcribe"])
 def test_load_and_status_cover_every_worker(gateway, model):
     stub(gateway, model, "/load", {"status": "loaded"})
     stub(gateway, model, "/health", {"model": model, "model_loaded": True})

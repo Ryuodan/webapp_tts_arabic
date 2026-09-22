@@ -1,18 +1,17 @@
 # Arabic TTS Studio — استوديو تحويل النص العربي إلى كلام
 
 A local web studio for Arabic text-to-speech built around **OmniVoice**, with a
-Saudi-HQ fine-tuned checkpoint shipped in the repo, built-in cloned voices, and
+Najdi two-voice fine-tuned checkpoint shipped in the repo, built-in cloned voices, and
 LLM agents that write and prepare the Arabic script for you.
 
-## The three models
+## The two models
 
-The interface exposes three model cards — the same OmniVoice worker running one
-of three checkpoints (one in memory at a time, swapped on demand):
+The interface exposes two model cards — the same OmniVoice worker running one
+of two checkpoints (one in memory at a time, swapped on demand):
 
 | Card | API id | Checkpoint | Use |
 | --- | --- | --- | --- |
-| ⭐ **OmniVoice المحسّن** (default) | `omnivoice_ft` | `saudi_hq_ft/checkpoint-2500` — fine-tuned on high-quality Saudi audio (eval/loss 4.4111) | Production Arabic/Saudi speech |
-| 🎙️ **OmniVoice النجدي** | `omnivoice_najdi` | `najdi_mix_v2_ft/checkpoint-1000` — base + both Najdi voices, 1,200 steps (best eval loss 3.7266) | Najdi support calls; **clones Nasser or Joud, by gender** |
+| 🎙️ **OmniVoice النجدي** (default) | `omnivoice_najdi` | `najdi_mix_v2_ft/checkpoint-1000` — base + both Najdi voices, 1,200 steps (best eval loss 3.7266) | Najdi support calls; **clones Nasser or Joud, by gender** |
 | 🌐 **OmniVoice الأصلي** | `omnivoice_base` | stock `k2-fsa/OmniVoice` (0.6B, 24 kHz, 600+ languages) | Baseline for comparison |
 
 Compare mode generates the same text with every available version side by side.
@@ -41,8 +40,7 @@ curl -F 'text=هلا والله' -F 'gender=female' -F 'dialect=saudi' \
      http://localhost:8025/api/omnivoice_najdi/synthesize      # Joud
 ```
 
-The weights ship with the repo in `models/omnivoice/najdi_mix_1000/` (split parts, like
-the Saudi-HQ checkpoint); the worker resolves them in this order:
+The weights ship with the repo in `models/omnivoice/najdi_mix_1000/` (split parts); the worker resolves them in this order:
 
 1. `OMNIVOICE_NAJDI_MODEL_ID` env var
 2. repo-local `models/omnivoice/najdi_mix_1000/` (after assembly)
@@ -85,7 +83,7 @@ existing ones for the format).
 # 1. One-time: gateway conda env + worker web deps
 bash setup_webapp.sh
 
-# 2. Reassemble the fine-tuned checkpoints (committed as split parts, because
+# 2. Reassemble the fine-tuned checkpoint (committed as split parts, because
 #    GitHub caps files at 100 MB; verifies SHA-256). start.sh also does this
 #    automatically whenever a pull brings new parts.
 bash scripts/assemble_omnivoice_checkpoint.sh
@@ -113,11 +111,11 @@ workers/          omnivoice_server.py :8082 — the only active worker; handles 
 compose.py        ✨ Auto-Compose agent: job + persona -> Arabic script + settings
 textprep.py       Text-Prep agent: number/abbrev normalization + optional tashkeel
 voices/           bundled clone-voice references (abeer, ahmed, nasser, joud)
-models/omnivoice/ fine-tuned checkpoints best_finetuned + najdi_mix_1000 (split parts + metadata)
+models/omnivoice/ fine-tuned checkpoint najdi_mix_1000 (split parts + metadata)
 ```
 
-Key endpoints: `POST /api/{model}/synthesize` (`model` ∈ `omnivoice_ft`,
-`omnivoice_najdi`, `omnivoice_base`), `GET /api/status`, `GET /api/{model}/history`,
+Key endpoints: `POST /api/{model}/synthesize` (`model` ∈ `omnivoice_najdi`,
+`omnivoice_base`), `GET /api/status`, `GET /api/{model}/history`,
 `GET /audio/{model}/{file}`, `POST /api/compose`, `POST /api/prepare`.
 
 ## Request log — 📊 سجل الطلبات
@@ -151,19 +149,14 @@ git pull && bash start.sh
 
 ## The fine-tuned checkpoint
 
-`models/omnivoice/best_finetuned/` carries the full checkpoint: config and
+`models/omnivoice/najdi_mix_1000/` carries the full checkpoint: config and
 tokenizer committed as-is, the 2.45 GB `model.safetensors` as 25 split parts
-(`git push` also caps packs at 2 GB, hence two weight commits). The worker
-resolves the fine-tuned variant in this order:
-
-1. `OMNIVOICE_FINETUNED_MODEL_ID` env var
-2. repo-local `models/omnivoice/best_finetuned/` (after assembly)
-3. `$TTS_WORKDIR/omnivoice/checkpoints/best_finetuned` (training-project symlink)
-
-Selection details and hashes: [models/omnivoice/README.md](models/omnivoice/README.md)
-and [BEST_FINETUNED_CHECKPOINT.md](models/omnivoice/BEST_FINETUNED_CHECKPOINT.md).
+(`git push` also caps packs at 2 GB, hence two weight commits). Resolution order is
+listed under [Najdi](#najdi-omnivoice_najdi) above; selection details and hashes:
+[models/omnivoice/README.md](models/omnivoice/README.md).
 
 ## Retired engines
 
-VoxCPM2 and Fish S2 Pro workers are disabled (`start.sh` no longer launches
+The Saudi-HQ fine-tune (`omnivoice_ft`, `saudi_hq_ft/checkpoint-2500`) is retired;
+`/api/omnivoice_ft/...` now 404s. VoxCPM2 and Fish S2 Pro workers are disabled (`start.sh` no longer launches
 them); their old recordings remain playable from the history endpoints.

@@ -166,12 +166,6 @@ const I18N = (() => {
     'ago.d':              { ar: 'ي', en: 'd' },
 
     // ── Models ────────────────────────────────────────────────
-    'model.ft.name':      { ar: 'OmniVoice المحسّن', en: 'OmniVoice fine-tuned' },
-    'model.ft.role': {
-      ar: 'أفضل نسخة — بعد الضبط الدقيق على بيانات سعودية عالية الجودة (saudi_hq_ft/checkpoint-2500). الخيار الافتراضي.',
-      en: 'The best variant — fine-tuned on high-quality Saudi data (saudi_hq_ft/checkpoint-2500). The default choice.',
-    },
-    'model.ft.compareNote': { ar: 'النسخة المحسّنة — قارِنها بالأصلية.', en: 'The fine-tuned variant — compare it against the base.' },
     'model.base.name':    { ar: 'OmniVoice الأصلي', en: 'OmniVoice base' },
     'model.base.role': {
       ar: 'النموذج الأصلي k2-fsa/OmniVoice بدون ضبط — خط أساس للمقارنة، وأوسع تغطية لغات (600+).',
@@ -192,10 +186,6 @@ const I18N = (() => {
     'model.profile.bestUse': { ar: 'أفضل استخدام', en: 'Best for' },
     'model.profile.control': { ar: 'التحكم',       en: 'Control' },
     'model.profile.note':    { ar: 'ملاحظة',       en: 'Note' },
-    'model.ft.bestUse': {
-      ar: 'الإنتاج: نطق عربي/سعودي أفضل من الأصل، مع استنساخ الأصوات المضمّنة (عبير/أحمد).',
-      en: 'Production: better Arabic/Saudi pronunciation than the base, with cloning of the bundled voices (Abeer/Ahmed).',
-    },
     'model.najdi.bestUse': {
       ar: 'مكالمة خدمة عملاء نجدية بطرفيها — مساعد أو عميل، بصوت ناصر أو جود.',
       en: 'Both sides of a Najdi customer-support call — agent or customer, in Nasser’s or Joud’s voice.',
@@ -215,10 +205,6 @@ const I18N = (() => {
     'model.control': {
       ar: 'اللهجة عبر لغة النموذج تلقائياً؛ الجنس/العمر/الأسلوب عبر instruct الإنجليزي + صوت مرجعي اختياري.',
       en: 'Dialect rides the model language automatically; gender/age/style via the English instruct field plus an optional reference clip.',
-    },
-    'model.ft.note': {
-      ar: 'يتطلب أوزان الـ checkpoint على السيرفر (models/omnivoice/best_finetuned).',
-      en: 'Requires the checkpoint weights on the server (models/omnivoice/best_finetuned).',
     },
     'model.base.note': {
       ar: 'يشارك نفس العامل (worker)؛ التبديل بين النسختين يعيد تحميل النموذج (دقائق على CPU).',

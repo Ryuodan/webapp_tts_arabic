@@ -20,27 +20,11 @@ from _common import WORKDIR, output_dir, register_audio_route, write_sidecar
 OUT_DIR = output_dir("OMNIVOICE_OUT_DIR", "outputs_omnivoice")
 REPO_DIR = pathlib.Path(__file__).resolve().parents[1]
 OMNIVOICE_BASE_MODEL_ID = os.getenv("OMNIVOICE_BASE_MODEL_ID", "k2-fsa/OmniVoice")
-# Best Saudi-HQ fine-tuned checkpoint (see models/omnivoice/BEST_FINETUNED_CHECKPOINT.md).
-# The repo ships it as split parts — run scripts/assemble_omnivoice_checkpoint.sh once after
-# pulling to produce model.safetensors. The training-project symlink is the fallback source.
-REPO_CHECKPOINT = REPO_DIR / "models" / "omnivoice" / "best_finetuned"
-FINETUNED_CHECKPOINT = WORKDIR / "omnivoice" / "checkpoints" / "best_finetuned"
-
-
-def _finetuned_model_id() -> str | None:
-    env = os.getenv("OMNIVOICE_FINETUNED_MODEL_ID")
-    if env:
-        return env
-    for candidate in (REPO_CHECKPOINT, FINETUNED_CHECKPOINT):
-        if (candidate / "model.safetensors").exists():
-            return str(candidate)
-    return None
-
-
 # Najdi two-speaker fine-tune: najdi_mix_v2_ft/checkpoint-1000, the run's lowest eval loss
 # (see models/omnivoice/najdi_mix_1000_checkpoint.json). Trained on both Najdi voices —
 # Nasser (male) and Joud (female) — so the request's gender picks which one it speaks in.
-# Shipped as split parts like the Saudi-HQ one; the training project is the fallback source.
+# The repo ships it as split parts (start.sh assembles them); the training project is the
+# fallback source.
 REPO_NAJDI_CHECKPOINT = REPO_DIR / "models" / "omnivoice" / "najdi_mix_1000"
 FINETUNE_PROJECT = pathlib.Path(
     os.getenv("OMNIVOICE_FINETUNE_DIR", str(REPO_DIR.parent / "omnivoice-finetune"))).expanduser()
@@ -57,15 +41,12 @@ def _najdi_model_id() -> str | None:
     return None
 
 
-# Selectable model variants; the fine-tunes are present only when their weights exist.
+# Selectable model variants; the Najdi fine-tune is present only when its weights exist.
 MODEL_VARIANTS = {"base": OMNIVOICE_BASE_MODEL_ID}
-_ft_id = _finetuned_model_id()
-if _ft_id:
-    MODEL_VARIANTS["finetuned"] = _ft_id
 _najdi_id = _najdi_model_id()
 if _najdi_id:
     MODEL_VARIANTS["najdi"] = _najdi_id
-DEFAULT_VARIANT = "finetuned" if "finetuned" in MODEL_VARIANTS else "base"
+DEFAULT_VARIANT = "base"
 
 # Variants tuned on a fixed cast of speakers always clone one of those speakers' built-in
 # voices, chosen by the request's `gender`: its `voice`, uploaded reference and reference text
@@ -286,7 +267,6 @@ async def health():
         "loaded_variant": active_variant or None,
         "loaded_variants": loaded_variants,
         "model_id": MODEL_VARIANTS[active_variant or DEFAULT_VARIANT],
-        "finetuned_available": "finetuned" in MODEL_VARIANTS,
         "voices": sorted(_BUILTIN_VOICES),
         "variant_gender_voices": {k: v for k, v in VARIANT_GENDER_VOICES.items()
                                   if k in MODEL_VARIANTS},
