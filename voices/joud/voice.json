@@ -3,10 +3,10 @@
   "label": "جود — نجدية",
   "gender": "female",
   "language": "ars",
-  "ref_audio": "joud_ref_6s.wav",
-  "ref_text": "هلا والله بأم فهد، طال عمرك. أنا تغريد من تأمين الضمان. كيف حالك اليوم؟",
+  "ref_audio": "joud_ref_13s.wav",
+  "ref_text": "أهلاً يا ناصر، أنا نوف السديري من حي الروضة. أنا محتاجة موعد أسنان من ثلاثة أيام وما فيه أحد يرد على الرقم الموحد. تواصلت معاكم على تويتر وأحد تابع معاي هناك بس ما وضّح لي شيء.",
   "sample_rate": 24000,
-  "duration_s": 6.18,
-  "source": "omnivoice-finetune/data/najdi_mix_v2/wavs/b6839b968563.wav (test split, id najdi_mix_b6839b968563)",
-  "notes": "Joud, Najdi female support agent ('Joud - Saudi Gentle & Warm'). Held-out test clip, deliberately the same support-agent greeting as voices/nasser so the two sound like the same call from either side. The omnivoice_najdi model clones it whenever gender=female."
+  "duration_s": 12.86,
+  "source": "omnivoice-finetune/data/najdi_mix_v3/wavs/a87dd4524cd4.wav (test split, id najdi_v3_a87dd4524cd4, unseen by every training run)",
+  "notes": "Joud ('Joud - Saudi Gentle & Warm'), Najdi female voice. The longest clean held-out Joud clip in the najdi_mix_v3 test split (verdict pass). The omnivoice_najdi model (najdi_mix_v3_ft/checkpoint-1800) clones this voice whenever gender=female."
 }

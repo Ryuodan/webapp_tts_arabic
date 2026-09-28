@@ -20,15 +20,15 @@ from _common import WORKDIR, output_dir, register_audio_route, write_sidecar
 OUT_DIR = output_dir("OMNIVOICE_OUT_DIR", "outputs_omnivoice")
 REPO_DIR = pathlib.Path(__file__).resolve().parents[1]
 OMNIVOICE_BASE_MODEL_ID = os.getenv("OMNIVOICE_BASE_MODEL_ID", "k2-fsa/OmniVoice")
-# Najdi two-speaker fine-tune: najdi_mix_v2_ft/checkpoint-1000, the run's lowest eval loss
-# (see models/omnivoice/najdi_mix_1000_checkpoint.json). Trained on both Najdi voices —
+# Najdi two-speaker fine-tune: najdi_mix_v3_ft/checkpoint-1800, the run's lowest eval loss
+# (see models/omnivoice/najdi_mix_v3_1800_checkpoint.json). Trained on both Najdi voices —
 # Nasser (male) and Joud (female) — so the request's gender picks which one it speaks in.
 # The repo ships it as split parts (start.sh assembles them); the training project is the
 # fallback source.
-REPO_NAJDI_CHECKPOINT = REPO_DIR / "models" / "omnivoice" / "najdi_mix_1000"
+REPO_NAJDI_CHECKPOINT = REPO_DIR / "models" / "omnivoice" / "najdi_mix_v3_1800"
 FINETUNE_PROJECT = pathlib.Path(
     os.getenv("OMNIVOICE_FINETUNE_DIR", str(REPO_DIR.parent / "omnivoice-finetune"))).expanduser()
-NAJDI_CHECKPOINT = FINETUNE_PROJECT / "checkpoints" / "najdi_mix_v2_ft" / "checkpoint-1000"
+NAJDI_CHECKPOINT = FINETUNE_PROJECT / "checkpoints" / "najdi_mix_v3_ft" / "checkpoint-1800"
 
 
 def _najdi_model_id() -> str | None:

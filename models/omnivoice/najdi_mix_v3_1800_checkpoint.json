@@ -1,0 +1,39 @@
+{
+  "model": "OmniVoice",
+  "fine_tune_run": "najdi_mix_v3_ft",
+  "selected_checkpoint": "omnivoice-finetune/checkpoints/najdi_mix_v3_ft/checkpoint-1800",
+  "global_step": 1800,
+  "local_alias": "models/omnivoice/najdi_mix_v3_1800",
+  "lineage": "k2-fsa/OmniVoice -> najdi_mix_v3_ft (2,000 steps, lr 3e-5, 200 warmup, both Najdi voices)",
+  "speakers": {
+    "male": "Nasser AlJubaily — Najdi male support agent (clone voice: voices/nasser)",
+    "female": "Joud — Saudi Gentle & Warm, Najdi female voice (clone voice: voices/joud)"
+  },
+  "clone_voice": "gender=male -> voices/nasser, gender=female -> voices/joud (the omnivoice_najdi model accepts no other reference)",
+  "training_data": {
+    "dataset": "data/najdi_mix_v3 (24 kHz)",
+    "clips": {"train": 16288, "val": 919, "test": 870},
+    "minutes": {"train": 1276.0, "val": 73.0, "test": 69.3},
+    "by_voice_train": {"Nasser AlJubaily - Authentic Saudi Pro": 8012, "Joud - Saudi Gentle & Warm": 8276}
+  },
+  "selection": {
+    "criterion": "lowest eval loss over the run's 40 checkpoints",
+    "eval_loss": 3.7612,
+    "runner_up": {"step": 1650, "eval_loss": 3.7715},
+    "final_step": {"step": 2000, "eval_loss": 3.8818},
+    "note": "v3's val set (919 clips) differs from v2's (369), so this loss is not directly comparable with v2's 3.7266",
+    "source": "omnivoice-finetune/checkpoints/najdi_mix_v3_ft/train.log"
+  },
+  "artifact": {
+    "model_safetensors_bytes": 2450344144,
+    "model_safetensors_sha256": "8e8ca4ae49c3c0a27cdece6577d869c1b7a45582c70414fc35b3287bc3be5318",
+    "config_json_sha256": "958f818c4e5b92a8a465784338431604b10f1b4a1a6e430dbb1412deae7dcdc6",
+    "tokenizer_json_sha256": "408f669b7e2b045fdf54201d815bd364e6667dbd845115da81239c40bc6dcfd1",
+    "train_config_json_sha256": "dd93e640db69c627f0b611ea87328d33b891f5a33535be2008efd65b2587bf57",
+    "parts": 25,
+    "part_bytes": 99614720
+  },
+  "optimizer_state": "not copied (optimizer.bin, scheduler.bin, random_states_0.pkl are training-only)",
+  "replaces": "models/omnivoice/najdi_mix_1000 (najdi_mix_v2_ft/checkpoint-1000) — removed",
+  "selected_on": "2026-09-28"
+}

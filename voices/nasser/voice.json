@@ -3,10 +3,10 @@
   "label": "ناصر — نجدي",
   "gender": "male",
   "language": "ars",
-  "ref_audio": "nasser_ref_6s.wav",
-  "ref_text": "هلا والله، طال عمرك أخوي بدر. أنا مساعد من تأمين الضمان، الله يعافيك. كيف أقدر أساعدك اليوم؟",
+  "ref_audio": "nasser_ref_17s.wav",
+  "ref_text": "إذا حولت ملفك لقسم الرحلات، بنطبق سياسة تعويض خمسة وثلاثين بالمية من قيمة الرحلة، رقم الطلب ستة ستة واحد ثلاثة ستة اثنين، ونعطيك خصم ألف وميتين ريال على الرحلة الجاية",
   "sample_rate": 24000,
-  "duration_s": 6.27,
-  "source": "omnivoice-finetune/data/najdi_male/wavs/17a4d2672c6c.wav (test split, id najdi_male_17a4d2672c6c)",
-  "notes": "Nasser, Najdi male support agent. Held-out test clip used as the clone reference in the najdi_male eval and in Nasser Voice Compare. The omnivoice_najdi model (najdi_mix_v2_ft/checkpoint-1000) clones this voice whenever gender=male; voices/joud is its female counterpart."
+  "duration_s": 17.41,
+  "source": "omnivoice-finetune/data/najdi_mix_v3/wavs/aac7fee565d1.wav (test split, id najdi_v3_aac7fee565d1, unseen by every training run)",
+  "notes": "Nasser AlJubaily, Najdi male support agent. The longest clean held-out Nasser clip in the najdi_mix_v3 test split (verdict pass). The omnivoice_najdi model (najdi_mix_v3_ft/checkpoint-1800) clones this voice whenever gender=male; voices/joud is its female counterpart."
 }

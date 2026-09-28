@@ -174,8 +174,8 @@ const I18N = (() => {
     'model.base.compareNote': { ar: 'الأصل بدون ضبط — خط الأساس.', en: 'Unmodified base — the baseline.' },
     'model.najdi.name':  { ar: 'OmniVoice النجدي — ناصر وجود', en: 'OmniVoice Najdi — Nasser & Joud' },
     'model.najdi.role': {
-      ar: 'ضبط دقيق على الصوتين النجديين معاً لـ 1200 خطوة (najdi_mix_v2_ft/checkpoint-1000، أفضل eval loss). اختيار الجنس هو اختيار الصوت: ذكر ← ناصر، أنثى ← جود.',
-      en: 'Fine-tuned on both Najdi voices for 1,200 steps (najdi_mix_v2_ft/checkpoint-1000, the run’s best eval loss). Gender picks the voice: male → Nasser, female → Joud.',
+      ar: 'ضبط دقيق على الصوتين النجديين معاً لـ 2000 خطوة (najdi_mix_v3_ft/checkpoint-1800، أفضل eval loss). اختيار الجنس هو اختيار الصوت: ذكر ← ناصر، أنثى ← جود.',
+      en: 'Fine-tuned on both Najdi voices for 2,000 steps (najdi_mix_v3_ft/checkpoint-1800, the run’s best eval loss). Gender picks the voice: male → Nasser, female → Joud.',
     },
     'model.najdi.compareNote': { ar: 'صوت نجدي ثابت — ناصر أو جود حسب الجنس.', en: 'A fixed Najdi voice — Nasser or Joud, by gender.' },
     'model.trait.najdi':  { ar: 'نجدي', en: 'Najdi' },
@@ -195,8 +195,8 @@ const I18N = (() => {
       en: 'Gender picks the voice (male → Nasser, female → Joud) and no other reference is accepted; dialect rides the model language, style via instruct.',
     },
     'model.najdi.note': {
-      ar: 'يتطلب أوزان الـ checkpoint على السيرفر (models/omnivoice/najdi_mix_1000).',
-      en: 'Requires the checkpoint weights on the server (models/omnivoice/najdi_mix_1000).',
+      ar: 'يتطلب أوزان الـ checkpoint على السيرفر (models/omnivoice/najdi_mix_v3_1800).',
+      en: 'Requires the checkpoint weights on the server (models/omnivoice/najdi_mix_v3_1800).',
     },
     'model.base.bestUse': {
       ar: 'خط أساس للمقارنة مع النسخة المحسّنة، أو نقل صوت مرجعي بين اللغات.',

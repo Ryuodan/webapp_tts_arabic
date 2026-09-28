@@ -99,7 +99,7 @@ def test_omni_writes_audio_metrics_and_sidecar(omni):
 # ── Najdi: a two-speaker variant whose gender control picks the built-in voice ──
 @pytest.fixture
 def najdi(tmp_path, monkeypatch, fake_omnivoice):
-    ckpt = tmp_path / "najdi_mix_v2_ft" / "checkpoint-1000"
+    ckpt = tmp_path / "najdi_mix_v3_ft" / "checkpoint-1800"
     ckpt.mkdir(parents=True)
     module = fresh_import("omnivoice_server", monkeypatch,
                           {"OMNIVOICE_OUT_DIR": tmp_path / "out",

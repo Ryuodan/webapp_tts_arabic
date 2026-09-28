@@ -11,7 +11,7 @@ of two checkpoints (one in memory at a time, swapped on demand):
 
 | Card | API id | Checkpoint | Use |
 | --- | --- | --- | --- |
-| 🎙️ **OmniVoice النجدي** (default) | `omnivoice_najdi` | `najdi_mix_v2_ft/checkpoint-1000` — base + both Najdi voices, 1,200 steps (best eval loss 3.7266) | Najdi support calls; **clones Nasser or Joud, by gender** |
+| 🎙️ **OmniVoice النجدي** (default) | `omnivoice_najdi` | `najdi_mix_v3_ft/checkpoint-1800` — base + both Najdi voices, 2,000 steps (best eval loss 3.7612) | Najdi support calls; **clones Nasser or Joud, by gender** |
 | 🌐 **OmniVoice الأصلي** | `omnivoice_base` | stock `k2-fsa/OmniVoice` (0.6B, 24 kHz, 600+ languages) | Baseline for comparison |
 
 Compare mode generates the same text with every available version side by side.
@@ -21,7 +21,7 @@ alias's variant to the worker, so a plain curl call gets the checkpoint it named
 
 ### Najdi (`omnivoice_najdi`)
 
-Fine-tuned on **both** Najdi voices at once (7,564 clips: 3,088 Nasser + 3,723 Joud),
+Fine-tuned on **both** Najdi voices at once (16,288 training clips: 8,012 Nasser + 8,276 Joud),
 so the request's **`gender` picks the speaker**:
 
 | `gender` | Clone voice |
@@ -40,17 +40,18 @@ curl -F 'text=هلا والله' -F 'gender=female' -F 'dialect=saudi' \
      http://localhost:8025/api/omnivoice_najdi/synthesize      # Joud
 ```
 
-The weights ship with the repo in `models/omnivoice/najdi_mix_1000/` (split parts); the worker resolves them in this order:
+The weights ship with the repo in `models/omnivoice/najdi_mix_v3_1800/` (split parts); the worker resolves them in this order:
 
 1. `OMNIVOICE_NAJDI_MODEL_ID` env var
-2. repo-local `models/omnivoice/najdi_mix_1000/` (after assembly)
-3. `$OMNIVOICE_FINETUNE_DIR/checkpoints/najdi_mix_v2_ft/checkpoint-1000`
+2. repo-local `models/omnivoice/najdi_mix_v3_1800/` (after assembly)
+3. `$OMNIVOICE_FINETUNE_DIR/checkpoints/najdi_mix_v3_ft/checkpoint-1800`
    (default dir: `../omnivoice-finetune`, the training project)
 
-The card is offline when none exists. Step 1000 is the run's lowest eval loss (3.7266)
-of its 24 checkpoints — ahead of step 500 (3.7315) and of the final step 1200 (3.8040).
-Provenance and hashes:
-[models/omnivoice/najdi_mix_1000_checkpoint.json](models/omnivoice/najdi_mix_1000_checkpoint.json).
+The card is offline when none exists. Step 1800 is the v3 run's lowest eval loss
+(3.7612) of its 40 checkpoints — ahead of step 1650 (3.7715) and of the final step 2000
+(3.8818). It replaces the v2 checkpoint (`najdi_mix_v2_ft/checkpoint-1000`), trained on
+less than half the data. Provenance and hashes:
+[models/omnivoice/najdi_mix_v3_1800_checkpoint.json](models/omnivoice/najdi_mix_v3_1800_checkpoint.json).
 
 This card replaces the earlier Nasser-only model (`omnivoice_nasser`,
 `najdi_male_ft_cont/checkpoint-400`), which is removed — `/api/omnivoice_nasser/...`
@@ -65,13 +66,12 @@ Server-side reference voices under [voices/](voices/) — pick them from the
 - **أحمد (Ahmed)** — MSA male, from
   [IbrahimSalah/Arabic-TTS-Spark](https://huggingface.co/IbrahimSalah/Arabic-TTS-Spark)
   (upstream is licensed for **non-commercial research** — keep that in mind).
-- **ناصر (Nasser)** — Najdi male support agent (6.3 s held-out test clip from the
-  `najdi_male` data). `omnivoice_najdi` uses it for `gender=male`; the other models can
-  pick it too.
-- **جود (Joud)** — Najdi female support agent (6.2 s held-out test clip from the
-  `najdi_mix_v2` test split — deliberately the same support-agent greeting as Nasser's,
-  so the two sound like the same call from either side). `omnivoice_najdi` uses it for
-  `gender=female`; the other models can pick it too.
+- **ناصر (Nasser)** — Najdi male support agent (17.4 s reference: the longest clean
+  clip of his in the `najdi_mix_v3` test split, never seen by any training run).
+  `omnivoice_najdi` uses it for `gender=male`; the other models can pick it too.
+- **جود (Joud)** — Najdi female voice (12.9 s reference: the longest clean clip of hers
+  in the same held-out split). `omnivoice_najdi` uses it for `gender=female`; the other
+  models can pick it too.
 
 A manually uploaded reference in the cloning panel overrides the dropdown.
 Add a voice by dropping `voices/<id>/voice.json` + a reference wav (see the
@@ -111,7 +111,7 @@ workers/          omnivoice_server.py :8082 — the only active worker; handles 
 compose.py        ✨ Auto-Compose agent: job + persona -> Arabic script + settings
 textprep.py       Text-Prep agent: number/abbrev normalization + optional tashkeel
 voices/           bundled clone-voice references (abeer, ahmed, nasser, joud)
-models/omnivoice/ fine-tuned checkpoint najdi_mix_1000 (split parts + metadata)
+models/omnivoice/ fine-tuned checkpoint najdi_mix_v3_1800 (split parts + metadata)
 ```
 
 Key endpoints: `POST /api/{model}/synthesize` (`model` ∈ `omnivoice_najdi`,
@@ -149,7 +149,7 @@ git pull && bash start.sh
 
 ## The fine-tuned checkpoint
 
-`models/omnivoice/najdi_mix_1000/` carries the full checkpoint: config and
+`models/omnivoice/najdi_mix_v3_1800/` carries the full checkpoint: config and
 tokenizer committed as-is, the 2.45 GB `model.safetensors` as 25 split parts
 (`git push` also caps packs at 2 GB, hence two weight commits). Resolution order is
 listed under [Najdi](#najdi-omnivoice_najdi) above; selection details and hashes:

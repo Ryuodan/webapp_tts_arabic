@@ -42,7 +42,7 @@ const MODELS = {
     id: 'omnivoice_najdi',
     get name() { return t('model.najdi.name'); },
     icon: '🎙️',
-    specs: '0.6B · 24kHz · Najdi Nasser+Joud FT · step 1000',
+    specs: '0.6B · 24kHz · Najdi Nasser+Joud FT v3 · step 1800',
     get role() { return t('model.najdi.role'); },
     get traits() { return [t('model.trait.najdi'), t('model.trait.twoVoices'), 'Najdi m+f', '24kHz']; },
     get profile() {
