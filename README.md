@@ -1,7 +1,7 @@
 # Arabic TTS Studio — استوديو تحويل النص العربي إلى كلام
 
 A local web studio for Arabic text-to-speech built around **OmniVoice**, with a
-Nasser (Najdi male) fine-tuned checkpoint shipped in the repo, built-in cloned voices, and
+Najdi fine-tuned checkpoint (pinned to Nasser's voice) shipped in the repo, built-in cloned voices, and
 LLM agents that write and prepare the Arabic script for you.
 
 ## The two models
@@ -11,7 +11,7 @@ of two checkpoints (one in memory at a time, swapped on demand):
 
 | Card | API id | Checkpoint | Use |
 | --- | --- | --- | --- |
-| 🎙️ **OmniVoice النجدي — ناصر** (default) | `omnivoice_najdi` | `najdi_male_ft_cont/checkpoint-400` — base + Nasser's Najdi male data, 800 steps in total | Nasser's voice; **always clones Nasser** |
+| 🎙️ **OmniVoice النجدي — ناصر** (default) | `omnivoice_najdi` | `najdi_mix_v3_ft/checkpoint-1950` — the best model for Nasser in the v3 eval | Nasser's voice; **always clones Nasser** |
 | 🌐 **OmniVoice الأصلي** | `omnivoice_base` | stock `k2-fsa/OmniVoice` (0.6B, 24 kHz, 600+ languages) | Baseline for comparison |
 
 Compare mode generates the same text with every available version side by side.
@@ -21,9 +21,9 @@ alias's variant to the worker, so a plain curl call gets the checkpoint it named
 
 ### Najdi (`omnivoice_najdi`)
 
-Fine-tuned on **Nasser alone** — the Najdi male support agent (3,378 clips): 400 steps
-(`najdi_male_ft`), then 400 more at a lower learning rate (`najdi_male_ft_cont`), 800 in
-total. The worker pins this variant to the built-in `nasser` voice and ignores everything
+Fine-tuned on Najdi customer-support speech (`najdi_mix_v3_ft`: 16,288 clips from two
+Najdi speakers, 2,000 steps), and **pinned to Nasser**, the Najdi male support agent. The
+worker pins this variant to the built-in `nasser` voice and ignores everything
 else the request says about the voice — `voice`, `gender`, an uploaded `ref_audio`, a
 `ref_text` — and the studio shows the voice picker and gender control locked. Gender is
 kept out of the `instruct` string here: the reference clip already fixes the speaker's
@@ -34,24 +34,31 @@ curl -F 'text=هلا والله' -F 'dialect=saudi' \
      http://localhost:8025/api/omnivoice_najdi/synthesize      # Nasser
 ```
 
-The weights ship with the repo in `models/omnivoice/nasser_800/` (split parts); the worker
-resolves them in this order:
+The weights ship with the repo in `models/omnivoice/najdi_mix_v3_1950/` (split parts); the
+worker resolves them in this order:
 
 1. `OMNIVOICE_NAJDI_MODEL_ID` env var
-2. repo-local `models/omnivoice/nasser_800/` (after assembly)
-3. `$OMNIVOICE_FINETUNE_DIR/checkpoints/najdi_male_ft_cont/checkpoint-400`
+2. repo-local `models/omnivoice/najdi_mix_v3_1950/` (after assembly)
+3. `$OMNIVOICE_FINETUNE_DIR/checkpoints/najdi_mix_v3_ft/checkpoint-1950`
    (default dir: `../omnivoice-finetune`, the training project)
 
-The card is offline when none exists. Provenance, hashes and eval numbers:
-[models/omnivoice/nasser_800_checkpoint.json](models/omnivoice/nasser_800_checkpoint.json).
-On the training project's v3 eval — 251 held-out Nasser clips no model trained on — it
-clones Nasser at WER 0.205, speaker similarity 0.845 and UTMOS 3.58.
+The card is offline when none exists. **Why step 1950:** the training project's v3 eval
+screened 46 models — the stock model, every earlier run's best checkpoint and all 40 v3
+checkpoints — by loss on 251 held-out Nasser clips no model trained on, and step 1950
+came out lowest (3.9679). In the full listening eval it then cloned Nasser with the
+lowest WER of any model:
 
-This card replaced the two-voice model (`najdi_mix_v3_ft/checkpoint-1800`), which is
-removed; the API id `omnivoice_najdi` is unchanged. For the record, the same eval had the
-late v3 checkpoints slightly ahead on WER and similarity (0.186–0.207, 0.850) and slightly
-behind on UTMOS (3.51–3.52). The Nasser-only model's clear edge is that it sounds like him
-even with no reference at all: similarity 0.860 unprompted, against 0.638 for v3.
+| model, cloning Nasser | WER ↓ | similarity to Nasser ↑ | UTMOS ↑ |
+| --- | --- | --- | --- |
+| **v3 step 1950 (this card)** | **0.186** | 0.850 | 3.51 |
+| Nasser-only fine-tune (`najdi_male_ft_cont/checkpoint-400`) | 0.205 | 0.845 | 3.58 |
+| stock `k2-fsa/OmniVoice` | 0.205 | 0.800 | 3.62 |
+| Nasser's own recordings | 0.214 | 0.864 | 3.42 |
+
+Provenance and hashes:
+[models/omnivoice/najdi_mix_v3_1950_checkpoint.json](models/omnivoice/najdi_mix_v3_1950_checkpoint.json).
+It replaced the Nasser-only fine-tune (`models/omnivoice/nasser_800/`), which is removed;
+the API id `omnivoice_najdi` is unchanged.
 
 ## Built-in cloned voices
 
@@ -62,9 +69,13 @@ Server-side reference voices under [voices/](voices/) — pick them from the
 - **أحمد (Ahmed)** — MSA male, from
   [IbrahimSalah/Arabic-TTS-Spark](https://huggingface.co/IbrahimSalah/Arabic-TTS-Spark)
   (upstream is licensed for **non-commercial research** — keep that in mind).
-- **ناصر (Nasser)** — Najdi male support agent (17.4 s reference: the longest clean
-  clip of his in the `najdi_mix_v3` test split, never seen by any training run).
-  `omnivoice_najdi` always uses it; the other models can pick it too.
+- **ناصر (Nasser)** — Najdi male support agent (5.8 s reference: a cheerful agent greeting
+  from the `najdi_mix_v3` test split, which the shipped checkpoint never trained on). The
+  clone copies the reference's pace, so it was picked for liveliness and pace rather than
+  length: cloned through `omnivoice_najdi` it speaks at 11.1–11.6 letters/s, right on his
+  natural median of 11.3, where the previous 17 s clip gave 8.5–9.3. Of the candidates it
+  also gave the most Nasser-like output. `omnivoice_najdi` always uses it; the other models
+  can pick it too.
 
 A manually uploaded reference in the cloning panel overrides the dropdown.
 Add a voice by dropping `voices/<id>/voice.json` + a reference wav (see the
@@ -104,7 +115,7 @@ workers/          omnivoice_server.py :8082 — the only active worker; handles 
 compose.py        ✨ Auto-Compose agent: job + persona -> Arabic script + settings
 textprep.py       Text-Prep agent: number/abbrev normalization + optional tashkeel
 voices/           bundled clone-voice references (abeer, ahmed, nasser)
-models/omnivoice/ fine-tuned checkpoint nasser_800 (split parts + metadata)
+models/omnivoice/ fine-tuned checkpoint najdi_mix_v3_1950 (split parts + metadata)
 ```
 
 Key endpoints: `POST /api/{model}/synthesize` (`model` ∈ `omnivoice_najdi`,
@@ -142,7 +153,7 @@ git pull && bash start.sh
 
 ## The fine-tuned checkpoint
 
-`models/omnivoice/nasser_800/` carries the full checkpoint: config and
+`models/omnivoice/najdi_mix_v3_1950/` carries the full checkpoint: config and
 tokenizer committed as-is, the 2.45 GB `model.safetensors` as 25 split parts
 (`git push` also caps packs at 2 GB, hence two weight commits). Resolution order is
 listed under [Najdi](#najdi-omnivoice_najdi) above; selection details and hashes:

@@ -11,7 +11,7 @@ const modelAudioUrl = (mid, filename) => appUrl(
 );
 
 // ── Model definitions ────────────────────────────────────────
-// The interface exposes two models: the Nasser Najdi fine-tune and the stock OmniVoice.
+// The interface exposes two models: the Najdi fine-tune (pinned to Nasser) and the stock one.
 // Both ride the SAME worker (gateway aliases -> port 8082); fixedParams.variant tells the
 // worker which checkpoint to load. A model with `lockedVoice` always clones that built-in
 // voice — the worker enforces it, the UI just stops offering a choice.
@@ -40,7 +40,7 @@ const MODELS = {
     id: 'omnivoice_najdi',
     get name() { return t('model.najdi.name'); },
     icon: '🎙️',
-    specs: '0.6B · 24kHz · Nasser Najdi FT · step 800',
+    specs: '0.6B · 24kHz · Najdi FT v3 · step 1950',
     get role() { return t('model.najdi.role'); },
     get traits() { return [t('model.trait.najdi'), t('model.trait.nasserVoice'), 'Najdi male', '24kHz']; },
     get profile() {

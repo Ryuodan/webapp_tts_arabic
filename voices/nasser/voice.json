@@ -3,10 +3,10 @@
   "label": "ناصر — نجدي",
   "gender": "male",
   "language": "ars",
-  "ref_audio": "nasser_ref_17s.wav",
-  "ref_text": "إذا حولت ملفك لقسم الرحلات، بنطبق سياسة تعويض خمسة وثلاثين بالمية من قيمة الرحلة، رقم الطلب ستة ستة واحد ثلاثة ستة اثنين، ونعطيك خصم ألف وميتين ريال على الرحلة الجاية",
+  "ref_audio": "nasser_ref_cheerful_6s.wav",
+  "ref_text": "أهلين يا أخوي صالح، أنا أنس من معارض الديرة. الله يسلمك، كيف حالك اليوم؟",
   "sample_rate": 24000,
-  "duration_s": 17.41,
-  "source": "omnivoice-finetune/data/najdi_mix_v3/wavs/aac7fee565d1.wav (test split, id najdi_v3_aac7fee565d1, unseen by every training run)",
-  "notes": "Nasser AlJubaily, Najdi male support agent. The longest clean held-out Nasser clip in the najdi_mix_v3 test split (verdict pass). The omnivoice_najdi model (najdi_male_ft_cont/checkpoint-400, Nasser-only) always clones this voice; the other models can pick it too."
+  "duration_s": 5.76,
+  "source": "omnivoice-finetune/data/najdi_mix_v3/wavs/8da9f4db2b57.wav (id najdi_v3_8da9f4db2b57: in the v3 test split, so the shipped najdi_mix_v3_ft checkpoint never trained on it; older runs did)",
+  "notes": "Nasser AlJubaily, Najdi male support agent: a cheerful agent greeting at his natural pace. Chosen over longer clips because the clone copies the reference's pace: cloned with the omnivoice_najdi model (najdi_mix_v3_ft/checkpoint-1950), it speaks at 11.1-11.6 letters/s, his median is 11.3, where the previous 17 s clip gave 8.5-9.3. It also gave the most Nasser-like output of the candidates (similarity 0.914) and scores UTMOS 3.68 itself (his recordings average 3.42). The omnivoice_najdi model always clones this voice; the other models can pick it too."
 }

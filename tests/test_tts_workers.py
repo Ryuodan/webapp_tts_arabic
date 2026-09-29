@@ -96,10 +96,10 @@ def test_omni_writes_audio_metrics_and_sidecar(omni):
                               "variant": omni.module.DEFAULT_VARIANT}
 
 
-# ── Najdi: a Nasser-only variant pinned to his built-in voice ──
+# ── Najdi: a variant pinned to Nasser's built-in voice ──
 @pytest.fixture
 def najdi(tmp_path, monkeypatch, fake_omnivoice):
-    ckpt = tmp_path / "najdi_male_ft_cont" / "checkpoint-400"
+    ckpt = tmp_path / "najdi_mix_v3_ft" / "checkpoint-1950"
     ckpt.mkdir(parents=True)
     module = fresh_import("omnivoice_server", monkeypatch,
                           {"OMNIVOICE_OUT_DIR": tmp_path / "out",

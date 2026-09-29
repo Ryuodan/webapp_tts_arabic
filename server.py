@@ -52,7 +52,7 @@ WORKER_URLS = {**TTS_WORKERS, "transcribe": ASR_WORKER}
 # Which worker-side model variant each alias warms on /load ("" = worker default).
 MODEL_VARIANT = {
     "omnivoice_base":   "base",
-    # Nasser-only fine-tune; always clones the built-in Nasser voice (worker-enforced).
+    # Najdi fine-tune pinned to Nasser; always clones the built-in Nasser voice (worker-enforced).
     "omnivoice_najdi":  "najdi",
 }
 

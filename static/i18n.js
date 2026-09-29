@@ -173,8 +173,8 @@ const I18N = (() => {
     'model.base.compareNote': { ar: 'الأصل بدون ضبط — خط الأساس.', en: 'Unmodified base — the baseline.' },
     'model.najdi.name':  { ar: 'OmniVoice النجدي — ناصر', en: 'OmniVoice Najdi — Nasser' },
     'model.najdi.role': {
-      ar: 'ضبط دقيق على صوت ناصر وحده (نجدي، ذكر) لـ 800 خطوة (najdi_male_ft_cont/checkpoint-400). يستنسخ صوت ناصر دائماً.',
-      en: 'Fine-tuned on Nasser alone (Najdi male) for 800 steps (najdi_male_ft_cont/checkpoint-400). Always clones Nasser’s voice.',
+      ar: 'ضبط دقيق على كلام خدمة عملاء نجدي (najdi_mix_v3_ft/checkpoint-1950) — أفضل نموذج لصوت ناصر في التقييم. يستنسخ صوت ناصر دائماً.',
+      en: 'Fine-tuned on Najdi support-call speech (najdi_mix_v3_ft/checkpoint-1950) — the best model for Nasser’s voice in evaluation. Always clones Nasser’s voice.',
     },
     'model.najdi.compareNote': { ar: 'صوت ناصر النجدي — ثابت دائماً.', en: 'Nasser’s Najdi voice — always.' },
     'model.trait.najdi':  { ar: 'نجدي', en: 'Najdi' },
@@ -186,16 +186,16 @@ const I18N = (() => {
     'model.profile.control': { ar: 'التحكم',       en: 'Control' },
     'model.profile.note':    { ar: 'ملاحظة',       en: 'Note' },
     'model.najdi.bestUse': {
-      ar: 'مساعد خدمة عملاء نجدي بصوت ناصر.',
-      en: 'A Najdi customer-support agent in Nasser’s voice.',
+      ar: 'مساعد خدمة عملاء نجدي بصوت ناصر — الأدق نطقاً (أقل WER) بين كل النماذج في التقييم.',
+      en: 'A Najdi customer-support agent in Nasser’s voice — the most accurate (lowest WER) of every model in evaluation.',
     },
     'model.najdi.control': {
       ar: 'الصوت مثبّت على ناصر (لا يُقبل صوت مرجعي آخر، والجنس ثابت)؛ اللهجة عبر لغة النموذج، والأسلوب عبر instruct.',
       en: 'The voice is pinned to Nasser (no other reference is accepted, gender is fixed); dialect rides the model language, style via instruct.',
     },
     'model.najdi.note': {
-      ar: 'يتطلب أوزان الـ checkpoint على السيرفر (models/omnivoice/nasser_800).',
-      en: 'Requires the checkpoint weights on the server (models/omnivoice/nasser_800).',
+      ar: 'يتطلب أوزان الـ checkpoint على السيرفر (models/omnivoice/najdi_mix_v3_1950).',
+      en: 'Requires the checkpoint weights on the server (models/omnivoice/najdi_mix_v3_1950).',
     },
     'model.base.bestUse': {
       ar: 'خط أساس للمقارنة مع النسخة المحسّنة، أو نقل صوت مرجعي بين اللغات.',

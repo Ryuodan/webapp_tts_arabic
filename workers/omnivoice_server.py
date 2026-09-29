@@ -20,14 +20,14 @@ from _common import WORKDIR, output_dir, register_audio_route, write_sidecar
 OUT_DIR = output_dir("OMNIVOICE_OUT_DIR", "outputs_omnivoice")
 REPO_DIR = pathlib.Path(__file__).resolve().parents[1]
 OMNIVOICE_BASE_MODEL_ID = os.getenv("OMNIVOICE_BASE_MODEL_ID", "k2-fsa/OmniVoice")
-# Nasser (Najdi male) single-speaker fine-tune: najdi_male_ft continued to global step 800,
-# i.e. najdi_male_ft_cont/checkpoint-400 (see models/omnivoice/nasser_800_checkpoint.json).
-# It backs the `najdi` variant. The repo ships it as split parts (start.sh assembles them);
-# the training project is the fallback source.
-REPO_NAJDI_CHECKPOINT = REPO_DIR / "models" / "omnivoice" / "nasser_800"
+# Najdi fine-tune najdi_mix_v3_ft/checkpoint-1950: the best model for Nasser in the v3 eval
+# (see models/omnivoice/najdi_mix_v3_1950_checkpoint.json). It backs the `najdi` variant,
+# which is pinned to Nasser's voice below. The repo ships it as split parts (start.sh
+# assembles them); the training project is the fallback source.
+REPO_NAJDI_CHECKPOINT = REPO_DIR / "models" / "omnivoice" / "najdi_mix_v3_1950"
 FINETUNE_PROJECT = pathlib.Path(
     os.getenv("OMNIVOICE_FINETUNE_DIR", str(REPO_DIR.parent / "omnivoice-finetune"))).expanduser()
-NAJDI_CHECKPOINT = FINETUNE_PROJECT / "checkpoints" / "najdi_male_ft_cont" / "checkpoint-400"
+NAJDI_CHECKPOINT = FINETUNE_PROJECT / "checkpoints" / "najdi_mix_v3_ft" / "checkpoint-1950"
 
 
 def _najdi_model_id() -> str | None:
@@ -47,8 +47,8 @@ if _najdi_id:
     MODEL_VARIANTS["najdi"] = _najdi_id
 DEFAULT_VARIANT = "base"
 
-# Variants tuned on a single speaker always clone that speaker's built-in voice: the request's
-# `voice`, uploaded reference and reference text are ignored for them.
+# Pinned variants always clone one built-in voice: the request's `voice`, uploaded reference
+# and reference text are ignored for them.
 VARIANT_VOICES = {"najdi": "nasser"}
 
 
