@@ -5,9 +5,8 @@
 // renders as a dropdown instead of a free-text box the caller has to guess at. The list
 // here is what the repo ships; refreshVoices() swaps in whatever the worker actually
 // loaded, so a voice dropped into voices/ needs no edit to this file.
-let VOICE_IDS = ['abeer', 'ahmed', 'nasser', 'joud'];
-const VOICE_LABELS = { abeer: 'voice.abeer', ahmed: 'voice.ahmed', nasser: 'voice.nasser',
-                       joud: 'voice.joud' };
+let VOICE_IDS = ['abeer', 'ahmed', 'nasser'];
+const VOICE_LABELS = { abeer: 'voice.abeer', ahmed: 'voice.ahmed', nasser: 'voice.nasser' };
 
 function voiceOptions() {
   const opts = [{ value: '', get label() { return t('voice.none'); } }];

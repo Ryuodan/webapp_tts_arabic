@@ -8,5 +8,5 @@
   "sample_rate": 24000,
   "duration_s": 17.41,
   "source": "omnivoice-finetune/data/najdi_mix_v3/wavs/aac7fee565d1.wav (test split, id najdi_v3_aac7fee565d1, unseen by every training run)",
-  "notes": "Nasser AlJubaily, Najdi male support agent. The longest clean held-out Nasser clip in the najdi_mix_v3 test split (verdict pass). The omnivoice_najdi model (najdi_mix_v3_ft/checkpoint-1800) clones this voice whenever gender=male; voices/joud is its female counterpart."
+  "notes": "Nasser AlJubaily, Najdi male support agent. The longest clean held-out Nasser clip in the najdi_mix_v3 test split (verdict pass). The omnivoice_najdi model (najdi_male_ft_cont/checkpoint-400, Nasser-only) always clones this voice; the other models can pick it too."
 }

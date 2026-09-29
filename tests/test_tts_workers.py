@@ -96,10 +96,10 @@ def test_omni_writes_audio_metrics_and_sidecar(omni):
                               "variant": omni.module.DEFAULT_VARIANT}
 
 
-# ── Najdi: a two-speaker variant whose gender control picks the built-in voice ──
+# ── Najdi: a Nasser-only variant pinned to his built-in voice ──
 @pytest.fixture
 def najdi(tmp_path, monkeypatch, fake_omnivoice):
-    ckpt = tmp_path / "najdi_mix_v3_ft" / "checkpoint-1800"
+    ckpt = tmp_path / "najdi_male_ft_cont" / "checkpoint-400"
     ckpt.mkdir(parents=True)
     module = fresh_import("omnivoice_server", monkeypatch,
                           {"OMNIVOICE_OUT_DIR": tmp_path / "out",
@@ -109,11 +109,11 @@ def najdi(tmp_path, monkeypatch, fake_omnivoice):
     return client
 
 
-def test_najdi_variant_is_offered_with_both_pinned_voices(najdi):
+def test_najdi_variant_is_offered_with_its_pinned_voice(najdi):
     health = najdi.get("/health").json()
     assert health["variants"]["najdi"] == str(najdi.ckpt)
-    assert health["variant_gender_voices"] == {"najdi": {"male": "nasser", "female": "joud"}}
-    assert {"nasser", "joud"} <= set(health["voices"])
+    assert health["variant_voices"] == {"najdi": "nasser"}
+    assert "nasser" in health["voices"]
     assert health["default_variant"] != "najdi"        # never the implicit choice
 
 
@@ -131,21 +131,17 @@ def test_najdi_weights_resolve_repo_first_then_training_project(omni, tmp_path, 
     assert omni.module._najdi_model_id() == str(repo)
 
 
-@pytest.mark.parametrize("gender, expected", [
-    ("male", "nasser"), ("female", "joud"),
-    ("", "nasser"),          # no gender named -> the first of the cast
-    ("MALE", "nasser"),      # case/padding are normalised like every other form field
-    (" female ", "joud"),
-])
-def test_najdi_clones_the_voice_the_gender_selects(najdi, gender, expected):
+@pytest.mark.parametrize("gender", ["", "male", "female"])
+def test_najdi_always_clones_nasser(najdi, gender):
+    """Gender no longer switches the speaker: whatever the request says, it is Nasser."""
     body = najdi.post("/synthesize",
                       data={"text": "مرحباً", "variant": "najdi", "gender": gender}).json()
     kwargs = najdi.rec["generate_kwargs"]
-    voice = najdi.module._BUILTIN_VOICES[expected]
+    voice = najdi.module._BUILTIN_VOICES["nasser"]
     assert najdi.rec["from_pretrained"][0] == str(najdi.ckpt)
     assert kwargs["ref_audio"] == voice["ref_audio_path"] and kwargs["ref_text"] == voice["ref_text"]
-    assert body["voice"] == expected and body["model_variant"] == "najdi"
-    assert body["voice_pinned_by_gender"] is True
+    assert body["voice"] == "nasser" and body["model_variant"] == "najdi"
+    assert body["voice_pinned"] is True
 
 
 def test_najdi_keeps_gender_out_of_instruct(najdi):
@@ -156,17 +152,18 @@ def test_najdi_keeps_gender_out_of_instruct(najdi):
 
 
 def test_another_variant_still_puts_gender_in_instruct(najdi):
-    najdi.post("/synthesize", data={"text": "مرحباً", "variant": "base", "gender": "female"})
+    body = najdi.post("/synthesize",
+                      data={"text": "مرحباً", "variant": "base", "gender": "female"}).json()
     assert najdi.rec["generate_kwargs"]["instruct"] == "female"
+    assert body["voice_pinned"] is False
 
 
 def test_najdi_ignores_another_voice_an_upload_and_a_transcript(najdi, wav_file):
     najdi.post("/synthesize",
-               data={"text": "مرحباً", "variant": "najdi", "gender": "female",
-                     "voice": "abeer", "ref_text": "نص آخر"},
+               data={"text": "مرحباً", "variant": "najdi", "voice": "abeer", "ref_text": "نص آخر"},
                files={"ref_audio": ("ref.wav", wav_file.read_bytes(), "audio/wav")})
     kwargs = najdi.rec["generate_kwargs"]
-    voice = najdi.module._BUILTIN_VOICES["joud"]
+    voice = najdi.module._BUILTIN_VOICES["nasser"]
     assert kwargs["ref_audio"] == voice["ref_audio_path"] and kwargs["ref_text"] == voice["ref_text"]
 
 
@@ -177,17 +174,16 @@ def test_the_route_variant_outranks_the_form_field(najdi):
     assert body["model_variant"] == "najdi"
 
 
-def test_other_variants_can_still_borrow_the_najdi_voices(najdi):
-    for voice_id in ("nasser", "joud"):
-        najdi.post("/synthesize", data={"text": "مرحباً", "variant": "base", "voice": voice_id})
-        assert najdi.rec["generate_kwargs"]["ref_audio"] == \
-            najdi.module._BUILTIN_VOICES[voice_id]["ref_audio_path"]
+def test_other_variants_can_still_borrow_the_nasser_voice(najdi):
+    najdi.post("/synthesize", data={"text": "مرحباً", "variant": "base", "voice": "nasser"})
+    assert najdi.rec["generate_kwargs"]["ref_audio"] == \
+        najdi.module._BUILTIN_VOICES["nasser"]["ref_audio_path"]
 
 
 def test_najdi_without_its_voice_files_is_a_503(najdi, tmp_path, monkeypatch):
     monkeypatch.setattr(najdi.module, "_BUILTIN_VOICES", {})
-    r = najdi.post("/synthesize", data={"text": "مرحباً", "variant": "najdi", "gender": "female"})
-    assert r.status_code == 503 and "joud" in r.json()["detail"]
+    r = najdi.post("/synthesize", data={"text": "مرحباً", "variant": "najdi"})
+    assert r.status_code == 503 and "nasser" in r.json()["detail"]
 
 
 def test_omni_generation_failure_is_a_500(omni):

@@ -109,7 +109,6 @@ const I18N = (() => {
     'voice.abeer':        { ar: 'عبير — سعودية', en: 'Abeer — Saudi' },
     'voice.ahmed':        { ar: 'أحمد — فصحى',   en: 'Ahmed — MSA' },
     'voice.nasser':       { ar: 'ناصر — نجدي',   en: 'Nasser — Najdi' },
-    'voice.joud':         { ar: 'جود — نجدية',   en: 'Joud — Najdi' },
 
     // ── Compare ───────────────────────────────────────────────
     'cmp.toggle':         { ar: 'قارن نفس النص باستخدام كل النماذج المتاحة', en: 'Compare the same text across every available model' },
@@ -172,14 +171,14 @@ const I18N = (() => {
       en: 'The stock k2-fsa/OmniVoice checkpoint, unmodified — a comparison baseline with the widest language coverage (600+).',
     },
     'model.base.compareNote': { ar: 'الأصل بدون ضبط — خط الأساس.', en: 'Unmodified base — the baseline.' },
-    'model.najdi.name':  { ar: 'OmniVoice النجدي — ناصر وجود', en: 'OmniVoice Najdi — Nasser & Joud' },
+    'model.najdi.name':  { ar: 'OmniVoice النجدي — ناصر', en: 'OmniVoice Najdi — Nasser' },
     'model.najdi.role': {
-      ar: 'ضبط دقيق على الصوتين النجديين معاً لـ 2000 خطوة (najdi_mix_v3_ft/checkpoint-1800، أفضل eval loss). اختيار الجنس هو اختيار الصوت: ذكر ← ناصر، أنثى ← جود.',
-      en: 'Fine-tuned on both Najdi voices for 2,000 steps (najdi_mix_v3_ft/checkpoint-1800, the run’s best eval loss). Gender picks the voice: male → Nasser, female → Joud.',
+      ar: 'ضبط دقيق على صوت ناصر وحده (نجدي، ذكر) لـ 800 خطوة (najdi_male_ft_cont/checkpoint-400). يستنسخ صوت ناصر دائماً.',
+      en: 'Fine-tuned on Nasser alone (Najdi male) for 800 steps (najdi_male_ft_cont/checkpoint-400). Always clones Nasser’s voice.',
     },
-    'model.najdi.compareNote': { ar: 'صوت نجدي ثابت — ناصر أو جود حسب الجنس.', en: 'A fixed Najdi voice — Nasser or Joud, by gender.' },
+    'model.najdi.compareNote': { ar: 'صوت ناصر النجدي — ثابت دائماً.', en: 'Nasser’s Najdi voice — always.' },
     'model.trait.najdi':  { ar: 'نجدي', en: 'Najdi' },
-    'model.trait.twoVoices': { ar: 'ناصر + جود', en: 'Nasser + Joud' },
+    'model.trait.nasserVoice': { ar: 'صوت ناصر ثابت', en: 'Fixed Nasser voice' },
     'model.trait.arabic': { ar: 'الأفضل للعربية', en: 'Best for Arabic' },
     'model.trait.langs':  { ar: '600+ لغة', en: '600+ languages' },
 
@@ -187,16 +186,16 @@ const I18N = (() => {
     'model.profile.control': { ar: 'التحكم',       en: 'Control' },
     'model.profile.note':    { ar: 'ملاحظة',       en: 'Note' },
     'model.najdi.bestUse': {
-      ar: 'مكالمة خدمة عملاء نجدية بطرفيها — مساعد أو عميل، بصوت ناصر أو جود.',
-      en: 'Both sides of a Najdi customer-support call — agent or customer, in Nasser’s or Joud’s voice.',
+      ar: 'مساعد خدمة عملاء نجدي بصوت ناصر.',
+      en: 'A Najdi customer-support agent in Nasser’s voice.',
     },
     'model.najdi.control': {
-      ar: 'الجنس يختار الصوت (ذكر ← ناصر، أنثى ← جود) ولا يُقبل صوت مرجعي آخر؛ اللهجة عبر لغة النموذج، والأسلوب عبر instruct.',
-      en: 'Gender picks the voice (male → Nasser, female → Joud) and no other reference is accepted; dialect rides the model language, style via instruct.',
+      ar: 'الصوت مثبّت على ناصر (لا يُقبل صوت مرجعي آخر، والجنس ثابت)؛ اللهجة عبر لغة النموذج، والأسلوب عبر instruct.',
+      en: 'The voice is pinned to Nasser (no other reference is accepted, gender is fixed); dialect rides the model language, style via instruct.',
     },
     'model.najdi.note': {
-      ar: 'يتطلب أوزان الـ checkpoint على السيرفر (models/omnivoice/najdi_mix_v3_1800).',
-      en: 'Requires the checkpoint weights on the server (models/omnivoice/najdi_mix_v3_1800).',
+      ar: 'يتطلب أوزان الـ checkpoint على السيرفر (models/omnivoice/nasser_800).',
+      en: 'Requires the checkpoint weights on the server (models/omnivoice/nasser_800).',
     },
     'model.base.bestUse': {
       ar: 'خط أساس للمقارنة مع النسخة المحسّنة، أو نقل صوت مرجعي بين اللغات.',
@@ -245,9 +244,9 @@ const I18N = (() => {
     'clone.zoneLabel':    { ar: 'الصوت المرجعي (WAV 5–30 ثانية)', en: 'Reference audio (WAV, 5–30 s)' },
     'clone.textLabel':    { ar: 'نص الصوت المرجعي (اختياري)', en: 'Reference transcript (optional)' },
     'clone.textPh':       { ar: 'النص المنطوق في الصوت المرجعي…', en: 'What is spoken in the reference clip…' },
-    'clone.lockedNajdi': {
-      ar: 'هذا النموذج يستنسخ ناصر (ذكر) أو جود (أنثى) حسب اختيار الجنس — لا يمكن رفع صوت مرجعي آخر.',
-      en: 'This model clones Nasser (male) or Joud (female) as the gender control selects — no other reference is accepted.',
+    'clone.lockedNasser': {
+      ar: 'هذا النموذج يستنسخ صوت ناصر دائماً — لا يمكن تغيير الصوت المرجعي.',
+      en: 'This model always clones Nasser’s voice — the reference cannot be changed.',
     },
     'clone.drop':         { ar: 'اسحب ملف WAV هنا أو اضغط للاختيار', en: 'Drop a WAV here, or click to choose' },
     'tag.add':            { ar: 'أضف إلى النص', en: 'Add to the text' },
@@ -318,8 +317,8 @@ const I18N = (() => {
     'ep.tr.lang':         { ar: 'النموذج عربي/إنجليزي فقط', en: 'The model handles Arabic/English only' },
     'ep.tr.punct':        { ar: 'false ⇐ نص بلا ترقيم', en: 'false ⇒ text without punctuation' },
     'ep.synth.title':     { ar: 'توليد كلام', en: 'Speech synthesis' },
-    'ep.synth.desc':      { ar: 'نص ← ملف wav. الأسماء أدناه نسخ من OmniVoice (المحسّنة، النجدية، والأصلية) تتشارك نفس العامل. omnivoice_najdi يستنسخ ناصر عند gender=male وجود عند gender=female، ويتجاهل voice والصوت المرجعي.',
-                            en: 'Text → a wav file. The names below are OmniVoice variants (fine-tuned, Najdi and base) sharing one worker. omnivoice_najdi clones Nasser for gender=male and Joud for gender=female, ignoring voice and any reference audio.' },
+    'ep.synth.desc':      { ar: 'نص ← ملف wav. الأسماء أدناه نسخ من OmniVoice (النجدية والأصلية) تتشارك نفس العامل. omnivoice_najdi يستنسخ صوت ناصر دائماً ويتجاهل voice والصوت المرجعي والجنس.',
+                            en: 'Text → a wav file. The names below are OmniVoice variants (Najdi and base) sharing one worker. omnivoice_najdi always clones Nasser, ignoring voice, gender and any reference audio.' },
     'ep.synth.voice':     { ar: 'اسم صوت مدمج، أو فارغ لصوت النموذج', en: 'A bundled voice name, or empty for the model’s own voice' },
     'ep.synth.gender':    { ar: 'فارغ = اختيار النموذج', en: 'empty = let the model choose' },
     'ep.load.title':      { ar: 'تحميل نموذج مسبقاً', en: 'Preload a model' },

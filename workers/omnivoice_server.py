@@ -20,15 +20,14 @@ from _common import WORKDIR, output_dir, register_audio_route, write_sidecar
 OUT_DIR = output_dir("OMNIVOICE_OUT_DIR", "outputs_omnivoice")
 REPO_DIR = pathlib.Path(__file__).resolve().parents[1]
 OMNIVOICE_BASE_MODEL_ID = os.getenv("OMNIVOICE_BASE_MODEL_ID", "k2-fsa/OmniVoice")
-# Najdi two-speaker fine-tune: najdi_mix_v3_ft/checkpoint-1800, the run's lowest eval loss
-# (see models/omnivoice/najdi_mix_v3_1800_checkpoint.json). Trained on both Najdi voices —
-# Nasser (male) and Joud (female) — so the request's gender picks which one it speaks in.
-# The repo ships it as split parts (start.sh assembles them); the training project is the
-# fallback source.
-REPO_NAJDI_CHECKPOINT = REPO_DIR / "models" / "omnivoice" / "najdi_mix_v3_1800"
+# Nasser (Najdi male) single-speaker fine-tune: najdi_male_ft continued to global step 800,
+# i.e. najdi_male_ft_cont/checkpoint-400 (see models/omnivoice/nasser_800_checkpoint.json).
+# It backs the `najdi` variant. The repo ships it as split parts (start.sh assembles them);
+# the training project is the fallback source.
+REPO_NAJDI_CHECKPOINT = REPO_DIR / "models" / "omnivoice" / "nasser_800"
 FINETUNE_PROJECT = pathlib.Path(
     os.getenv("OMNIVOICE_FINETUNE_DIR", str(REPO_DIR.parent / "omnivoice-finetune"))).expanduser()
-NAJDI_CHECKPOINT = FINETUNE_PROJECT / "checkpoints" / "najdi_mix_v3_ft" / "checkpoint-1800"
+NAJDI_CHECKPOINT = FINETUNE_PROJECT / "checkpoints" / "najdi_male_ft_cont" / "checkpoint-400"
 
 
 def _najdi_model_id() -> str | None:
@@ -48,18 +47,9 @@ if _najdi_id:
     MODEL_VARIANTS["najdi"] = _najdi_id
 DEFAULT_VARIANT = "base"
 
-# Variants tuned on a fixed cast of speakers always clone one of those speakers' built-in
-# voices, chosen by the request's `gender`: its `voice`, uploaded reference and reference text
-# are all ignored. The first entry is the default when the request names no gender.
-VARIANT_GENDER_VOICES = {"najdi": {"male": "nasser", "female": "joud"}}
-
-
-def _pinned_voice(variant: str, gender: str) -> str | None:
-    """The built-in voice `variant` is pinned to for `gender`, or None if it pins none."""
-    by_gender = VARIANT_GENDER_VOICES.get(variant)
-    if not by_gender:
-        return None
-    return by_gender.get((gender or "").strip().lower()) or next(iter(by_gender.values()))
+# Variants tuned on a single speaker always clone that speaker's built-in voice: the request's
+# `voice`, uploaded reference and reference text are ignored for them.
+VARIANT_VOICES = {"najdi": "nasser"}
 
 
 OMNIVOICE_DEVICE = os.getenv("OMNIVOICE_DEVICE", "auto")
@@ -268,8 +258,7 @@ async def health():
         "loaded_variants": loaded_variants,
         "model_id": MODEL_VARIANTS[active_variant or DEFAULT_VARIANT],
         "voices": sorted(_BUILTIN_VOICES),
-        "variant_gender_voices": {k: v for k, v in VARIANT_GENDER_VOICES.items()
-                                  if k in MODEL_VARIANTS},
+        "variant_voices": {k: v for k, v in VARIANT_VOICES.items() if k in MODEL_VARIANTS},
         "status": "ok",
         "ready": bool(_models),
         "model_loaded": bool(_models),
@@ -328,9 +317,9 @@ async def synthesize(
         raise HTTPException(400, f"Model variant '{req_variant}' is not available on this server "
                                  f"(available: {available})")
 
-    # A gender-pinned variant speaks only its own cast: gender picks which of them, and the
-    # request's voice / upload / transcript are ignored rather than fought with.
-    pinned_voice = _pinned_voice(req_variant, gender)
+    # A pinned variant speaks only its own speaker: the request's voice / upload / transcript
+    # are ignored rather than fought with.
+    pinned_voice = VARIANT_VOICES.get(req_variant)
     voice_id = pinned_voice or (voice or "").strip().lower()
     builtin = _BUILTIN_VOICES.get(voice_id) if voice_id else None
     if pinned_voice and not builtin:
@@ -368,8 +357,8 @@ async def synthesize(
         attrs = []
         if speaker and speaker.strip():
             attrs.append(speaker.strip())
-        # For a gender-pinned variant the reference clip already fixes the speaker's sex, so
-        # gender stays out of instruct — sending it too can only contradict the reference.
+        # For a pinned variant the reference clip already fixes the speaker's sex, so gender
+        # stays out of instruct — sending it too can only contradict the reference.
         gender_attr = "" if pinned_voice else _attr(_GENDERS, gender)
         for frag in (gender_attr, _attr(_AGES, age)):
             if frag:
@@ -402,7 +391,7 @@ async def synthesize(
         "model_id": MODEL_VARIANTS[req_variant],
         "model_variant": req_variant,
         "voice": voice_id,
-        "voice_pinned_by_gender": bool(pinned_voice),
+        "voice_pinned": bool(pinned_voice),
         "model_input": eff_text,
         "model_instruct": kwargs.get("instruct", ""),
         "model_language": kwargs.get("language", ""),

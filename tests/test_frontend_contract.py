@@ -133,19 +133,15 @@ def test_each_interface_model_pins_a_worker_variant():
 
 
 def test_locked_voices_match_the_worker_pins():
-    """A card whose gender control picks the voice must pick the ones the worker pins.
-
-    The UI also relies on the map's ORDER: the first gender is what the card starts on and
-    what the worker falls back to when a request names none, so compare dicts, not items.
-    """
-    locked = {spec["fixedParams"]["variant"]: spec["lockedVoiceByGender"]
-              for spec in app_js("MODELS").values() if spec.get("lockedVoiceByGender")}
-    assert locked == omnivoice_server.VARIANT_GENDER_VOICES
-    for by_gender in locked.values():
-        assert list(by_gender) == list(omnivoice_server.VARIANT_GENDER_VOICES[
-            next(k for k, v in locked.items() if v is by_gender)])
-        for voice in by_gender.values():
-            assert voice in omnivoice_server._BUILTIN_VOICES, voice
+    """A card that shows a fixed voice must be the variant the worker pins to that voice."""
+    specs = [spec for spec in app_js("MODELS").values() if spec.get("lockedVoice")]
+    locked = {spec["fixedParams"]["variant"]: spec["lockedVoice"] for spec in specs}
+    assert locked == omnivoice_server.VARIANT_VOICES
+    for spec in specs:
+        voice = omnivoice_server._BUILTIN_VOICES.get(spec["lockedVoice"])
+        assert voice, spec["lockedVoice"]
+        # The card shows its gender locked; it must be the speaker's own, from voice.json.
+        assert spec["fixedParams"].get("gender") == voice["gender"]
 
 
 def test_transcription_is_not_a_synthesis_model():

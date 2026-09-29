@@ -11,11 +11,10 @@ const modelAudioUrl = (mid, filename) => appUrl(
 );
 
 // ── Model definitions ────────────────────────────────────────
-// The interface exposes three models: the Saudi-HQ fine-tuned OmniVoice, the Najdi
-// two-speaker fine-tune and the stock one. All ride the SAME worker (gateway aliases ->
-// port 8082); fixedParams.variant tells the worker which checkpoint to load. A model with
-// `lockedVoiceByGender` only ever clones the built-in voices listed there, picked by the
-// gender control — the worker enforces it, the UI just stops offering a choice.
+// The interface exposes two models: the Nasser Najdi fine-tune and the stock OmniVoice.
+// Both ride the SAME worker (gateway aliases -> port 8082); fixedParams.variant tells the
+// worker which checkpoint to load. A model with `lockedVoice` always clones that built-in
+// voice — the worker enforces it, the UI just stops offering a choice.
 // VoxCPM2/Fish are retired from the interface.
 // Every user-facing label below is a getter rather than a string: it re-resolves on each
 // access, so flipping the interface language updates them without rebuilding these
@@ -28,7 +27,6 @@ const OMNI_SHARED = {
         { value: 'abeer', get label() { return t('voice.abeer'); } },
         { value: 'ahmed', get label() { return t('voice.ahmed'); } },
         { value: 'nasser', get label() { return t('voice.nasser'); } },
-        { value: 'joud',  get label() { return t('voice.joud'); } },
       ] },
   ],
   emotionTags: ['[laughter]'],   // base model only documents [laughter]; [applause] is unsupported
@@ -42,9 +40,9 @@ const MODELS = {
     id: 'omnivoice_najdi',
     get name() { return t('model.najdi.name'); },
     icon: '🎙️',
-    specs: '0.6B · 24kHz · Najdi Nasser+Joud FT v3 · step 1800',
+    specs: '0.6B · 24kHz · Nasser Najdi FT · step 800',
     get role() { return t('model.najdi.role'); },
-    get traits() { return [t('model.trait.najdi'), t('model.trait.twoVoices'), 'Najdi m+f', '24kHz']; },
+    get traits() { return [t('model.trait.najdi'), t('model.trait.nasserVoice'), 'Najdi male', '24kHz']; },
     get profile() {
       return [
         { label: t('model.profile.bestUse'), value: t('model.najdi.bestUse') },
@@ -53,10 +51,11 @@ const MODELS = {
       ];
     },
     get compareNote() { return t('model.najdi.compareNote'); },
-    get cloneHint() { return t('clone.lockedNajdi'); },
-    // Gender is the voice switch for this model — MUST match the worker's VARIANT_GENDER_VOICES.
-    lockedVoiceByGender: { male: 'nasser', female: 'joud' },
-    fixedParams: { variant: 'najdi' },
+    get cloneHint() { return t('clone.lockedNasser'); },
+    // MUST match the worker's VARIANT_VOICES. The gender is Nasser's own, so the gender
+    // control shows it locked instead of offering a choice the worker would ignore.
+    lockedVoice: 'nasser',
+    fixedParams: { variant: 'najdi', voice: 'nasser', gender: 'male' },
   },
   omnivoice_base: {
     ...OMNI_SHARED,
@@ -102,22 +101,6 @@ const AGES = [
 ];
 const attrLabel = (list, id) => (list.find(o => o.id === id) || list[0]).label;
 
-// A model with lockedVoiceByGender speaks only that cast, so "auto" is not on offer: the
-// gender control becomes the voice switch and every option names the voice it clones.
-const gendersFor = model => (model && model.lockedVoiceByGender)
-  ? Object.keys(model.lockedVoiceByGender).map(id => ({
-      id, get label() { return `${t(`gender.${id}`)} — ${t(`voice.${model.lockedVoiceByGender[id]}`)}`; },
-    }))
-  : GENDERS;
-
-// The built-in voice `model` is pinned to for `gender` (its first entry if the gender is
-// unset or unknown), or '' when the model pins none. Mirrors the worker's _pinned_voice().
-function pinnedVoiceFor(model, gender) {
-  const byGender = model && model.lockedVoiceByGender;
-  if (!byGender) return '';
-  return byGender[(gender || '').trim().toLowerCase()] || Object.values(byGender)[0];
-}
-
 // OmniVoice picks the dialect via its native ISO 639-3 language code — MUST match the worker map.
 const DIALECT_LANG = {
   msa: 'arb', saudi: 'ars', egyptian: 'arz',
@@ -144,9 +127,9 @@ function buildModelInput(mid, text) {
   const attrs = [];
   const sp = (v.speaker || '').trim();
   if (sp) attrs.push(sp);
-  // For a gender-pinned model the reference clip already fixes the speaker's sex; the worker
+  // For a locked-voice model the reference clip already fixes the speaker's sex; the worker
   // leaves gender out of instruct there, so the preview must too.
-  if (!MODELS[mid].lockedVoiceByGender && GENDER_EN[v.gender]) attrs.push(GENDER_EN[v.gender]);
+  if (!MODELS[mid].lockedVoice && GENDER_EN[v.gender]) attrs.push(GENDER_EN[v.gender]);
   if (AGE_EN[v.age]) attrs.push(AGE_EN[v.age]);
   return { text: body, instruct: attrs.join(', '), lang: DIALECT_LANG[v.dialect || 'msa'] || DIALECT_LANG.msa };
 }
@@ -317,10 +300,6 @@ function initParamValues() {
       paramValues[mid][p.id] = p.default;
     }
     Object.assign(paramValues[mid], m.fixedParams || {});   // pinned values beat param defaults
-    if (m.lockedVoiceByGender) {
-      paramValues[mid].gender = Object.keys(m.lockedVoiceByGender)[0];
-      paramValues[mid].voice  = pinnedVoiceFor(m, paramValues[mid].gender);
-    }
   }
 }
 
@@ -439,12 +418,6 @@ function makeAttrSelect(labelText, key, list) {
   `;
   cell.querySelector('select').addEventListener('change', e => {
     paramValues[selectedModel][key] = e.target.value;
-    // For a gender-pinned model this select IS the voice picker — keep the rest in step.
-    if (key === 'gender' && MODELS[selectedModel].lockedVoiceByGender) {
-      paramValues[selectedModel].voice = pinnedVoiceFor(MODELS[selectedModel], e.target.value);
-      renderVoicePicker();
-      renderClonePanel();
-    }
     updateModelInputPreview();
   });
   return cell;
@@ -463,7 +436,14 @@ function renderLanguageBar(body) {
   wrap.appendChild(lock);
 
   wrap.appendChild(makeAttrSelect(t('attr.dialect'), 'dialect', DIALECTS));
-  wrap.appendChild(makeAttrSelect(t('attr.gender'), 'gender', gendersFor(MODELS[selectedModel])));
+  const genderCell = makeAttrSelect(t('attr.gender'), 'gender', GENDERS);
+  // A locked voice has a fixed sex: show it, but a choice here would only be ignored.
+  if (MODELS[selectedModel].lockedVoice) {
+    const sel = genderCell.querySelector('select');
+    sel.disabled = true;
+    sel.title = MODELS[selectedModel].cloneHint || '';
+  }
+  wrap.appendChild(genderCell);
   wrap.appendChild(makeAttrSelect(t('attr.age'), 'age', AGES));
   body.appendChild(wrap);
 
@@ -650,26 +630,11 @@ function renderVoicePicker() {
     return;
   }
 
-  // A gender-pinned model offers only its own cast here; picking a voice sets the gender
-  // that selects it (the worker keys on gender), keeping the gender control in step.
-  const byGender = model.lockedVoiceByGender;
-  if (byGender) {
-    const pinned = pinnedVoiceFor(model, (paramValues[selectedModel] || {}).gender);
-    select.disabled = false;
-    select.innerHTML = Object.values(byGender).map(v => {
-      const opt = voiceParam.options.find(o => o.value === v);
-      return `<option value="${escapeHtml(v)}" ${v === pinned ? 'selected' : ''}>
-        ${escapeHtml(opt ? opt.label : v)}</option>`;
-    }).join('');
-    select.onchange = e => {
-      const gender = Object.keys(byGender).find(g => byGender[g] === e.target.value);
-      paramValues[selectedModel].gender = gender;
-      paramValues[selectedModel].voice  = e.target.value;
-      const genderSelect = $('p-gender');
-      if (genderSelect) genderSelect.value = gender;
-      renderClonePanel();
-      updateModelInputPreview();
-    };
+  if (model.lockedVoice) {
+    const locked = voiceParam.options.find(o => o.value === model.lockedVoice);
+    select.innerHTML = `<option value="${escapeHtml(model.lockedVoice)}" selected>
+      ${escapeHtml(locked ? locked.label : model.lockedVoice)}</option>`;
+    select.disabled = true;
     return;
   }
 
@@ -683,7 +648,7 @@ function renderVoicePicker() {
 
   select.onchange = e => {
     for (const mid of Object.keys(MODELS)) {
-      if (paramValues[mid] && !MODELS[mid].lockedVoiceByGender) paramValues[mid].voice = e.target.value;
+      if (paramValues[mid] && !MODELS[mid].lockedVoice) paramValues[mid].voice = e.target.value;
     }
   };
 }
@@ -738,8 +703,8 @@ function renderClonePanel() {
     body.appendChild(hint);
   }
 
-  // A gender-pinned model clones its own cast only; the hint above is all it shows.
-  if (model.lockedVoiceByGender) return;
+  // A locked-voice model clones its own speaker only; the hint above is all it shows.
+  if (model.lockedVoice) return;
 
   // The other interface models are OmniVoice variants with the same cloning fields.
   body.appendChild(makeFileZone('ref_audio', t('clone.zoneLabel'), 'audio/wav,audio/*'));
@@ -918,6 +883,7 @@ function applyComposed(result) {
   for (const mid of Object.keys(MODELS)) {
     const v = paramValues[mid];
     v.dialect = dialect; v.gender = gender; v.age = age;
+    Object.assign(v, MODELS[mid].fixedParams || {});   // pinned values beat the agent's too
     if (manualOverride[mid]) manualOverride[mid].enabled = false;
   }
   // Same instruct for every OmniVoice variant (compose's voxcpm2 fields are unused now).
