@@ -9,11 +9,12 @@ import pathlib
 import time
 from contextlib import asynccontextmanager
 from typing import Optional
+from urllib.parse import quote
 
 import httpx
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from reqlog import RequestLog, RequestLogMiddleware
@@ -220,6 +221,55 @@ async def transcribe(request: Request):
                              "transcription timed out (>15 min)")
 
 
+# ── Voice library — built-in + uploaded clone voices ──────────
+# The OmniVoice worker owns the files (see its /voices endpoints). These calls only read or
+# write a few small files, so they skip the model gate and the single-model unload sweep.
+def _worker_error(r: httpx.Response) -> str:
+    try:
+        return str(r.json().get("detail") or r.text)
+    except Exception:
+        return r.text
+
+
+async def _voices_call(method: str, path: str, **kwargs) -> httpx.Response:
+    try:
+        r = await _client.request(method, f"{_OMNIVOICE_URL}{path}", timeout=60.0, **kwargs)
+    except httpx.ConnectError:
+        raise HTTPException(503, "OmniVoice worker is not running — check start.sh")
+    except httpx.ReadTimeout:
+        raise HTTPException(504, "The voice library did not answer in time")
+    if r.status_code != 200:
+        raise HTTPException(r.status_code, _worker_error(r))
+    return r
+
+
+@app.get("/api/voices")
+async def list_voices():
+    return JSONResponse((await _voices_call("GET", "/voices")).json())
+
+
+@app.post("/api/voices")
+async def add_voice(request: Request):
+    """Save an uploaded clip as a named clone voice (multipart: name, audio, ref_text)."""
+    body = await _read_limited_body(request)
+    headers = {k: v for k, v in request.headers.items()
+               if k.lower() not in ("host", "content-length")}
+    r = await _voices_call("POST", "/voices", content=body, headers=headers)
+    return JSONResponse(r.json())
+
+
+@app.delete("/api/voices/{voice_id}")
+async def delete_voice(voice_id: str):
+    return JSONResponse((await _voices_call("DELETE", f"/voices/{quote(voice_id, safe='')}")).json())
+
+
+@app.get("/api/voices/{voice_id}/audio")
+async def voice_audio(voice_id: str):
+    r = await _voices_call("GET", f"/voices/{quote(voice_id, safe='')}/audio")
+    return Response(content=r.content, media_type="audio/wav",
+                    headers={"Cache-Control": "no-store"})
+
+
 @app.post("/api/{model}/load")
 async def load_model(model: str):
     if model not in WORKER_URLS:
@@ -341,6 +391,7 @@ async def compose(request: Request):
 @app.post("/api/prepare")
 async def prepare(request: Request):
     """Text-Prep agent: rewrite raw Arabic for TTS (normalize numbers/abbrev + optional tashkeel).
+    `marks` = "full" (default) or "shadda" picks which marks the tashkeel keeps.
     Operates ONLY on the text string — the workers/models are untouched."""
     try:
         body = await request.json()
@@ -362,7 +413,8 @@ async def prepare(request: Request):
 
     try:
         result = await asyncio.to_thread(
-            prepare_text, text, body.get("dialect", "msa"), normalize, diacritize)
+            prepare_text, text, body.get("dialect", "msa"), normalize, diacritize,
+            str(body.get("marks") or "full"))
     except RuntimeError as e:                 # missing OPENAI_API_KEY, etc.
         raise HTTPException(503, str(e))
     except Exception as e:                     # OpenAI / validation failure

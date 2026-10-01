@@ -112,6 +112,29 @@ def test_compose_defers_to_the_model_when_the_user_left_it_open(fake_llm):
     assert out["gender"] == "female" and out["age"] == "middle"
 
 
+@pytest.mark.parametrize("field, raw, kept", [
+    ("age", "30", ""), ("age", "adult", ""), ("age", None, ""), ("age", " Middle ", "middle"),
+    ("gender", "woman", ""), ("gender", "FEMALE", "female"),
+    ("dialect", "najdi", "msa"), ("dialect", "Saudi", "saudi"),
+    ("notes", None, ""), ("omnivoice_instruct", None, ""),
+])
+def test_an_out_of_set_answer_does_not_fail_the_whole_script(field, raw, kept):
+    """JSON mode gives the model no schema: one Groq model answered age "30", and the
+    script it wrote was thrown away with it."""
+    result = ComposeResult(**{"dialect": "saudi", "text": "هلا والله", field: raw})
+    assert getattr(result, field) == kept
+
+
+def test_the_prompt_spells_out_the_json_keys_and_closed_values():
+    """JSON mode needs the word JSON, the keys, and the allowed values in the prompt."""
+    prompt = compose_mod._system_prompt()
+    assert "JSON" in prompt
+    for key in ComposeResult.model_fields:
+        assert f"`{key}`" in prompt, key
+    for value in ("saudi", "young", "middle", "old", "female"):
+        assert f'"{value}"' in prompt, value
+
+
 def test_compose_sends_both_prompts(fake_llm):
     fake_llm["result"] = make_result()
     compose_mod.compose("storytelling", brief="قصة قصيرة")
@@ -141,6 +164,18 @@ def test_compose_passes_an_explicit_temperature_through(fake_llm, monkeypatch, r
     fake_llm["result"] = make_result()
     compose_mod.compose("booking")
     assert fake_llm["init_kwargs"].get("temperature") == expected
+
+
+def test_compose_names_the_provider_and_model_it_used(fake_llm, monkeypatch):
+    fake_llm["result"] = make_result()
+    out = compose_mod.compose("booking")
+    assert out["provider"] == "openai" and out["model"]
+
+    monkeypatch.setenv("GROQ_API_KEY", "gsk_test")
+    monkeypatch.setenv("GROQ_MODEL", "some/model")
+    assert compose_mod.compose("booking")["provider"] == "groq"
+    assert compose_mod.compose("booking")["model"] == "some/model"
+    assert fake_llm["structured_kwargs"] == {"method": "json_mode"}
 
 
 def test_compose_job_ids_have_labels_and_tone_briefs():
@@ -214,6 +249,16 @@ def test_system_prompt_only_asks_for_the_requested_transforms(normalize, diacrit
                                                               present, absent):
     prompt = _system_prompt("msa", normalize, diacritize)
     assert present in prompt and absent not in prompt
+
+
+def test_tashkeel_asks_for_case_endings_only_in_msa():
+    """Asked for الإعراب, the models put MSA endings on a third of Najdi words; the colloquial
+    registers are diacritized as spoken instead."""
+    assert "الإعراب) for the register" in _system_prompt("msa", False, True)
+    for dialect, example in (("saudi", "الْحِينْ"), ("egyptian", "دِلْوَقْتِي")):
+        prompt = _system_prompt(dialect, False, True)
+        assert "do NOT add case or mood endings" in prompt and example in prompt, dialect
+        assert "Do not change the letters." in prompt
 
 
 def test_system_prompt_bases_tashkeel_on_the_normalized_text_when_both_run():

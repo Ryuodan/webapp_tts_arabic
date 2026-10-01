@@ -1,0 +1,29 @@
+{
+  "id": "sada_male",
+  "label": "مذيع سادا — سعودي",
+  "gender": "male",
+  "language": "ars",
+  "order": 6,
+  "tags": [
+    "male",
+    "saudi",
+    "unseen",
+    "human",
+    "broadcast"
+  ],
+  "ref_audio": "sada_male_ref_6s.wav",
+  "ref_text": "برنامج نسعى جاهدين بتوصيل رسالة الشكر والامتنان لكل العالم",
+  "sample_rate": 16000,
+  "duration_s": 6.09,
+  "source": "omnivoice-finetune/data/saudi_hq/wavs/sada_test_0000630_6k_v_SBA3_2444_0-seg_581_650-587_740.wav (id saudi_hq_val_000207, SADA 2022; held out of every training run)",
+  "license": "Upstream corpus: SADA 2022 (SDAIA / Saudi Broadcasting Authority), published for non-commercial use (CC BY-NC-SA 4.0) - check its terms before redistributing or using this voice commercially",
+  "notes": "An unnamed male speaker from Saudi television, the clone_sada_male voice of the Saudi benchmark: the held-out male SADA clip with the best UTMOS. A real recording in broadcast quality (16 kHz), which no model here trained on. Cloned with the omnivoice_najdi model the accent stays Saudi (P(Gulf) 0.99) while the timbre moves toward the model's own voices (similarity to this clip 0.64; the stock model reaches 0.75).",
+  "clone_check": {
+    "model": "najdi_mix_v3_ft/checkpoint-1950, language ars, 8 unseen sentences",
+    "sim_speaker": 0.635,
+    "utmos": 3.572,
+    "cer": 0.01,
+    "p_gulf": 0.994,
+    "from": "omnivoice-finetune/scripts/pick_voice_refs.py -> outputs/voice_refs/picks.json"
+  }
+}

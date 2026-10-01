@@ -31,6 +31,8 @@
 
 /* ── Reset ────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/* `el.hidden` must win over any display rule a component sets. */
+[hidden] { display: none !important; }
 html { font-size: 14px; scroll-behavior: smooth; }
 body {
   background: var(--bg);
@@ -223,10 +225,13 @@ textarea { resize: vertical; }
 /* ── Simple voice picker ───────────────────────────────────── */
 .voice-picker {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
   gap: 8px;
-  padding: 0 12px 12px;
+  padding: 0 12px 6px;
 }
 .voice-picker .param-label {
+  grid-column: 1 / -1;
   text-align: start;
 }
 .voice-picker .param-select {
@@ -735,6 +740,7 @@ textarea { resize: vertical; }
 .compose-status { margin-top: 6px; font-size: .72rem; color: var(--txt2); line-height: 1.5; min-height: 1em; }
 .compose-status.success { color: var(--vox); }
 .compose-status.error { color: #f85149; }
+.compose-status.warn { color: var(--yellow); }
 
 /* ── Audio player card ────────────────────────────────────── */
 .player-card { min-height: 140px; }
@@ -1068,6 +1074,15 @@ textarea { resize: vertical; }
 .hi-badge { flex-shrink: 0; }
 .hi-info  { flex: 1; min-width: 0; }
 .hi-filename { unicode-bidi: plaintext; font-size: .72rem; color: var(--txt); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hi-tags { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 3px; }
+.hi-voice { font-size: .64rem; color: var(--txt2); }
+/* The whole text of the run, folded to three lines until clicked. */
+.hi-text {
+  unicode-bidi: plaintext; font-size: .76rem; line-height: 1.6; color: var(--txt);
+  white-space: pre-wrap; overflow-wrap: anywhere; cursor: zoom-in;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
+}
+.hi-text.expanded { -webkit-line-clamp: unset; display: block; cursor: zoom-out; }
 .hi-instruct { unicode-bidi: plaintext; font-size: .66rem; color: var(--txt2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hi-meta { font-size: .65rem; color: var(--txt3); direction: ltr; }
 .hi-actions { display: flex; gap: 4px; flex-shrink: 0; }
@@ -1105,7 +1120,10 @@ textarea { resize: vertical; }
 .sc-caret { flex-shrink: 0; color: var(--txt3); font-size: .8rem; width: 12px; text-align: center; }
 .saved-compare-item.expanded .sc-caret { color: var(--omni); }
 .sc-info { flex: 1; min-width: 0; }
-.sc-snippet { unicode-bidi: plaintext; font-size: .74rem; color: var(--txt); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sc-snippet {
+  unicode-bidi: plaintext; font-size: .74rem; line-height: 1.55; color: var(--txt);
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+}
 .sc-meta { font-size: .66rem; color: var(--txt3); margin-top: 2px; }
 .sc-actions { display: flex; gap: 4px; flex-shrink: 0; }
 .hi-btn.sc-del:hover  { color: #f85149; border-color: #f85149; }
@@ -1186,3 +1204,115 @@ textarea { resize: vertical; }
   transition: var(--transition);
 }
 .api-link:hover { border-color: var(--purple); color: var(--purple); }
+
+/* ── Voice library ────────────────────────────────────────── */
+.voice-hint {
+  padding: 0 12px 8px;
+  font-size: .7rem;
+  line-height: 1.55;
+  color: var(--txt2);
+  unicode-bidi: plaintext;
+}
+/* What the selected voice is: one chip per tag from its voice.json. */
+.voice-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 0 12px 6px;
+}
+.voice-tags:empty { display: none; }
+.voice-tag {
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg3);
+  font-size: .68rem;
+  line-height: 1.5;
+  color: var(--txt2);
+  white-space: nowrap;
+}
+.voice-tag[title] { cursor: help; }
+.voice-tag.vt-trained { border-color: var(--najdi); color: var(--najdi); background: var(--najdi-dim); }
+.voice-tag.vt-unseen  { border-color: var(--border2); color: var(--txt); }
+#btn-voice-add { margin: 0 12px 4px; }
+.voice-add {
+  display: grid;
+  gap: 6px;
+  margin: 4px 12px 0;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg2);
+}
+.voice-add .param-label { font-size: .7rem; color: var(--txt2); }
+.voice-add .prep-bar { padding: 2px 0 0; }
+.voice-add textarea { resize: vertical; direction: rtl; }
+.btn-prep.btn-primary { border-color: var(--purple); color: var(--purple); }
+.btn-prep.btn-primary:hover:not(:disabled) { background: rgba(188,140,255,.12); }
+
+/* ── Segmented choice (compare mode, which text Generate speaks) ── */
+.segmented {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 0 12px 6px;
+}
+.segmented-label { font-size: .7rem; color: var(--txt2); }
+
+/* ── Tashkeel ─────────────────────────────────────────────── */
+.tashkeel-box {
+  display: grid;
+  gap: 6px;
+  margin: 2px 12px 8px;
+  padding: 10px 10px 4px;
+  border: 1px solid rgba(188,140,255,.35);
+  border-radius: var(--radius);
+  background: rgba(188,140,255,.05);
+}
+.tk-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tk-stale { font-size: .68rem; color: var(--yellow); }
+.tashkeel-text {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--txt);
+  font-family: inherit;
+  font-size: .95rem;
+  line-height: 1.9;             /* harakat need room above and below the line */
+  resize: vertical;
+  outline: none;
+}
+.tashkeel-text:focus { border-color: var(--purple); }
+.tashkeel-box .segmented { padding: 0; }
+
+.variant-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 10px;
+  border: 1px solid var(--border2);
+  font-size: .62rem;
+  font-weight: 600;
+  color: var(--txt2);
+  white-space: nowrap;
+}
+.variant-badge.tashkeel { border-color: var(--purple); color: var(--purple); background: rgba(188,140,255,.12); }
+
+/* The text a clip spoke — on compare cards and under the main player. */
+.run-text {
+  margin: 6px 0;
+  padding: 6px 8px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: .78rem;
+  line-height: 1.75;
+  color: var(--txt);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+.player-text { margin-bottom: 8px; }
+.player-text .run-text { margin-bottom: 0; }

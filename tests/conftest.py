@@ -238,8 +238,8 @@ def fake_llm(monkeypatch):
         def __init__(self, **kwargs):
             rec["init_kwargs"] = kwargs
 
-        def with_structured_output(self, schema):
-            rec["schema"] = schema
+        def with_structured_output(self, schema, **kwargs):
+            rec["schema"], rec["structured_kwargs"] = schema, kwargs
             return Structured()
 
     module = types.ModuleType("langchain_openai")
@@ -247,3 +247,14 @@ def fake_llm(monkeypatch):
     monkeypatch.setitem(sys.modules, "langchain_openai", module)
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
     return rec
+
+
+# ── LLM provider isolation ────────────────────────────────────
+@pytest.fixture(autouse=True)
+def _no_llm_provider_from_dotenv(monkeypatch):
+    """The agents load the repo's .env on import, and a developer's .env may pick Groq
+    (LLM_PROVIDER / GROQ_API_KEY). Clear that for every test so each one chooses its
+    provider explicitly instead of inheriting whatever this machine happens to have."""
+    for name in ("LLM_PROVIDER", "GROQ_API_KEY", "GROQ_MODEL", "GROQ_BASE_URL",
+                 "GROQ_REASONING_EFFORT"):
+        monkeypatch.delenv(name, raising=False)

@@ -271,6 +271,77 @@ def test_transcribe_timeout_is_504(gateway):
     assert r.status_code == 504
 
 
+# ── Voice library proxy ───────────────────────────────────────
+def test_voices_are_listed_from_the_worker(gateway):
+    stub(gateway, "omnivoice", "/voices",
+         {"voices": [{"id": "nasser", "label": "ناصر", "custom": False}],
+          "variant_default_voices": {"najdi": "nasser"}})
+
+    body = gateway.get("/api/voices").json()
+
+    assert body["voices"][0]["id"] == "nasser"
+    assert body["variant_default_voices"] == {"najdi": "nasser"}
+
+
+def test_adding_a_voice_forwards_the_upload_intact(gateway, wav_file):
+    stub(gateway, "omnivoice", "/voices", {"id": "v0123456789", "label": "صوتي", "custom": True})
+
+    r = gateway.post("/api/voices", data={"name": "صوتي", "ref_text": "نص"},
+                     files={"audio": ("v.wav", wav_file.read_bytes(), "audio/wav")})
+
+    assert r.status_code == 200 and r.json()["label"] == "صوتي"
+    sent = gateway.seen[-1]
+    assert sent.method == "POST" and sent.url.path == "/voices"
+    assert sent.headers["content-type"].startswith("multipart/form-data")
+    assert wav_file.read_bytes() in sent.content and "صوتي".encode() in sent.content
+
+
+def test_voice_library_calls_never_unload_a_model(gateway, wav_file):
+    """Saving or listing a voice touches a few small files — no reason to evict a model."""
+    stub(gateway, "omnivoice", "/voices", {"voices": []})
+    gateway.get("/api/voices")
+    gateway.post("/api/voices", data={"name": "x"},
+                 files={"audio": ("v.wav", wav_file.read_bytes(), "audio/wav")})
+    assert not [r for r in gateway.seen if r.url.path == "/unload"]
+
+
+def test_voice_errors_reach_the_studio_as_plain_messages(gateway, wav_file):
+    stub(gateway, "omnivoice", "/voices",
+         httpx.Response(409, json={"detail": "A voice named 'x' already exists"}))
+
+    r = gateway.post("/api/voices", data={"name": "x"},
+                     files={"audio": ("v.wav", wav_file.read_bytes(), "audio/wav")})
+
+    assert r.status_code == 409
+    assert r.json()["detail"] == "A voice named 'x' already exists"
+
+
+def test_deleting_a_voice_forwards_to_the_worker(gateway):
+    stub(gateway, "omnivoice", "/voices/v0123456789", {"deleted": "v0123456789"})
+
+    r = gateway.delete("/api/voices/v0123456789")
+
+    assert r.json() == {"deleted": "v0123456789"}
+    assert gateway.seen[-1].method == "DELETE"
+
+
+def test_a_voice_reference_streams_back_as_wav(gateway):
+    stub(gateway, "omnivoice", "/voices/nasser/audio",
+         httpx.Response(200, content=b"RIFF....WAVE", headers={"content-type": "audio/wav"}))
+
+    r = gateway.get("/api/voices/nasser/audio")
+
+    assert r.status_code == 200 and r.content == b"RIFF....WAVE"
+    assert r.headers["content-type"] == "audio/wav"
+    assert r.headers["cache-control"] == "no-store"
+
+
+def test_the_voice_library_reports_an_offline_worker_as_503(gateway):
+    stub(gateway, "omnivoice", "/voices", httpx.ConnectError("down"))
+    r = gateway.get("/api/voices")
+    assert r.status_code == 503 and "start.sh" in r.json()["detail"]
+
+
 # ── load / per-model status ───────────────────────────────────
 @pytest.mark.parametrize("model", ["omnivoice", "omnivoice_base", "omnivoice_najdi", "transcribe"])
 def test_load_and_status_cover_every_worker(gateway, model):
@@ -394,12 +465,17 @@ def test_prepare_skips_the_llm_when_nothing_is_requested(gateway, monkeypatch):
 def test_prepare_returns_agent_output(gateway, monkeypatch):
     import textprep
     monkeypatch.setattr(textprep, "prepare_text",
-                        lambda text, dialect, normalize, diacritize: {
-                            "text": "مُحضَّر", "dialect": dialect, "normalize": normalize})
+                        lambda text, dialect, normalize, diacritize, marks: {
+                            "text": "مُحضَّر", "dialect": dialect, "normalize": normalize,
+                            "marks": marks})
 
     body = gateway.post("/api/prepare", json={"text": "نص", "dialect": "egyptian"}).json()
     assert body["text"] == "مُحضَّر" and body["dialect"] == "egyptian"
     assert body["normalize"] is True          # server default
+    assert body["marks"] == "full"            # server default
+
+    body = gateway.post("/api/prepare", json={"text": "نص", "marks": "shadda"}).json()
+    assert body["marks"] == "shadda"
 
 
 @pytest.mark.parametrize("payload,status", [

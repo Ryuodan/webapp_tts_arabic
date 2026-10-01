@@ -1,18 +1,19 @@
 'use strict';
 
-// ── Built-in voices ───────────────────────────────────────────
-// `voice` on /synthesize is a closed set — the ids under voices/ on the server — so it
-// renders as a dropdown instead of a free-text box the caller has to guess at. The list
-// here is what the repo ships; refreshVoices() swaps in whatever the worker actually
-// loaded, so a voice dropped into voices/ needs no edit to this file.
-let VOICE_IDS = ['abeer', 'ahmed', 'nasser'];
-const VOICE_LABELS = { abeer: 'voice.abeer', ahmed: 'voice.ahmed', nasser: 'voice.nasser' };
+// ── Clone voices ──────────────────────────────────────────────
+// `voice` on /synthesize is a closed set — the built-in voices under voices/ plus the ones
+// uploaded from the studio — so it renders as a dropdown instead of a free-text box the
+// caller has to guess at. The list here is what the repo ships; refreshVoices() swaps in
+// whatever the worker actually has (GET /api/voices), uploaded names included.
+let VOICES = [{ id: 'nasser' }, { id: 'joud' }, { id: 'rashed' }, { id: 'reem' },
+              { id: 'abeer' }, { id: 'sada_male' }, { id: 'ahmed' }];
 
 function voiceOptions() {
   const opts = [{ value: '', get label() { return t('voice.none'); } }];
-  for (const id of VOICE_IDS) {
-    const key = VOICE_LABELS[id];
-    opts.push({ value: id, label: key ? `${id} — ${t(key)}` : id });
+  for (const v of VOICES) {
+    const key = `voice.${v.id}`;
+    const name = t(key) !== key ? t(key) : (v.label || '');
+    opts.push({ value: v.id, label: name ? `${v.id} — ${name}` : v.id });
   }
   return opts;
 }
@@ -69,6 +70,50 @@ const ENDPOINTS = [
     returns: '{ filename, model, model_input, duration_s, elapsed_s, rtf, sample_rate }',
   },
   {
+    method: 'GET',
+    path: '/api/voices',
+    get title() { return t('ep.voices.title'); },
+    get desc() { return t('ep.voices.desc'); },
+    fields: [],
+    returns: '{ voices: [ { id, label, gender, language, duration_s, ref_text, custom } ], variant_default_voices }',
+  },
+  {
+    method: 'POST',
+    path: '/api/voices',
+    get title() { return t('ep.voiceadd.title'); },
+    get desc() { return t('ep.voiceadd.desc'); },
+    encoding: 'form',
+    fields: [
+      { name: 'name',     type: 'text',   required: true, value: 'صوتي', get note() { return t('ep.voiceadd.name'); } },
+      { name: 'audio',    type: 'file',   required: true, get note() { return t('ep.voiceadd.audio'); } },
+      { name: 'ref_text', type: 'text',   value: '', get note() { return t('ep.voiceadd.text'); } },
+      { name: 'gender',   type: 'select', options: ['', 'male', 'female'], value: '' },
+    ],
+    returns: '{ id, label, gender, language, duration_s, ref_text, custom }',
+  },
+  {
+    method: 'GET',
+    path: '/api/voices/{voice_id}/audio',
+    binary: true,
+    get title() { return t('ep.voiceaudio.title'); },
+    get desc() { return t('ep.voiceaudio.desc'); },
+    fields: [
+      { name: 'voice_id', type: 'text', in: 'path', value: 'nasser' },
+    ],
+    noTry: true,
+  },
+  {
+    method: 'DELETE',
+    path: '/api/voices/{voice_id}',
+    get title() { return t('ep.voicedel.title'); },
+    get desc() { return t('ep.voicedel.desc'); },
+    fields: [
+      { name: 'voice_id', type: 'text', in: 'path', value: 'v0123456789' },
+    ],
+    returns: '{ deleted }',
+    noTry: true,          // destructive — the studio has this behind a confirmation
+  },
+  {
     method: 'POST',
     path: '/api/{model}/load',
     slow: true,
@@ -109,8 +154,10 @@ const ENDPOINTS = [
       { name: 'dialect',    type: 'select', options: ['msa', 'saudi', 'egyptian'], value: 'msa' },
       { name: 'normalize',  type: 'select', options: ['true', 'false'], value: 'true', json: 'bool' },
       { name: 'diacritize', type: 'select', options: ['false', 'true'], value: 'false', json: 'bool' },
+      { name: 'marks',      type: 'select', options: ['full', 'shadda'], value: 'full',
+        get note() { return t('ep.prep.marks'); } },
     ],
-    returns: '{ original, normalized, diacritized, text, notes }',
+    returns: '{ original, normalized, diacritized, diacritized_full, diacritized_shadda, marks, text, notes, letters_changed, provider, model }',
   },
   {
     method: 'POST',
@@ -566,12 +613,14 @@ function render() {
 // The worker reports the voices it loaded off disk; anything else leaves the bundled
 // list standing, so an offline worker still shows a usable dropdown.
 function refreshVoices() {
-  return fetch('/api/omnivoice_base/status')
+  // Relative, so it resolves under the /arabic-tts/ proxy prefix as well as at the root.
+  return fetch('api/voices')
     .then(r => r.json())
-    .then(health => {
-      const ids = Array.isArray(health.voices) ? health.voices : [];
-      if (!ids.length || ids.join() === VOICE_IDS.join()) return;
-      VOICE_IDS = ids;
+    .then(data => {
+      const voices = Array.isArray(data.voices) ? data.voices : [];
+      const sig = list => list.map(v => `${v.id}:${v.label || ''}`).join();
+      if (!voices.length || sig(voices) === sig(VOICES)) return;
+      VOICES = voices;
       render();                       // repaints every card; only fires when the list differs
     })
     .catch(() => {});

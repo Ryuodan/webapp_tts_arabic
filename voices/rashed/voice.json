@@ -1,0 +1,29 @@
+{
+  "id": "rashed",
+  "label": "راشد — نجدي",
+  "gender": "male",
+  "language": "ars",
+  "order": 3,
+  "tags": [
+    "male",
+    "najdi",
+    "unseen",
+    "synthetic",
+    "support"
+  ],
+  "ref_audio": "rashed_ref_6s.wav",
+  "ref_text": "وإذا فيه تعليمات للموقع مثل بوابة أو رقم شقة، أضفها عشان ما يتعطل الوصول.",
+  "sample_rate": 24000,
+  "duration_s": 5.79,
+  "source": "omnivoice-finetune/data/najdi_cs/wavs/najdi_cs_4_najdi_cs_01_clean_010.wav (id najdi_cs_00380, cut from set 4's najdi_cs_01_clean.wav; no najdi_cs clip is in najdi_mix_v3, so the shipped checkpoint never trained on this voice)",
+  "notes": "The male voice of the synthetic najdi_cs customer-support sets, where the agent calls himself Rashed (set 4), Fahad (set 7) and Khaled (sets 2, 5): one synthesiser voice under several names (speaker similarity 0.89 across its 22 recordings). The omnivoice_najdi model only clones it. Picked from 29 candidate segments of 5-9 s: of the eight cloned with the shipped model this gave the closest clones (similarity 0.749, next 0.738) with the highest UTMOS (3.40).",
+  "clone_check": {
+    "model": "najdi_mix_v3_ft/checkpoint-1950, language ars, 8 unseen sentences",
+    "sim_speaker": 0.749,
+    "utmos": 3.399,
+    "cer": 0.002,
+    "p_gulf": 0.985,
+    "pace_vs_natural": 0.95,
+    "from": "omnivoice-finetune/scripts/pick_voice_refs.py -> outputs/voice_refs/picks.json"
+  }
+}

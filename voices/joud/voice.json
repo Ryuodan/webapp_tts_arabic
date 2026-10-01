@@ -1,0 +1,29 @@
+{
+  "id": "joud",
+  "label": "جود — نجدية",
+  "gender": "female",
+  "language": "ars",
+  "order": 2,
+  "tags": [
+    "female",
+    "najdi",
+    "trained",
+    "synthetic",
+    "support"
+  ],
+  "ref_audio": "joud_ref_7s.wav",
+  "ref_text": "الله يعطيك العافية. رقم جوالك المسجل عندنا وش يكون؟ عشان أقدر أتحقق من هويتك",
+  "sample_rate": 24000,
+  "duration_s": 6.69,
+  "source": "omnivoice-finetune/data/najdi_mix_v3/wavs/c1530756413e.wav (id najdi_v3_c1530756413e: in the v3 test split, so the shipped najdi_mix_v3_ft checkpoint never trained on it)",
+  "notes": "Joud ('Joud - Saudi Gentle & Warm', a synthesiser voice), the Najdi female support agent: with Nasser, one of the two voices the omnivoice_najdi model trained on (8,276 of her clips, 10.3 h). An agent asking for the caller's number, at her natural pace. Picked from the 178 held-out Joud clips of 5-9 s: the ten best by their own quality were each cloned on eight unseen sentences with the shipped model, and this one gave the most Joud-like clones (similarity 0.874, the next 0.865) with the highest UTMOS (3.11, next 3.07) at 0.97x her natural pace.",
+  "clone_check": {
+    "model": "najdi_mix_v3_ft/checkpoint-1950, language ars, 8 unseen sentences",
+    "sim_speaker": 0.874,
+    "utmos": 3.107,
+    "cer": 0.006,
+    "p_gulf": 0.994,
+    "pace_vs_natural": 0.97,
+    "from": "omnivoice-finetune/scripts/pick_voice_refs.py -> outputs/voice_refs/picks.json"
+  }
+}

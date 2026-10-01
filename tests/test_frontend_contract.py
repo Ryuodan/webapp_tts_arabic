@@ -132,16 +132,63 @@ def test_each_interface_model_pins_a_worker_variant():
     assert len({gateway.TTS_WORKERS[m] for m in models}) == 1
 
 
-def test_locked_voices_match_the_worker_pins():
-    """A card that shows a fixed voice must be the variant the worker pins to that voice."""
-    specs = [spec for spec in app_js("MODELS").values() if spec.get("lockedVoice")]
-    locked = {spec["fixedParams"]["variant"]: spec["lockedVoice"] for spec in specs}
-    assert locked == omnivoice_server.VARIANT_VOICES
-    for spec in specs:
-        voice = omnivoice_server._BUILTIN_VOICES.get(spec["lockedVoice"])
-        assert voice, spec["lockedVoice"]
-        # The card shows its gender locked; it must be the speaker's own, from voice.json.
-        assert spec["fixedParams"].get("gender") == voice["gender"]
+def test_default_voices_match_the_worker():
+    """A card's house voice must be the one the worker falls back to for its variant, or a
+    curl call and the studio would clone different speakers for the same request."""
+    specs = [spec for spec in app_js("MODELS").values() if spec.get("defaultVoice")]
+    defaults = {spec["fixedParams"]["variant"]: spec["defaultVoice"] for spec in specs}
+    assert defaults == omnivoice_server.VARIANT_DEFAULT_VOICES
+    for voice in defaults.values():
+        assert voice in omnivoice_server._VOICES, voice
+
+
+def test_the_studio_knows_every_built_in_voice_before_the_first_fetch():
+    """The picker starts from a static list; a built-in missing there would flash away,
+    and one with other tags or in another place would jump between the picker's groups."""
+    starting = js_globals("app.js", ["voiceCatalog"])["voiceCatalog"]
+    built_in = [(k, v) for k, v in omnivoice_server._sorted_voices() if not v.get("custom")]
+    assert [v["id"] for v in starting] == [k for k, _ in built_in]
+    assert {v["id"]: v["tags"] for v in starting} == {k: v["tags"] for k, v in built_in}
+
+
+def test_the_api_console_lists_the_same_built_in_voices():
+    console = [v["id"] for v in js_globals("api.js", ["VOICES"])["VOICES"]]
+    assert console == [k for k, v in omnivoice_server._sorted_voices() if not v.get("custom")]
+
+
+def test_every_built_in_voice_and_tag_has_a_display_name():
+    """An untranslated key would show up in the picker as `voice.joud` or `vtag.trained`."""
+    shown = js_globals("app.js", [          # `key: expression` pairs of the object js_globals reads
+        "labels: voiceCatalog.map(v => [v.id, voiceLabel(v)])",
+        "tags: voiceCatalog.map(v => v.tags.map(k => [k, voiceTagLabel(k)]))",
+        "groups: VOICE_GROUPS.map(g => t('voice.group.' + g))"])
+    for vid, label in shown["labels"]:
+        assert label and label != vid and not label.startswith("voice."), vid
+    for key, label in (pair for voice in shown["tags"] for pair in voice):
+        assert label and label != key, key
+    assert all(g and not g.startswith("voice.group.") for g in shown["groups"])
+
+
+def test_every_built_in_voice_says_how_the_najdi_model_knows_it():
+    """The picker's groups hang on these two tags; a voice with neither would be mislabelled
+    as cloned-only, and one with both would be a contradiction."""
+    for vid, meta in omnivoice_server._VOICES.items():
+        if not meta.get("custom"):
+            assert len({"trained", "unseen"} & set(meta["tags"])) == 1, vid
+            assert meta["gender"] in meta["tags"], vid
+
+
+def test_the_marks_switch_offers_exactly_the_modes_the_agent_knows():
+    """Full tashkeel or shadda only: a button for a mode textprep does not know would
+    silently get full tashkeel back."""
+    import textprep
+    page = (STATIC / "index.html").read_text(encoding="utf-8")
+    offered = set(re.findall(r'id="tk-marks-(\w+)"', page))
+    assert offered == set(textprep.MARK_MODES)
+    script = (STATIC / "app.js").read_text(encoding="utf-8")
+    assert "marks: tashkeelMarks" in script                 # the choice reaches /api/prepare
+    for key in ("diacritized_full", "diacritized_shadda"):  # both forms are kept for switching
+        assert key in script, key
 
 
 def test_transcription_is_not_a_synthesis_model():

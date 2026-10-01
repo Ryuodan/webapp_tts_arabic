@@ -7,6 +7,7 @@ import gc
 import json
 import os
 import pathlib
+import shutil
 import tempfile
 import time
 import uuid
@@ -14,6 +15,7 @@ import uuid
 import soundfile as sf
 import uvicorn
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi.responses import FileResponse
 
 from _common import WORKDIR, output_dir, register_audio_route, write_sidecar
 
@@ -22,7 +24,7 @@ REPO_DIR = pathlib.Path(__file__).resolve().parents[1]
 OMNIVOICE_BASE_MODEL_ID = os.getenv("OMNIVOICE_BASE_MODEL_ID", "k2-fsa/OmniVoice")
 # Najdi fine-tune najdi_mix_v3_ft/checkpoint-1950: the best model for Nasser in the v3 eval
 # (see models/omnivoice/najdi_mix_v3_1950_checkpoint.json). It backs the `najdi` variant,
-# which is pinned to Nasser's voice below. The repo ships it as split parts (start.sh
+# whose house voice is Nasser (see VARIANT_DEFAULT_VOICES). The repo ships it as split parts (start.sh
 # assembles them); the training project is the fallback source.
 REPO_NAJDI_CHECKPOINT = REPO_DIR / "models" / "omnivoice" / "najdi_mix_v3_1950"
 FINETUNE_PROJECT = pathlib.Path(
@@ -47,9 +49,9 @@ if _najdi_id:
     MODEL_VARIANTS["najdi"] = _najdi_id
 DEFAULT_VARIANT = "base"
 
-# Pinned variants always clone one built-in voice: the request's `voice`, uploaded reference
-# and reference text are ignored for them.
-VARIANT_VOICES = {"najdi": "nasser"}
+# A variant's house voice: cloned when the request names no voice and uploads no reference.
+# Any other built-in or custom voice can still be picked.
+VARIANT_DEFAULT_VOICES = {"najdi": "nasser"}
 
 
 OMNIVOICE_DEVICE = os.getenv("OMNIVOICE_DEVICE", "auto")
@@ -74,25 +76,57 @@ def _dialect_language(dialect: str) -> str:
     return _ARABIC_DIALECT_LANG.get((dialect or "msa").strip().lower(), _ARABIC_DIALECT_LANG["msa"])
 
 
-# Built-in cloned voices bundled with the repo: voices/<id>/voice.json + reference wav.
+# Clone voices: <dir>/<id>/voice.json + reference wav. Built-in ones ship with the repo;
+# custom ones are added from the studio and live under TTS_WORKDIR, so an upload never
+# dirties the checkout and survives a `git pull`.
 VOICES_DIR = pathlib.Path(os.getenv("TTS_VOICES_DIR", str(REPO_DIR / "voices"))).expanduser()
+CUSTOM_VOICES_DIR = pathlib.Path(
+    os.getenv("TTS_CUSTOM_VOICES_DIR", str(WORKDIR / "voices_custom"))).expanduser()
+MIN_VOICE_SECONDS = float(os.getenv("TTS_MIN_VOICE_SECONDS", "2"))
+MAX_VOICE_SECONDS = float(os.getenv("TTS_MAX_VOICE_SECONDS", "30"))
+MAX_VOICE_NAME = 60
 
 
-def _load_builtin_voices() -> dict:
+def _load_voice_dir(root: pathlib.Path, custom: bool) -> dict:
     voices = {}
-    for meta_path in sorted(VOICES_DIR.glob("*/voice.json")):
+    for meta_path in sorted(root.glob("*/voice.json")):
         try:
             meta = json.loads(meta_path.read_text(encoding="utf-8"))
             wav = meta_path.parent / meta["ref_audio"]
             if wav.is_file():
                 meta["ref_audio_path"] = str(wav)
+                meta["custom"] = custom
                 voices[str(meta.get("id", meta_path.parent.name)).lower()] = meta
         except Exception:
             continue  # a broken voice dir must not take the worker down
     return voices
 
 
-_BUILTIN_VOICES = _load_builtin_voices()
+def _load_voices() -> dict:
+    voices = _load_voice_dir(VOICES_DIR, custom=False)
+    for vid, meta in _load_voice_dir(CUSTOM_VOICES_DIR, custom=True).items():
+        voices.setdefault(vid, meta)          # a custom voice never shadows a built-in one
+    return voices
+
+
+_VOICES = _load_voices()
+
+
+def _voice_tags(meta: dict) -> list:
+    """What a voice is, as short keys the studio turns into chips (see voices/README.md).
+    Built-ins list theirs in voice.json; an uploaded voice is only known by its gender."""
+    tags = meta.get("tags")
+    if not isinstance(tags, list):
+        tags = [meta["gender"]] if meta.get("gender") else []
+    return [str(t) for t in tags if str(t).strip()]
+
+
+def _voice_public(vid: str, meta: dict) -> dict:
+    """A voice as clients see it — never the server-side path."""
+    return {"id": vid, "label": meta.get("label") or vid, "gender": meta.get("gender", ""),
+            "language": meta.get("language", ""), "duration_s": meta.get("duration_s"),
+            "ref_text": meta.get("ref_text", ""), "custom": bool(meta.get("custom")),
+            "tags": _voice_tags(meta)}
 
 
 # gender + age are native OmniVoice voice-design attributes; empty = model's choice.
@@ -257,8 +291,9 @@ async def health():
         "loaded_variant": active_variant or None,
         "loaded_variants": loaded_variants,
         "model_id": MODEL_VARIANTS[active_variant or DEFAULT_VARIANT],
-        "voices": sorted(_BUILTIN_VOICES),
-        "variant_voices": {k: v for k, v in VARIANT_VOICES.items() if k in MODEL_VARIANTS},
+        "voices": sorted(_VOICES),
+        "variant_default_voices": {k: v for k, v in VARIANT_DEFAULT_VOICES.items()
+                                   if k in MODEL_VARIANTS},
         "status": "ok",
         "ready": bool(_models),
         "model_loaded": bool(_models),
@@ -291,6 +326,89 @@ async def unload_endpoint():
     return {"status": "unloaded" if unloaded else "not_loaded", "rss_mb": _rss_mb()}
 
 
+# ── Voice library ─────────────────────────────────────────────
+def _sorted_voices() -> list:
+    """Built-in voices first, in their voice.json `order`; then custom ones as they were added."""
+    return sorted(_VOICES.items(),
+                  key=lambda kv: (bool(kv[1].get("custom")), kv[1].get("order", 999),
+                                  kv[1].get("created", 0), kv[0]))
+
+
+@app.get("/voices")
+async def list_voices():
+    return {"voices": [_voice_public(k, v) for k, v in _sorted_voices()],
+            "variant_default_voices": {k: v for k, v in VARIANT_DEFAULT_VOICES.items()
+                                       if k in MODEL_VARIANTS}}
+
+
+@app.post("/voices")
+async def add_voice(
+    name: str = Form(""),
+    audio: UploadFile | None = File(None),
+    ref_text: str = Form(""),
+    gender: str = Form(""),
+):
+    label = " ".join((name or "").split())
+    if not label:
+        raise HTTPException(400, "Give the voice a name")
+    if len(label) > MAX_VOICE_NAME:
+        raise HTTPException(400, f"The voice name is too long; max {MAX_VOICE_NAME} characters")
+    if any((m.get("label") or k).casefold() == label.casefold() for k, m in _VOICES.items()):
+        raise HTTPException(409, f"A voice named '{label}' already exists")
+    _validate_text(ref_text, "ref_text")
+
+    tmp = await _save_upload_tmp(audio)
+    if not tmp:
+        raise HTTPException(400, "Upload a reference audio file (WAV)")
+    try:
+        data, sr = sf.read(tmp, always_2d=True)
+    except Exception:
+        raise HTTPException(400, "Could not read that audio file — upload a WAV")
+    finally:
+        os.unlink(tmp)
+    mono = data.mean(axis=1)
+    seconds = len(mono) / sr if sr else 0.0
+    if not MIN_VOICE_SECONDS <= seconds <= MAX_VOICE_SECONDS:
+        raise HTTPException(400, f"The clip is {seconds:.1f} s long; use one between "
+                                 f"{MIN_VOICE_SECONDS:g} and {MAX_VOICE_SECONDS:g} s")
+
+    # Ids are internal; the name the user typed is the label everything displays.
+    vid = f"v{uuid.uuid4().hex[:10]}"
+    vdir = CUSTOM_VOICES_DIR / vid
+    vdir.mkdir(parents=True)
+    sf.write(str(vdir / "ref.wav"), mono, sr, subtype="PCM_16")
+    meta = {"id": vid, "label": label, "gender": _attr(_GENDERS, gender), "language": "",
+            "ref_audio": "ref.wav", "ref_text": (ref_text or "").strip(), "sample_rate": sr,
+            "duration_s": round(seconds, 2), "created": time.time(),
+            "source": f"uploaded from the studio as {pathlib.Path(audio.filename).name}"}
+    (vdir / "voice.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2),
+                                     encoding="utf-8")
+    _VOICES[vid] = {**meta, "ref_audio_path": str(vdir / "ref.wav"), "custom": True}
+    return _voice_public(vid, _VOICES[vid])
+
+
+@app.delete("/voices/{voice_id}")
+async def delete_voice(voice_id: str):
+    vid = voice_id.strip().lower()
+    meta = _VOICES.get(vid)
+    if not meta:
+        raise HTTPException(404, f"Unknown voice: {vid}")
+    vdir = pathlib.Path(meta["ref_audio_path"]).parent
+    if not meta.get("custom") or vdir.resolve().parent != CUSTOM_VOICES_DIR.resolve():
+        raise HTTPException(403, "Built-in voices ship with the repo and cannot be deleted")
+    shutil.rmtree(vdir, ignore_errors=True)
+    _VOICES.pop(vid, None)
+    return {"deleted": vid}
+
+
+@app.get("/voices/{voice_id}/audio")
+async def voice_audio(voice_id: str):
+    meta = _VOICES.get(voice_id.strip().lower())
+    if not meta:
+        raise HTTPException(404, f"Unknown voice: {voice_id}")
+    return FileResponse(meta["ref_audio_path"], media_type="audio/wav")
+
+
 @app.post("/synthesize")
 async def synthesize(
     text: str = Form(...),
@@ -317,33 +435,33 @@ async def synthesize(
         raise HTTPException(400, f"Model variant '{req_variant}' is not available on this server "
                                  f"(available: {available})")
 
-    # A pinned variant speaks only its own speaker: the request's voice / upload / transcript
-    # are ignored rather than fought with.
-    pinned_voice = VARIANT_VOICES.get(req_variant)
-    voice_id = pinned_voice or (voice or "").strip().lower()
-    builtin = _BUILTIN_VOICES.get(voice_id) if voice_id else None
-    if pinned_voice and not builtin:
-        raise HTTPException(503, f"Variant '{req_variant}' requires the built-in voice "
-                                 f"'{pinned_voice}', which is missing from {VOICES_DIR}")
-    if voice_id and not builtin:
-        raise HTTPException(400, f"Unknown built-in voice: {voice_id}")
+    # The named voice, else the variant's house voice — unless an uploaded reference stands in.
+    requested = (voice or "").strip().lower()
+    has_upload = bool(ref_audio and ref_audio.filename)
+    voice_id = requested or ("" if has_upload else VARIANT_DEFAULT_VOICES.get(req_variant, ""))
+    chosen = _VOICES.get(voice_id) if voice_id else None
+    if voice_id and not chosen:
+        if requested:
+            raise HTTPException(400, f"Unknown voice: {voice_id}")
+        raise HTTPException(503, f"Variant '{req_variant}' defaults to the built-in voice "
+                                 f"'{voice_id}', which is missing from {VOICES_DIR}")
 
-    ref_tmp = None if pinned_voice else await _save_upload_tmp(ref_audio)
-    user_ref_text = "" if pinned_voice else (ref_text or "").strip()
+    ref_tmp = await _save_upload_tmp(ref_audio)
+    user_ref_text = (ref_text or "").strip()
 
     out_path = OUT_DIR / f"omnivoice_{uuid.uuid4().hex[:12]}.wav"
     # Non-empty overrides are used verbatim (frontend manual-edit mode).
     eff_text = (model_input_override or "").strip() or text
     kwargs: dict = {"text": eff_text}
-    # A user-uploaded reference always wins over a built-in voice (never over a pinned one).
+    # A one-off uploaded reference wins over a saved voice.
     if ref_tmp:
         kwargs["ref_audio"] = ref_tmp
-    elif builtin:
-        kwargs["ref_audio"] = builtin["ref_audio_path"]
+    elif chosen:
+        kwargs["ref_audio"] = chosen["ref_audio_path"]
     if user_ref_text:
         kwargs["ref_text"] = user_ref_text
-    elif not ref_tmp and builtin and builtin.get("ref_text"):
-        kwargs["ref_text"] = builtin["ref_text"]
+    elif not ref_tmp and chosen and chosen.get("ref_text"):
+        kwargs["ref_text"] = chosen["ref_text"]
 
     # The Arabic dialect rides OmniVoice's language code — never the instruct field.
     kwargs["language"] = _dialect_language(dialect)
@@ -357,9 +475,9 @@ async def synthesize(
         attrs = []
         if speaker and speaker.strip():
             attrs.append(speaker.strip())
-        # For a pinned variant the reference clip already fixes the speaker's sex, so gender
-        # stays out of instruct — sending it too can only contradict the reference.
-        gender_attr = "" if pinned_voice else _attr(_GENDERS, gender)
+        # When cloning, the reference clip already fixes the speaker's sex, so gender stays
+        # out of instruct — sending it too can only contradict the reference.
+        gender_attr = "" if "ref_audio" in kwargs else _attr(_GENDERS, gender)
         for frag in (gender_attr, _attr(_AGES, age)):
             if frag:
                 attrs.append(frag)
@@ -391,7 +509,7 @@ async def synthesize(
         "model_id": MODEL_VARIANTS[req_variant],
         "model_variant": req_variant,
         "voice": voice_id,
-        "voice_pinned": bool(pinned_voice),
+        "voice_label": (chosen or {}).get("label", "") if not ref_tmp else "",
         "model_input": eff_text,
         "model_instruct": kwargs.get("instruct", ""),
         "model_language": kwargs.get("language", ""),
@@ -404,7 +522,7 @@ async def synthesize(
         "text": text,
         "instruct": speaker,          # voice description / instruction
         "params": {"speaker": speaker, "voice": voice_id, "variant": req_variant,
-                   "gender": gender},
+                   "gender": gender, "voice_label": result["voice_label"]},
         "reference_text": kwargs.get("ref_text", ref_text),
         "has_reference_audio": "ref_audio" in kwargs,
         "created": time.time(),

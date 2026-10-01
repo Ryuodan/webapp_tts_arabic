@@ -3,10 +3,27 @@
   "label": "ناصر — نجدي",
   "gender": "male",
   "language": "ars",
+  "order": 1,
+  "tags": [
+    "male",
+    "najdi",
+    "trained",
+    "synthetic",
+    "support"
+  ],
   "ref_audio": "nasser_ref_cheerful_6s.wav",
   "ref_text": "أهلين يا أخوي صالح، أنا أنس من معارض الديرة. الله يسلمك، كيف حالك اليوم؟",
   "sample_rate": 24000,
   "duration_s": 5.76,
   "source": "omnivoice-finetune/data/najdi_mix_v3/wavs/8da9f4db2b57.wav (id najdi_v3_8da9f4db2b57: in the v3 test split, so the shipped najdi_mix_v3_ft checkpoint never trained on it; older runs did)",
-  "notes": "Nasser AlJubaily, Najdi male support agent: a cheerful agent greeting at his natural pace. Chosen over longer clips because the clone copies the reference's pace: cloned with the omnivoice_najdi model (najdi_mix_v3_ft/checkpoint-1950), it speaks at 11.1-11.6 letters/s, his median is 11.3, where the previous 17 s clip gave 8.5-9.3. It also gave the most Nasser-like output of the candidates (similarity 0.914) and scores UTMOS 3.68 itself (his recordings average 3.42). The omnivoice_najdi model always clones this voice; the other models can pick it too."
+  "notes": "Nasser AlJubaily, Najdi male support agent: a cheerful agent greeting at his natural pace. Chosen over longer clips because the clone copies the reference's pace: cloned with the omnivoice_najdi model (najdi_mix_v3_ft/checkpoint-1950), it speaks at 11.1-11.6 letters/s, his median is 11.3, where the previous 17 s clip gave 8.5-9.3. It also gave the most Nasser-like output of the candidates (similarity 0.914) and scores UTMOS 3.68 itself (his recordings average 3.42). With Joud, one of the two voices the omnivoice_najdi model trained on, and its house voice: cloned unless the request names another. Re-checked on 2026-10-01 against the ten best of his 123 held-out clips of 5-9 s, each cloned on eight unseen sentences: the best of them was within noise of this one (similarity +0.015 +/- 0.008, UTMOS +0.03 +/- 0.04) and is an angry line, so this clip stays.",
+  "clone_check": {
+    "model": "najdi_mix_v3_ft/checkpoint-1950, language ars, 8 unseen sentences",
+    "sim_speaker": 0.864,
+    "utmos": 3.612,
+    "cer": 0.011,
+    "p_gulf": 0.995,
+    "pace_vs_natural": 1.0,
+    "from": "omnivoice-finetune/scripts/pick_voice_refs.py -> outputs/voice_refs/picks.json"
+  }
 }

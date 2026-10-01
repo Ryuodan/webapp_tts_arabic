@@ -18,7 +18,11 @@
       "test": 69.3
     }
   },
-  "clone_voice": "voices/nasser (the omnivoice_najdi model always clones it and accepts no other reference)",
+  "voices": {
+    "trained": "voices/nasser and voices/joud: the two speakers of najdi_mix_v3 (8,012 and 8,276 training clips)",
+    "house_voice": "voices/nasser, cloned unless the request names another voice or uploads a reference",
+    "other_voices": "any other built-in or uploaded voice is cloned from its reference clip alone; the accent stays Saudi, the timbre moves toward the trained voices"
+  },
   "selection": {
     "criterion": "lowest loss on najdi_v3_clean_nasser (251 held-out Nasser clips unseen by every training run) among the 46 models the v3 eval screened: the stock model, every earlier run's best checkpoint and all 40 v3 checkpoints",
     "loss_clean_nasser": 3.9679,
@@ -60,6 +64,50 @@
         "utmos": 3.4213
       }
     }
+  },
+  "saudi_benchmark": {
+    "source": "omnivoice-finetune/outputs/saudi_bench/report.txt and summary.json (scripts/run_saudi_bench.sh)",
+    "design": "9 models x 223 held-out sentences (100 SADA, 60 Najdi Nasser-style, 35 Najdi other voices, 28 MSA) x 4 voices (own, Nasser, Abeer, a SADA broadcaster) = 8,028 clips",
+    "result": "best model for Saudi Arabic",
+    "saudi_sets_all_voices": {
+      "this_checkpoint": {
+        "clips_judged_gulf": 0.89,
+        "cer": 0.081,
+        "utmos": 3.544,
+        "sim_unseen_voices": 0.618
+      },
+      "najdi_nasser_all_ft/checkpoint-1200": {
+        "clips_judged_gulf": 0.89,
+        "cer": 0.092,
+        "utmos": 3.538,
+        "sim_unseen_voices": 0.587
+      },
+      "najdi_male_ft_cont/checkpoint-400": {
+        "clips_judged_gulf": 0.9,
+        "cer": 0.086,
+        "utmos": 3.55,
+        "sim_unseen_voices": 0.604
+      },
+      "najdi_cs_ft_v2/checkpoint-300": {
+        "clips_judged_gulf": 0.59,
+        "cer": 0.084,
+        "utmos": 3.442,
+        "sim_unseen_voices": 0.739
+      },
+      "saudi_hq_ft/checkpoint-2500": {
+        "clips_judged_gulf": 0.58,
+        "cer": 0.08,
+        "utmos": 3.284,
+        "sim_unseen_voices": 0.74
+      },
+      "k2-fsa/OmniVoice": {
+        "clips_judged_gulf": 0.22,
+        "cer": 0.074,
+        "utmos": 3.521,
+        "sim_unseen_voices": 0.753
+      }
+    },
+    "caveat": "keeps a Saudi accent with voices it never heard but pulls their timbre toward its own (similarity to unseen references 0.62 against 0.75 for the stock model)"
   },
   "artifact": {
     "model_safetensors_bytes": 2450344144,

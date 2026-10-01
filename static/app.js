@@ -11,23 +11,59 @@ const modelAudioUrl = (mid, filename) => appUrl(
 );
 
 // ── Model definitions ────────────────────────────────────────
-// The interface exposes two models: the Najdi fine-tune (pinned to Nasser) and the stock one.
-// Both ride the SAME worker (gateway aliases -> port 8082); fixedParams.variant tells the
-// worker which checkpoint to load. A model with `lockedVoice` always clones that built-in
-// voice — the worker enforces it, the UI just stops offering a choice.
+// The interface exposes two models: the Najdi fine-tune (house voice: Nasser) and the stock
+// one. Both ride the SAME worker (gateway aliases -> port 8082); fixedParams.variant tells the
+// worker which checkpoint to load. A model with `defaultVoice` clones that voice unless
+// another is picked — the worker applies the same default, so API calls behave alike.
 // VoxCPM2/Fish are retired from the interface.
 // Every user-facing label below is a getter rather than a string: it re-resolves on each
 // access, so flipping the interface language updates them without rebuilding these
 // constants or touching the render sites that read `.label` / `.name`.
+// ── Voice library ─────────────────────────────────────────────
+// Built-in + uploaded clone voices, as the worker reports them (GET /api/voices). This
+// starting list is the repo's built-ins — what the picker shows until that fetch lands —
+// and MUST match voices/*/voice.json (ids, order and tags).
+// Tags say what a voice is: its sex and dialect, whether the Najdi model trained on the
+// speaker (`trained`) or only clones the clip (`unseen`), whether it is a synthetic or a
+// human voice, and the kind of speaker.
+let voiceCatalog = [
+  { id: 'nasser',    custom: false, tags: ['male', 'najdi', 'trained', 'synthetic', 'support'] },
+  { id: 'joud',      custom: false, tags: ['female', 'najdi', 'trained', 'synthetic', 'support'] },
+  { id: 'rashed',    custom: false, tags: ['male', 'najdi', 'unseen', 'synthetic', 'support'] },
+  { id: 'reem',      custom: false, tags: ['female', 'najdi', 'unseen', 'synthetic', 'support'] },
+  { id: 'abeer',     custom: false, tags: ['female', 'saudi', 'unseen', 'human', 'artist'] },
+  { id: 'sada_male', custom: false, tags: ['male', 'saudi', 'unseen', 'human', 'broadcast'] },
+  { id: 'ahmed',     custom: false, tags: ['male', 'msa', 'unseen', 'reader'] },
+];
+
+// The picker's sections, in order: speakers the Najdi model trained on, voices it clones
+// from their clip alone, and the user's own uploads.
+const VOICE_GROUPS = ['trained', 'cloned', 'custom'];
+function voiceGroup(v) {
+  if (v.custom) return 'custom';
+  return (v.tags || []).includes('trained') ? 'trained' : 'cloned';
+}
+
+// A tag's display name; an unknown key (a hand-edited voice.json) is shown as written.
+function voiceTagLabel(key) {
+  const translated = t(`vtag.${key}`);
+  return translated !== `vtag.${key}` ? translated : key;
+}
+
+// Built-ins have translated names; an uploaded voice is called whatever its owner typed.
+function voiceLabel(v) {
+  const key = `voice.${v.id}`;
+  const translated = t(key);
+  return translated !== key ? translated : (v.label || v.id);
+}
+
 const OMNI_SHARED = {
   params: [
     { id: 'voice', get label() { return t('section.voice'); }, type: 'select', default: '',
-      options: [
-        { value: '',      get label() { return t('voice.none'); } },
-        { value: 'abeer', get label() { return t('voice.abeer'); } },
-        { value: 'ahmed', get label() { return t('voice.ahmed'); } },
-        { value: 'nasser', get label() { return t('voice.nasser'); } },
-      ] },
+      get options() {
+        return [{ value: '', get label() { return t('voice.none'); } }]
+          .concat(voiceCatalog.map(v => ({ value: v.id, get label() { return voiceLabel(v); } })));
+      } },
   ],
   emotionTags: ['[laughter]'],   // base model only documents [laughter]; [applause] is unsupported
   cloneFields: [],
@@ -42,7 +78,7 @@ const MODELS = {
     icon: '🎙️',
     specs: '0.6B · 24kHz · Najdi FT v3 · step 1950',
     get role() { return t('model.najdi.role'); },
-    get traits() { return [t('model.trait.najdi'), t('model.trait.nasserVoice'), 'Najdi male', '24kHz']; },
+    get traits() { return [t('model.trait.najdi'), t('model.trait.nasserVoice'), t('model.trait.trainedVoices'), '24kHz']; },
     get profile() {
       return [
         { label: t('model.profile.bestUse'), value: t('model.najdi.bestUse') },
@@ -51,11 +87,9 @@ const MODELS = {
       ];
     },
     get compareNote() { return t('model.najdi.compareNote'); },
-    get cloneHint() { return t('clone.lockedNasser'); },
-    // MUST match the worker's VARIANT_VOICES. The gender is Nasser's own, so the gender
-    // control shows it locked instead of offering a choice the worker would ignore.
-    lockedVoice: 'nasser',
-    fixedParams: { variant: 'najdi', voice: 'nasser', gender: 'male' },
+    // Cloned when no other voice is picked — MUST match the worker's VARIANT_DEFAULT_VOICES.
+    defaultVoice: 'nasser',
+    fixedParams: { variant: 'najdi' },
   },
   omnivoice_base: {
     ...OMNI_SHARED,
@@ -127,9 +161,10 @@ function buildModelInput(mid, text) {
   const attrs = [];
   const sp = (v.speaker || '').trim();
   if (sp) attrs.push(sp);
-  // For a locked-voice model the reference clip already fixes the speaker's sex; the worker
-  // leaves gender out of instruct there, so the preview must too.
-  if (!MODELS[mid].lockedVoice && GENDER_EN[v.gender]) attrs.push(GENDER_EN[v.gender]);
+  // When cloning, the reference clip already fixes the speaker's sex; the worker leaves
+  // gender out of instruct then, so the preview must too.
+  const cloning = Boolean(v.voice || MODELS[mid].defaultVoice);
+  if (!cloning && GENDER_EN[v.gender]) attrs.push(GENDER_EN[v.gender]);
   if (AGE_EN[v.age]) attrs.push(AGE_EN[v.age]);
   return { text: body, instruct: attrs.join(', '), lang: DIALECT_LANG[v.dialect || 'msa'] || DIALECT_LANG.msa };
 }
@@ -157,6 +192,8 @@ let manualOverride = {}; // { omnivoice: {enabled, text, instruct}, ... } — ve
 let cloneFiles    = {};  // { ref_audio: File|null, ref_text: '', ... }
 let compareSelection = {};
 let currentCompareRunId = null;  // id of the comparison run currently being generated (for retry)
+let compareMode   = 'tashkeel';  // 'tashkeel': original vs tashkeel on one model; 'models': every model
+let asrOnline     = false;       // the transcription worker is up (from the status poll)
 let expandedCompareRuns = new Set();  // ids of saved comparison runs expanded inline
 
 // ── DOM helpers ───────────────────────────────────────────────
@@ -300,6 +337,7 @@ function initParamValues() {
       paramValues[mid][p.id] = p.default;
     }
     Object.assign(paramValues[mid], m.fixedParams || {});   // pinned values beat param defaults
+    if (m.defaultVoice) paramValues[mid].voice = m.defaultVoice;
   }
 }
 
@@ -436,14 +474,7 @@ function renderLanguageBar(body) {
   wrap.appendChild(lock);
 
   wrap.appendChild(makeAttrSelect(t('attr.dialect'), 'dialect', DIALECTS));
-  const genderCell = makeAttrSelect(t('attr.gender'), 'gender', GENDERS);
-  // A locked voice has a fixed sex: show it, but a choice here would only be ignored.
-  if (MODELS[selectedModel].lockedVoice) {
-    const sel = genderCell.querySelector('select');
-    sel.disabled = true;
-    sel.title = MODELS[selectedModel].cloneHint || '';
-  }
-  wrap.appendChild(genderCell);
+  wrap.appendChild(makeAttrSelect(t('attr.gender'), 'gender', GENDERS));
   wrap.appendChild(makeAttrSelect(t('attr.age'), 'age', AGES));
   body.appendChild(wrap);
 
@@ -630,27 +661,71 @@ function renderVoicePicker() {
     return;
   }
 
-  if (model.lockedVoice) {
-    const locked = voiceParam.options.find(o => o.value === model.lockedVoice);
-    select.innerHTML = `<option value="${escapeHtml(model.lockedVoice)}" selected>
-      ${escapeHtml(locked ? locked.label : model.lockedVoice)}</option>`;
-    select.disabled = true;
-    return;
-  }
-
-  const current = (paramValues[selectedModel] && paramValues[selectedModel].voice) || '';
+  const current = currentVoiceId(selectedModel);
+  const option = (value, label) => `
+    <option value="${escapeHtml(String(value))}" ${value === current ? 'selected' : ''}>
+      ${escapeHtml(label)}
+    </option>`;
+  // A model with a house voice always clones someone, so "no cloning" is not offered there.
+  const none = model.defaultVoice ? '' : option('', t('voice.none'));
+  const groups = VOICE_GROUPS.map(group => {
+    const members = voiceCatalog.filter(v => voiceGroup(v) === group);
+    if (!members.length) return '';
+    return `<optgroup label="${escapeHtml(t(`voice.group.${group}`))}">
+      ${members.map(v => option(v.id, voiceLabel(v))).join('')}</optgroup>`;
+  });
   select.disabled = false;
-  select.innerHTML = voiceParam.options.map(o => `
-    <option value="${escapeHtml(String(o.value))}" ${o.value === current ? 'selected' : ''}>
-      ${escapeHtml(o.label)}
-    </option>
-  `).join('');
+  select.innerHTML = none + groups.join('');
 
+  // One voice choice for every model, so a cross-model comparison hears the same speaker.
   select.onchange = e => {
     for (const mid of Object.keys(MODELS)) {
-      if (paramValues[mid] && !MODELS[mid].lockedVoice) paramValues[mid].voice = e.target.value;
+      if (paramValues[mid]) paramValues[mid].voice = e.target.value;
     }
+    renderVoiceDetails();
   };
+  renderVoiceDetails();
+}
+
+// The voice a model will clone: the picked one while it still exists, else its house voice.
+function currentVoiceId(mid) {
+  const picked = (paramValues[mid] || {}).voice || '';
+  if (picked && voiceCatalog.some(v => v.id === picked)) return picked;
+  return MODELS[mid].defaultVoice || '';
+}
+
+function selectedVoice() {
+  const id = currentVoiceId(selectedModel);
+  return voiceCatalog.find(v => v.id === id) || null;
+}
+
+function voiceNameFor(id) {
+  const v = voiceCatalog.find(x => x.id === id);
+  return v ? voiceLabel(v) : (id || '');
+}
+
+// Under the picker: what the selected voice is, and whether it can be deleted.
+function renderVoiceDetails() {
+  const v = selectedVoice();
+  const preview = $('btn-voice-preview');
+  const del = $('btn-voice-delete');
+  const hint = $('voice-hint');
+  if (preview) preview.disabled = !v;
+  if (del) del.hidden = !(v && v.custom);
+  const tags = $('voice-tags');
+  if (tags) {
+    tags.innerHTML = ((v && v.tags) || []).map(key => {
+      const tip = t(`vtag.${key}.tip`);
+      return `<span class="voice-tag${/^[a-z_]+$/.test(key) ? ` vt-${key}` : ''}"
+        ${tip !== `vtag.${key}.tip` ? `title="${escapeHtml(tip)}"` : ''}>${escapeHtml(voiceTagLabel(key))}</span>`;
+    }).join('');
+  }
+  if (!hint) return;
+  if (!v) { hint.textContent = t('voice.noneHint'); return; }
+  const bits = [v.custom ? t('voice.custom') : t('voice.builtin')];
+  if (v.duration_s) bits.push(`${Number(v.duration_s).toFixed(1)} s`);
+  const said = v.ref_text ? `«${v.ref_text}»` : (v.custom ? t('voice.noText') : '');
+  hint.textContent = bits.join(' · ') + (said ? ` — ${said}` : '');
 }
 
 // ── Render emotion tags ───────────────────────────────────────
@@ -703,10 +778,7 @@ function renderClonePanel() {
     body.appendChild(hint);
   }
 
-  // A locked-voice model clones its own speaker only; the hint above is all it shows.
-  if (model.lockedVoice) return;
-
-  // The other interface models are OmniVoice variants with the same cloning fields.
+  // Every interface model is an OmniVoice variant with the same cloning fields.
   body.appendChild(makeFileZone('ref_audio', t('clone.zoneLabel'), 'audio/wav,audio/*'));
   body.appendChild(makeTextRow('ref_text', t('clone.textLabel'), t('clone.textPh')));
 }
@@ -774,20 +846,53 @@ function renderCompareChecks() {
   updateCompareLabel();
 }
 
-// Reflect the number of selected models on the compare button
+// Reflect the compare mode and what it will generate on the compare button.
 function updateCompareLabel() {
   if (isComparing) return;
-  if (!$('compare-checks') || !$('btn-compare')) return;
-  const toggle = $('use-all-models');
-  const useAll = !toggle || toggle.checked;
-  const n = useAll
-    ? Object.keys(MODELS).filter(mid => !['offline', 'checking'].includes(workerStatus[mid])).length
-    : $$('#compare-checks input:checked').length;
+  const btn = $('btn-compare');
+  if (!btn) return;
   const label = $('compare-label');
-  if (label) label.textContent = n ? t('cmp.runN', { n }) : t('cmp.none');
+  const hint = $('compare-hint');
+  const up = mid => !['offline', 'checking'].includes(workerStatus[mid]);
+  let ready;
+  if (compareMode === 'tashkeel') {
+    ready = up(selectedModel);
+    if (label) label.textContent = t('cmp.runTashkeel');
+    if (hint) hint.textContent = t(tashkeelMarks === 'shadda' ? 'cmp.hintShadda' : 'cmp.hintTashkeel',
+                                   { model: MODELS[selectedModel].name });
+  } else {
+    const n = Object.keys(MODELS).filter(up).length;
+    ready = n > 0;
+    if (label) label.textContent = n ? t('cmp.runN', { n }) : t('cmp.none');
+    if (hint) hint.textContent = t('cmp.hintModels', {
+      variant: variantLabel(speakVariant === 'tashkeel' ? markedVariant() : 'original') });
+  }
   // Keep the button clickable with empty text so the user gets an explanatory toast
   // instead of an inert control that looks broken.
-  $('btn-compare').disabled = n === 0 || isGenerating || isComparing;
+  btn.disabled = !ready || isGenerating || isComparing;
+}
+
+const COMPARE_MODE_KEY = 'tts_compare_mode_v1';
+
+function setCompareMode(mode) {
+  compareMode = mode === 'models' ? 'models' : 'tashkeel';
+  try { localStorage.setItem(COMPARE_MODE_KEY, compareMode); } catch { /* private mode */ }
+  for (const [id, m] of [['cmp-mode-tashkeel', 'tashkeel'], ['cmp-mode-models', 'models']]) {
+    const el = $(id);
+    if (!el) continue;
+    el.classList.toggle('active', compareMode === m);
+    el.setAttribute('aria-checked', String(compareMode === m));
+  }
+  updateCompareLabel();
+}
+
+function setupCompareModes() {
+  if (!$('cmp-mode-tashkeel')) return;
+  let saved = 'tashkeel';
+  try { saved = localStorage.getItem(COMPARE_MODE_KEY) || 'tashkeel'; } catch { /* private mode */ }
+  $('cmp-mode-tashkeel').addEventListener('click', () => setCompareMode('tashkeel'));
+  $('cmp-mode-models').addEventListener('click', () => setCompareMode('models'));
+  setCompareMode(saved);
 }
 
 function updateCompareMode() {
@@ -1140,6 +1245,317 @@ function setupTranscription() {
   setupRecorder();
 }
 
+// The detail of a failed request, as the gateway phrases it, rather than a JSON blob.
+async function errorText(r) {
+  const raw = await r.text();
+  try {
+    const detail = JSON.parse(raw).detail;
+    if (detail) return typeof detail === 'string' ? detail : JSON.stringify(detail);
+  } catch { /* not JSON */ }
+  return raw || `HTTP ${r.status}`;
+}
+
+// ── Voice library actions ─────────────────────────────────────
+// Listing, previewing, adding and deleting clone voices. The worker stores uploaded ones
+// outside the repo (TTS_WORKDIR), so they survive restarts and a `git pull`.
+let voiceUpload = null;          // the File picked in the add-voice form
+
+async function loadVoices() {
+  try {
+    const r = await fetch(appUrl('api/voices'), { cache: 'no-store' });
+    if (r.ok) {
+      const data = await r.json();
+      if (Array.isArray(data.voices) && data.voices.length) voiceCatalog = data.voices;
+    }
+  } catch { /* worker down — keep the list we have */ }
+  // A voice deleted elsewhere falls back to each model's own default.
+  for (const mid of Object.keys(MODELS)) {
+    const picked = paramValues[mid] && paramValues[mid].voice;
+    if (picked && !voiceCatalog.some(v => v.id === picked)) {
+      paramValues[mid].voice = MODELS[mid].defaultVoice || '';
+    }
+  }
+  renderVoicePicker();
+}
+
+// The status poll carries the worker's voice ids; refetch only when that set changed.
+function syncVoicesWithStatus(data) {
+  const info = data && (data.omnivoice_najdi || data.omnivoice_base);
+  if (!info || !Array.isArray(info.voices)) return;
+  const known = voiceCatalog.map(v => v.id).sort().join();
+  if (info.voices.slice().sort().join() !== known) loadVoices();
+}
+
+function toggleVoicePreview() {
+  const v = selectedVoice();
+  const audio = $('voice-preview-audio');
+  if (!v || !audio) return;
+  if (!audio.paused && audio.dataset.voice === v.id) { audio.pause(); return; }
+  audio.src = appUrl(`api/voices/${encodeURIComponent(v.id)}/audio`);
+  audio.dataset.voice = v.id;
+  audio.play().catch(e => showToast(`${t('misc.error')}: ${e.message}`, 'error'));
+}
+
+async function deleteSelectedVoice() {
+  const v = selectedVoice();
+  if (!v || !v.custom) return;
+  const name = voiceLabel(v);
+  if (!confirm(t('voice.confirmDelete', { name }))) return;
+  try {
+    const r = await fetch(appUrl(`api/voices/${encodeURIComponent(v.id)}`), { method: 'DELETE' });
+    if (!r.ok) throw new Error(await errorText(r));
+    showToast(t('voice.deleted', { name }), 'success');
+  } catch (e) {
+    showToast(`${t('misc.error')}: ${e.message}`, 'error', 6000);
+  }
+  await loadVoices();
+}
+
+function openVoiceForm(open) {
+  $('voice-add').hidden = !open;
+  $('btn-voice-add').hidden = open;
+  if (open) { $('voice-name').focus(); return; }
+  voiceUpload = null;
+  $('voice-name').value = '';
+  $('voice-text').value = '';
+  const zone = $('voice-zone');
+  zone.classList.remove('has-file');
+  zone.querySelector('.zone-label').textContent = t('voice.drop');
+  zone.querySelector('input').value = '';
+  setStatusLine('voice-status', '');
+}
+
+// Picking a clip names the voice after the file (editable) and transcribes it, since the
+// clone needs to know what is said in its reference.
+function setVoiceFile(file) {
+  if (!file) return;
+  voiceUpload = file;
+  const zone = $('voice-zone');
+  zone.classList.add('has-file');
+  zone.querySelector('.zone-label').textContent = `✓ ${file.name}`;
+  if (!$('voice-name').value.trim()) $('voice-name').value = file.name.replace(/\.[^.]+$/, '');
+  if ($('voice-text').value.trim()) return;
+  // The gateway evicts the TTS model to make room for transcription, so only go ahead
+  // when the transcription worker is actually there to use that room.
+  if (asrOnline) transcribeVoiceClip();
+  else setStatusLine('voice-status', t('voice.asrOffline'), 'warn');
+}
+
+async function transcribeVoiceClip() {
+  if (!voiceUpload) { setStatusLine('voice-status', t('voice.needFile'), 'warn'); return; }
+  const btn = $('btn-voice-transcribe');
+  btn.disabled = true;
+  setStatusLine('voice-status', t('voice.transcribing'));
+  try {
+    const fd = new FormData();
+    fd.append('audio', voiceUpload, voiceUpload.name);
+    fd.append('language', 'ar');
+    fd.append('punctuation', 'true');
+    const r = await fetch(appUrl('api/transcribe'), { method: 'POST', body: fd });
+    if (!r.ok) throw new Error(await errorText(r));
+    const text = ((await r.json()).text || '').trim();
+    if (text) {
+      $('voice-text').value = text;
+      setStatusLine('voice-status', t('voice.transcribed'), 'success');
+    } else {
+      setStatusLine('voice-status', t('voice.noSpeech'), 'warn');
+    }
+  } catch (e) {
+    setStatusLine('voice-status', t('voice.transcribeFailed', { err: String(e.message).slice(0, 120) }), 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function saveVoice() {
+  const name = $('voice-name').value.trim();
+  if (!name) { setStatusLine('voice-status', t('voice.needName'), 'warn'); return; }
+  if (!voiceUpload) { setStatusLine('voice-status', t('voice.needFile'), 'warn'); return; }
+  const btn = $('btn-voice-save');
+  btn.disabled = true;
+  setStatusLine('voice-status', t('voice.saving'));
+  try {
+    const fd = new FormData();
+    fd.append('name', name);
+    fd.append('audio', voiceUpload, voiceUpload.name);
+    fd.append('ref_text', $('voice-text').value.trim());
+    const r = await fetch(appUrl('api/voices'), { method: 'POST', body: fd });
+    if (!r.ok) throw new Error(await errorText(r));
+    const voice = await r.json();
+    await loadVoices();
+    for (const mid of Object.keys(MODELS)) paramValues[mid].voice = voice.id;   // use it right away
+    renderVoicePicker();
+    openVoiceForm(false);
+    showToast(t('voice.saved', { name: voice.label }), 'success');
+  } catch (e) {
+    setStatusLine('voice-status', String(e.message).slice(0, 160), 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function setupVoiceLibrary() {
+  if (!$('voice-add')) return;
+  $('btn-voice-preview').addEventListener('click', toggleVoicePreview);
+  $('btn-voice-delete').addEventListener('click', deleteSelectedVoice);
+  $('btn-voice-add').addEventListener('click', () => openVoiceForm(true));
+  $('btn-voice-cancel').addEventListener('click', () => openVoiceForm(false));
+  $('btn-voice-transcribe').addEventListener('click', transcribeVoiceClip);
+  $('btn-voice-save').addEventListener('click', saveVoice);
+  $('voice-zone').querySelector('input').addEventListener('change', e => setVoiceFile(e.target.files[0]));
+
+  const audio = $('voice-preview-audio');
+  const btn = $('btn-voice-preview');
+  const label = () => { btn.textContent = audio.paused ? t('voice.preview') : t('voice.stop'); };
+  ['play', 'pause', 'ended'].forEach(ev => audio.addEventListener(ev, label));
+  loadVoices();
+}
+
+// ── Tashkeel agent ────────────────────────────────────────────
+// A diacritized copy of the text box, made by the Text-Prep agent (POST /api/prepare with
+// tashkeel only). It sits beside the original rather than replacing it, so Generate can
+// speak either one and Compare can play the two side by side.
+// `source` is the original it was made from; `full` and `shadda` are the two forms the agent
+// returned for it, and `text` is the one on screen (hand edits included).
+let tashkeel = { source: '', text: '', full: '', shadda: '' };
+let speakVariant = 'original';             // which version Generate speaks
+// Which marks the agent's copy carries: the whole tashkeel, or the shadda alone.
+const TASHKEEL_MARKS_KEY = 'tts_tashkeel_marks';
+let tashkeelMarks = 'full';
+// What a run spoken from the agent's copy is called: 'tashkeel' or 'shadda'.
+const markedVariant = () => (tashkeelMarks === 'shadda' ? 'shadda' : 'tashkeel');
+
+const VARIANT_LABELS = { tashkeel: 'tk.tashkeel', shadda: 'tk.shadda' };
+const variantLabel = variant => t(VARIANT_LABELS[variant] || 'tk.original');
+const variantBadgeHtml = variant =>
+  `<span class="variant-badge ${VARIANT_LABELS[variant] ? 'tashkeel' : 'original'}">${escapeHtml(variantLabel(variant))}</span>`;
+
+// Harakat (tanwin … sukun) per Arabic letter: diacritized text runs near one per letter,
+// ordinary text has only the odd tanwin or shadda. Tells older runs apart after the fact.
+function hasTashkeel(text) {
+  const s = String(text || '');
+  const letters = (s.match(/[\u0621-\u064A]/g) || []).length;
+  const marks = (s.match(/[\u064B-\u0652]/g) || []).length;
+  return letters > 0 && marks / letters > 0.3;
+}
+
+// The Najdi card's text is Najdi speech, so its tashkeel follows that register, not MSA's.
+function tashkeelDialect() {
+  if (selectedModel === 'omnivoice_najdi') return 'saudi';
+  return (paramValues[selectedModel] || {}).dialect || 'msa';
+}
+
+async function makeTashkeel(original) {
+  const text = (original !== undefined ? original : $('text-input').value).trim();
+  if (!text) { showToast(t('synth.needText'), 'warn'); return null; }
+  const btn = $('btn-tashkeel');
+  if (btn) btn.disabled = true;
+  setStatusLine('tashkeel-status', t('tk.running'));
+  try {
+    const r = await fetch(appUrl('api/prepare'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, dialect: tashkeelDialect(), normalize: false, diacritize: true,
+                             marks: tashkeelMarks }),
+    });
+    if (!r.ok) throw new Error(await errorText(r));
+    const data = await r.json();
+    const out = (data.diacritized || '').trim();
+    if (!out) throw new Error(t('tk.empty'));
+    // Both forms come back from the one call, so switching marks needs no second one.
+    tashkeel = { source: text, text: out,
+                 full: (data.diacritized_full || '').trim(),
+                 shadda: (data.diacritized_shadda || '').trim() };
+    renderTashkeel();
+    // The agent retries once when it rewrites a word; if it still did, say so before the
+    // user compares two sentences that differ by more than their harakat.
+    if (data.letters_changed) setStatusLine('tashkeel-status', t('tk.changed'), 'warn');
+    else if (tashkeelMarks === 'shadda' && out === text) setStatusLine('tashkeel-status', t('tk.noShadda'), 'warn');
+    else setStatusLine('tashkeel-status', t(tashkeelMarks === 'shadda' ? 'tk.doneShadda' : 'tk.doneBy',
+                                            { model: data.model || '' }), 'success');
+    return out;
+  } catch (e) {
+    const msg = String(e.message).slice(0, 200);
+    setStatusLine('tashkeel-status', msg, 'error');
+    showToast(t('tk.failed', { err: msg }), 'error', 7000);
+    return null;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// The tashkeel for `original`, made now if the one on screen belongs to older text.
+async function ensureTashkeel(original) {
+  if (tashkeel.text && tashkeel.source === original) return tashkeel.text;
+  return makeTashkeel(original);
+}
+
+// What Generate speaks. Throws when the tashkeel it needs could not be made.
+async function textToSpeak(original) {
+  if (speakVariant !== 'tashkeel') return { text: original, variant: 'original' };
+  $('progress-hint').textContent = t('tk.running');
+  const text = await ensureTashkeel(original);
+  if (!text) throw new Error(t('tk.needed'));
+  return { text, variant: markedVariant() };
+}
+
+// Full tashkeel or the shadda alone. A copy already made for this text is swapped for its
+// other form on the spot; anything typed into the box since is replaced by it.
+function setTashkeelMarks(marks) {
+  tashkeelMarks = marks === 'shadda' ? 'shadda' : 'full';
+  try { localStorage.setItem(TASHKEEL_MARKS_KEY, tashkeelMarks); } catch { /* private mode */ }
+  const other = tashkeel[tashkeelMarks];
+  if (tashkeel.text && other) tashkeel.text = other;
+  else if (tashkeel.text) tashkeel = { source: '', text: '', full: '', shadda: '' };   // made before both forms existed
+  renderTashkeel();
+  updateSynthBtn();
+}
+
+function setSpeakVariant(variant) {
+  speakVariant = variant === 'tashkeel' ? 'tashkeel' : 'original';
+  renderTashkeel();
+  updateSynthBtn();
+}
+
+function renderTashkeel() {
+  const box = $('tashkeel-box');
+  if (!box) return;
+  box.hidden = !tashkeel.text;
+  const area = $('tashkeel-text');
+  if (area.value !== tashkeel.text) area.value = tashkeel.text;
+  const original = $('text-input').value.trim();
+  $('tashkeel-stale').hidden = !tashkeel.text || tashkeel.source === original;
+  for (const [id, variant] of [['speak-original', 'original'], ['speak-tashkeel', 'tashkeel']]) {
+    const on = speakVariant === variant;
+    $(id).classList.toggle('active', on);
+    $(id).setAttribute('aria-checked', String(on));
+  }
+  for (const [id, marks] of [['tk-marks-full', 'full'], ['tk-marks-shadda', 'shadda']]) {
+    if (!$(id)) continue;
+    $(id).classList.toggle('active', tashkeelMarks === marks);
+    $(id).setAttribute('aria-checked', String(tashkeelMarks === marks));
+  }
+  // The box and the "speaks" choice are named after the marks they carry.
+  if ($('tashkeel-tag')) $('tashkeel-tag').textContent = t(tashkeelMarks === 'shadda' ? 'tk.shadda' : 'tk.tag');
+  $('speak-tashkeel').textContent = variantLabel(markedVariant());
+}
+
+function setupTashkeel() {
+  if (!$('btn-tashkeel')) return;
+  $('btn-tashkeel').addEventListener('click', () => makeTashkeel());
+  // Hand edits to the diacritized copy are kept — it is what gets spoken.
+  $('tashkeel-text').addEventListener('input', e => { tashkeel.text = e.target.value; });
+  $('speak-original').addEventListener('click', () => setSpeakVariant('original'));
+  $('speak-tashkeel').addEventListener('click', () => setSpeakVariant('tashkeel'));
+  $('text-input').addEventListener('input', renderTashkeel);
+  if ($('tk-marks-full')) {
+    try { tashkeelMarks = localStorage.getItem(TASHKEEL_MARKS_KEY) === 'shadda' ? 'shadda' : 'full'; } catch { /* private mode */ }
+    $('tk-marks-full').addEventListener('click', () => setTashkeelMarks('full'));
+    $('tk-marks-shadda').addEventListener('click', () => setTashkeelMarks('shadda'));
+    renderTashkeel();
+  }
+}
+
 // ── Select model ──────────────────────────────────────────────
 function selectModel(id) {
   selectedModel = id;
@@ -1176,7 +1592,9 @@ function updateSynthBtn() {
   $('synth-label').textContent = checking ? t('synth.checking') :
     !available ? t('synth.unavailable') :
     isGenerating || isComparing ? t('synth.running') :
-    useAll ? t('synth.compare') : t('synth.run');
+    useAll ? t('synth.compare') :
+    speakVariant !== 'tashkeel' ? t('synth.run') :
+    tashkeelMarks === 'shadda' ? t('synth.runShadda') : t('synth.runTashkeel');
   updateCompareLabel();
 }
 
@@ -1231,6 +1649,8 @@ async function pollStatus() {
         workerStatus[mid] = 'loading';
       }
     }
+    syncVoicesWithStatus(data);
+    asrOnline = Boolean(data.transcribe && data.transcribe.status !== 'offline');
   } catch {
     // A failed gateway request is a completed check, not an indefinitely pending one.
     for (const mid of Object.keys(MODELS)) workerStatus[mid] = 'offline';
@@ -1308,8 +1728,8 @@ async function synthesize() {
     return compareModels();
   }
   if (isGenerating) return;
-  const text = $('text-input').value.trim();
-  if (!text) return;
+  const original = $('text-input').value.trim();
+  if (!original) return;
 
   isGenerating = true;
   updateSynthBtn();
@@ -1317,29 +1737,27 @@ async function synthesize() {
   $('progress-hint').textContent = t('synth.running');
 
   let hintTimer = null;
-  if (workerStatus[selectedModel] === 'loading') {
-    hintTimer = setTimeout(() => {
-      $('progress-hint').textContent = t('synth.loadingModel');
-    }, 3000);
-  }
-
   try {
-    const fd = buildFormData();
-    const r  = await fetch(appUrl(`api/${selectedModel}/synthesize`), { method: 'POST', body: fd });
-
-    if (!r.ok) {
-      const err = await r.text();
-      throw new Error(err || `HTTP ${r.status}`);
+    const { text, variant } = await textToSpeak(original);   // may run the tashkeel agent first
+    $('progress-hint').textContent = t('synth.running');
+    if (workerStatus[selectedModel] === 'loading') {
+      hintTimer = setTimeout(() => {
+        $('progress-hint').textContent = t('synth.loadingModel');
+      }, 3000);
     }
+
+    const fd = buildFormDataForModel(selectedModel, text, true);
+    const r  = await fetch(appUrl(`api/${selectedModel}/synthesize`), { method: 'POST', body: fd });
+    if (!r.ok) throw new Error(await errorText(r));
 
     const result = await r.json();
     const audioUrl = modelAudioUrl(selectedModel, result.filename);
     const options = optionSummary(selectedModel, true);
 
-    await loadPlayer(audioUrl, { ...result, options }, text);
+    await loadPlayer(audioUrl, { ...result, model: selectedModel, options, variant }, text);
     addToHistory({
       ...result, model: selectedModel,   // interface id, not the worker's "omnivoice"
-      text, url: audioUrl, options, timestamp: Date.now(),
+      text, variant, original, url: audioUrl, options, timestamp: Date.now(),
       instruct: currentInstruct(),
       params: { ...paramValues[selectedModel] },
     });
@@ -1378,7 +1796,9 @@ async function loadPlayer(url, meta, text) {
   const insights = $('player-insights');
   if (insights) {
     const options = meta.options || optionSummary(meta.model, false);
+    const variant = meta.variant || (hasTashkeel(text) ? 'tashkeel' : 'original');
     insights.innerHTML = `
+      ${text ? `<div class="player-text">${variantBadgeHtml(variant)}${runTextHtml(text)}</div>` : ''}
       ${metricGridHtml(meta)}
       ${optionChipsHtml(options)}
     `;
@@ -1583,7 +2003,10 @@ function renderHistory(filterModel = 'all') {
     const el = document.createElement('div');
     el.className = `history-item ${item.model}`;
     el.dataset.url = item.url;
-    const textSnippet = (item.text || item.filename || '').slice(0, 50);
+    const fullText = item.text || item.filename || '';
+    const variant = item.variant || (hasTashkeel(item.text) ? 'tashkeel' : 'original');
+    const params = item.params || {};
+    const voiceName = item.voice_label || params.voice_label || voiceNameFor(item.voice || params.voice);
     const ago = formatAgo(item.timestamp);
     const instruct = (item.instruct || '').trim();
     const instructRow = instruct
@@ -1598,7 +2021,11 @@ function renderHistory(filterModel = 'all') {
     el.innerHTML = `
       <div class="hi-badge"><span class="model-badge ${item.model}">${(MODELS[item.model] && MODELS[item.model].icon) || ''}</span></div>
       <div class="hi-info">
-        <div class="hi-filename">${escapeHtml(textSnippet)}</div>
+        <div class="hi-tags">
+          ${variantBadgeHtml(variant)}
+          ${voiceName ? `<span class="hi-voice">🎙 ${escapeHtml(voiceName)}</span>` : ''}
+        </div>
+        <div class="hi-text" dir="auto" title="${escapeAttr(t('hist.textToggle'))}">${escapeHtml(fullText)}</div>
         ${instructRow}
         <div class="hi-meta">${escapeHtml(metaBits.join(' · '))}</div>
       </div>
@@ -1610,6 +2037,11 @@ function renderHistory(filterModel = 'all') {
     el.querySelector('.hi-btn.play').addEventListener('click', e => {
       e.stopPropagation();
       playHistoryItem(item);
+    });
+    // Long texts are clamped; clicking the text opens it instead of replaying the clip.
+    el.querySelector('.hi-text').addEventListener('click', e => {
+      e.stopPropagation();
+      e.currentTarget.classList.toggle('expanded');
     });
     el.addEventListener('click', () => playHistoryItem(item));
     list.insertBefore(el, empty);
@@ -1657,6 +2089,8 @@ async function loadServerHistory() {
             text:       f.text || '',
             instruct:   f.instruct || '',
             params:     f.params || null,
+            voice:      (f.params && f.params.voice) || '',
+            voice_label: (f.params && f.params.voice_label) || '',
             reference_text: f.reference_text || '',
             prompt_text:    f.prompt_text || '',
             duration_s: f.duration_s || 0,
@@ -1675,37 +2109,56 @@ async function loadServerHistory() {
 }
 
 // ── Compare selected models ───────────────────────────────────
-function miniTitleHtml(mid) {
-  const m = MODELS[mid];
+// One compare item is one model speaking one version of the text. Runs saved before the
+// tashkeel mode existed carry neither key nor text: they were one original per model.
+const itemKey = item => item.key || item.mid;
+const itemText = (run, item) => item.text || run.text || '';
+const itemVariant = item => item.variant || 'original';
+const itemName = item => `${MODELS[item.mid].name}${item.variant ? ` · ${variantLabel(item.variant)}` : ''}`;
+
+function runTextHtml(text) {
+  return `<div class="run-text" dir="auto">${escapeHtml(text)}</div>`;
+}
+
+function miniTitleHtml(item) {
+  const m = MODELS[item.mid];
   return `
     <div class="mini-player-title">
-      <span>${m.icon} ${escapeHtml(m.name)}</span>
+      <span>${m.icon} ${escapeHtml(m.name)} ${variantBadgeHtml(itemVariant(item))}</span>
       <small>${escapeHtml(m.compareNote)}</small>
     </div>
   `;
 }
 
 // Final content for one compare mini-player — used both live and when restoring a saved run.
-function miniPlayerHtml(mid, item, runId = null) {
+function miniPlayerHtml(item, run) {
+  const mid = item.mid;
   const options = item.options || optionSummary(mid, false);
+  const text = itemText(run, item);
   if (item.error) {
     return `
-      ${miniTitleHtml(mid)}
-      <div class="mini-player-meta error">${t('misc.error')}: ${escapeHtml(String(item.error).slice(0, 120))}</div>
-      <button class="mini-retry" data-run-id="${escapeAttr(runId || '')}" data-mid="${escapeAttr(mid)}" type="button">${t('cmp.retry')}</button>
+      ${miniTitleHtml(item)}
+      ${runTextHtml(text)}
+      <div class="mini-player-meta error">${t('misc.error')}: ${escapeHtml(String(item.error).slice(0, 160))}</div>
+      <button class="mini-retry" data-run-id="${escapeAttr(run.id)}" data-key="${escapeAttr(itemKey(item))}" type="button">${t('cmp.retry')}</button>
       ${optionChipsHtml(options)}
     `;
   }
   const url = item.result && item.result.filename
     ? modelAudioUrl(mid, item.result.filename)
     : item.url;
+  // The text is already shown; repeat what reached the model only when it differs.
+  const result = item.result || {};
+  const sent = result.model_instruct || (result.model_input && result.model_input !== text)
+    ? sentInputHtml(result) : '';
   return `
-    ${miniTitleHtml(mid)}
+    ${miniTitleHtml(item)}
+    ${runTextHtml(text)}
     <audio controls preload="metadata" src="${escapeHtml(url)}"></audio>
-    ${metricGridHtml(item.result)}
-    <div class="mini-player-meta">${escapeHtml(MODELS[mid].role)}</div>
+    ${metricGridHtml(result)}
+    ${run.mode === 'tashkeel' ? '' : `<div class="mini-player-meta">${escapeHtml(MODELS[mid].role)}</div>`}
     ${optionChipsHtml(options)}
-    ${sentInputHtml(item.result)}
+    ${sent}
   `;
 }
 
@@ -1725,7 +2178,7 @@ function renderCompareSummary(grid, results) {
   const item = (label, row, value) => `
     <div class="summary-item">
       <span>${label}</span>
-      <strong>${row ? escapeHtml(MODELS[row.mid].name) : '—'}</strong>
+      <strong>${row ? escapeHtml(itemName(row)) : '—'}</strong>
       <small>${escapeHtml(value || '—')}</small>
     </div>
   `;
@@ -1824,25 +2277,25 @@ function renderRunGrid(container, run) {
   for (const item of (run.items || []).filter(i => MODELS[i.mid])) {
     const mini = document.createElement('div');
     mini.className = `mini-player ${item.mid} ${item.pending ? '' : 'done'}`;
-    mini.id = `mini-${run.id}-${item.mid}`;
+    mini.id = `mini-${run.id}-${itemKey(item)}`;
     mini.innerHTML = item.pending
-      ? `${miniTitleHtml(item.mid)}<div class="mini-spinner">${t('cmp.waiting')}</div>${optionChipsHtml(item.options || optionSummary(item.mid, false))}`
-      : miniPlayerHtml(item.mid, item, run.id);
+      ? `${miniTitleHtml(item)}${runTextHtml(itemText(run, item))}<div class="mini-spinner">${t('cmp.waiting')}</div>${optionChipsHtml(item.options || optionSummary(item.mid, false))}`
+      : miniPlayerHtml(item, run);
     container.appendChild(mini);
   }
   renderCompareSummary(container, (run.items || []).filter(i => !i.pending && i.result));
 }
 
 // Replace one mini-player's content in place (used during live generation + retry).
-function setMiniHtml(runId, mid, html) {
-  const mini = $(`mini-${runId}-${mid}`);
+function setMiniHtml(runId, key, html) {
+  const mini = $(`mini-${runId}-${key}`);
   if (mini) mini.innerHTML = html;
 }
 
 // Rebuild a run's "best of" summary in place without touching its players.
 function refreshRunSummary(run) {
   const first = (run.items || [])[0];
-  const mini = first && $(`mini-${run.id}-${first.mid}`);
+  const mini = first && $(`mini-${run.id}-${itemKey(first)}`);
   const body = mini && mini.closest('.sc-body');
   if (!body) return;
   const old = body.querySelector('.compare-summary');
@@ -1861,37 +2314,40 @@ function setAllCompareRunsExpanded(expand) {
   renderCompareLibrary();
 }
 
-// Re-run a single failed (or any) model in a comparison, reusing the same text + captured params.
-async function retryCompareItem(runId, mid) {
+// Re-run a single failed (or any) item in a comparison, reusing its text + captured params.
+async function retryCompareItem(runId, key) {
   if (isComparing) { showToast(t('cmp.busy'), 'warn'); return; }
   const run = compareRuns.find(r => r.id === runId);
   if (!run) { showToast(t('cmp.notFound'), 'error'); return; }
-  const idx = (run.items || []).findIndex(i => i.mid === mid);
+  const idx = (run.items || []).findIndex(i => itemKey(i) === key);
   if (idx === -1) return;
 
   const prev = run.items[idx];
+  const mid = prev.mid;
+  const text = itemText(run, prev);
   const options = prev.options || optionSummary(mid, false);
+  const base = { key: itemKey(prev), mid, variant: itemVariant(prev), text, options, params: prev.params };
   expandedCompareRuns.add(runId);   // make sure the run is visible while it retries
-  setMiniHtml(runId, mid, `${miniTitleHtml(mid)}<div class="mini-spinner">${t('cmp.retrying')}</div>${optionChipsHtml(options)}`);
+  setMiniHtml(runId, key, `${miniTitleHtml(prev)}${runTextHtml(text)}<div class="mini-spinner">${t('cmp.retrying')}</div>${optionChipsHtml(options)}`);
 
   let item;
   try {
-    const fd = buildFormDataForModel(mid, run.text, false, prev.params || null);
+    const fd = buildFormDataForModel(mid, text, false, prev.params || null);
     const r = await fetch(appUrl(`api/${mid}/synthesize`), { method: 'POST', body: fd });
-    if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+    if (!r.ok) throw new Error(await errorText(r));
     const result = await r.json();
     const url = modelAudioUrl(mid, result.filename);
-    addToHistory({ ...result, model: mid, text: run.text, url, options, timestamp: Date.now() });
-    item = { mid, result, options, url, params: prev.params };
+    addToHistory({ ...result, model: mid, text, variant: base.variant, original: run.text, url, options, timestamp: Date.now() });
+    item = { ...base, result, url };
     showToast(t('cmp.retried'), 'success');
   } catch (e) {
-    item = { mid, error: e.message, options, params: prev.params };
+    item = { ...base, error: e.message };
     showToast(t('cmp.retryFailed', { err: String(e.message).slice(0, 80) }), 'error', 5000);
   }
 
   run.items[idx] = item;
   persistCompareRuns();
-  setMiniHtml(runId, mid, miniPlayerHtml(mid, item, runId));
+  setMiniHtml(runId, key, miniPlayerHtml(item, run));
   refreshRunSummary(run);
 }
 
@@ -1918,8 +2374,9 @@ function renderCompareLibrary() {
     const icons = [...new Set((run.items || []).map(i => (MODELS[i.mid] || {}).icon || ''))].join(' ');
     const n = (run.items || []).length;
     const errs = (run.items || []).filter(i => i.error).length;
-    const snippet = (run.text || '').slice(0, 70) || '—';
-    const meta = `${icons} · ${n} ${t('cmp.models')}${errs ? ` · ${errs} ${t('cmp.errors')}` : ''} · ${formatAgo(run.timestamp)}`;
+    const snippet = run.text || '—';
+    const mode = run.mode === 'tashkeel' ? t('cmp.modeTashkeel') : t('cmp.modeModels');
+    const meta = `${mode} · ${icons} · ${n} ${t('cmp.clips')}${errs ? ` · ${errs} ${t('cmp.errors')}` : ''} · ${formatAgo(run.timestamp)}`;
 
     const itemEl = document.createElement('div');
     itemEl.className = `saved-compare-item ${expanded ? 'expanded' : ''}`;
@@ -1930,7 +2387,7 @@ function renderCompareLibrary() {
     head.innerHTML = `
       <span class="sc-caret">${expanded ? '▾' : '▸'}</span>
       <div class="sc-info">
-        <div class="sc-snippet">${escapeHtml(snippet)}</div>
+        <div class="sc-snippet" dir="auto">${escapeHtml(snippet)}</div>
         <div class="sc-meta">${escapeHtml(meta)}</div>
       </div>
       <div class="sc-actions">
@@ -1953,69 +2410,92 @@ function renderCompareLibrary() {
   }
 }
 
-async function compareModels(compareAll = false) {
-  if (isComparing) return;
-  const text = $('text-input').value.trim();
-  if (!text) { showToast(t('synth.needText'), 'warn'); return; }
+// The items one comparison generates, or null when it cannot start (the reason is shown).
+async function compareItems(original) {
+  if (compareMode === 'tashkeel') {
+    const mid = selectedModel;
+    if (['offline', 'checking'].includes(workerStatus[mid])) {
+      showToast(t('cmp.modelOffline', { model: MODELS[mid].name }), 'warn');
+      return null;
+    }
+    $('progress-hint').textContent = t('tk.running');
+    const tk = await ensureTashkeel(original);
+    if (!tk) return null;                       // makeTashkeel already said why
+    return [
+      { key: `${mid}:original`, mid, variant: 'original', text: original },
+      { key: `${mid}:tashkeel`, mid, variant: markedVariant(), text: tk },
+    ];
+  }
+  const mids = Object.keys(MODELS).filter(mid => workerStatus[mid] !== 'offline');
+  if (!mids.length) { showToast(t('cmp.needModel'), 'warn'); return null; }
+  const { text, variant } = await textToSpeak(original);
+  return mids.map(mid => ({ key: mid, mid, variant, text }));
+}
 
-  const toggle = $('use-all-models');
-  const useAll = compareAll || !toggle || toggle.checked;
-  const selected = useAll
-    ? Object.keys(MODELS).filter(mid => workerStatus[mid] !== 'offline')
-    : Array.from($$('#compare-checks input:checked')).map(e => e.value);
-  if (!selected.length) { showToast(t('cmp.needModel'), 'warn'); return; }
+async function compareModels() {
+  if (isComparing) return;
+  const original = $('text-input').value.trim();
+  if (!original) { showToast(t('synth.needText'), 'warn'); return; }
 
   isComparing = true;
   const btn = $('btn-compare');
   if (btn) btn.disabled = true;
   updateSynthBtn();
   $('synth-progress').classList.remove('hidden');
-  $('progress-hint').textContent = t('cmp.preparing', { n: selected.length });
 
-  // Create the run up front and show it expanded at the top of the library, so the live
-  // generation streams into the same card the user will keep and compare against later.
-  // params snapshot per item lets a later retry reproduce these exact inputs.
-  const run = {
-    id: `c${Date.now()}`,
-    text,
-    timestamp: Date.now(),
-    items: selected.map(mid => ({ mid, pending: true, options: optionSummary(mid, false), params: { ...paramValues[mid] } })),
-  };
-  currentCompareRunId = run.id;
-  expandedCompareRuns.add(run.id);
+  let run = null;
   try {
+    const items = await compareItems(original);
+    if (!items) return;
+    $('progress-hint').textContent = t('cmp.preparing', { n: items.length });
+
+    // Create the run up front and show it expanded at the top of the library, so the live
+    // generation streams into the same card the user will keep and compare against later.
+    // params snapshot per item lets a later retry reproduce these exact inputs.
+    run = {
+      id: `c${Date.now()}`,
+      text: original,
+      mode: compareMode,
+      timestamp: Date.now(),
+      items: items.map(it => ({ ...it, pending: true, options: optionSummary(it.mid, false),
+                                params: { ...paramValues[it.mid] } })),
+    };
+    currentCompareRunId = run.id;
+    expandedCompareRuns.add(run.id);
     addCompareRun(run);   // unshift + persist + renderCompareLibrary → renders the pending card
     const compareCard = $('saved-compare-card');
     if (compareCard && typeof compareCard.scrollIntoView === 'function') {
       compareCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
-    for (let i = 0; i < selected.length; i++) {
-      const mid = selected[i];
-      const idx = run.items.findIndex(it => it.mid === mid);
-      const options = run.items[idx].options;
-      const progress = t('cmp.progress', { i: i + 1, n: selected.length });
+    for (let i = 0; i < run.items.length; i++) {
+      const pending = run.items[i];
+      const key = itemKey(pending);
+      const progress = t('cmp.progress', { i: i + 1, n: run.items.length });
       if ($('compare-label')) $('compare-label').textContent = progress;
       $('synth-label').textContent = progress;
       $('progress-hint').textContent = t('cmp.progressHint', { p: progress });
-      setMiniHtml(run.id, mid, `${miniTitleHtml(mid)}<div class="mini-spinner">${t('cmp.generating')}</div>${optionChipsHtml(options)}`);
+      setMiniHtml(run.id, key, `${miniTitleHtml(pending)}${runTextHtml(pending.text)}<div class="mini-spinner">${t('cmp.generating')}</div>${optionChipsHtml(pending.options)}`);
 
+      const base = { key, mid: pending.mid, variant: pending.variant, text: pending.text,
+                     options: pending.options, params: pending.params };
       let item;
       try {
-        const fd = buildFormDataForModel(mid, text, false);
-        const r = await fetch(appUrl(`api/${mid}/synthesize`), { method: 'POST', body: fd });
-        if (!r.ok) throw new Error((await r.text()) || `HTTP ${r.status}`);
+        const fd = buildFormDataForModel(pending.mid, pending.text, false);
+        const r = await fetch(appUrl(`api/${pending.mid}/synthesize`), { method: 'POST', body: fd });
+        if (!r.ok) throw new Error(await errorText(r));
         const result = await r.json();
-        const url = modelAudioUrl(mid, result.filename);
-        addToHistory({ ...result, model: mid, text, url, options, timestamp: Date.now() });
-        item = { mid, result, options, url, params: run.items[idx].params };
+        const url = modelAudioUrl(pending.mid, result.filename);
+        addToHistory({ ...result, model: pending.mid, text: pending.text, variant: pending.variant,
+                       original, url, options: pending.options, timestamp: Date.now() });
+        item = { ...base, result, url };
       } catch (e) {
-        item = { mid, error: e.message || String(e), options, params: run.items[idx].params };
+        item = { ...base, error: e.message || String(e) };
       }
 
-      run.items[idx] = item;
+      run.items[i] = item;
       persistCompareRuns();
-      setMiniHtml(run.id, mid, miniPlayerHtml(mid, item, run.id));
+      setMiniHtml(run.id, key, miniPlayerHtml(item, run));
       refreshRunSummary(run);
     }
 
@@ -2023,16 +2503,18 @@ async function compareModels(compareAll = false) {
     showToast(hadErr ? t('cmp.doneErr') : t('cmp.done'), hadErr ? 'warn' : 'success');
   } catch (e) {
     const message = String(e.message || e).slice(0, 120);
-    for (const item of run.items) {
-      if (item.pending) {
-        delete item.pending;
-        item.error = message;
+    if (run) {
+      for (const item of run.items) {
+        if (item.pending) {
+          delete item.pending;
+          item.error = message;
+        }
       }
+      try {
+        persistCompareRuns();
+        renderCompareLibrary();
+      } catch { /* the progress controls are still reset below */ }
     }
-    try {
-      persistCompareRuns();
-      renderCompareLibrary();
-    } catch { /* the progress controls are still reset below */ }
     showToast(t('cmp.startFailed', { err: message }), 'error', 6000);
   } finally {
     isComparing = false;
@@ -2083,7 +2565,7 @@ function setupPrimaryActions() {
   if (synthBtn) synthBtn.addEventListener('click', synthesize);
 
   const compareBtn = $('btn-compare');
-  if (compareBtn) compareBtn.addEventListener('click', () => compareModels(true));
+  if (compareBtn) compareBtn.addEventListener('click', () => compareModels());
 
   const compareToggle = $('use-all-models');
   if (compareToggle) {
@@ -2148,6 +2630,9 @@ function init() {
   // Transcription is optional too, but it is wired before the restoration block so a
   // stale-localStorage failure there cannot leave the transcribe button dead.
   setupTranscription();
+  setupTashkeel();
+  setupCompareModes();
+  setupVoiceLibrary();
 
   try {
     renderVoicePicker();
@@ -2182,7 +2667,7 @@ function init() {
   if ($('saved-compare-list')) {
     $('saved-compare-list').addEventListener('click', e => {
       const btn = e.target.closest('.mini-retry');
-      if (btn) { e.stopPropagation(); retryCompareItem(btn.dataset.runId, btn.dataset.mid); }
+      if (btn) { e.stopPropagation(); retryCompareItem(btn.dataset.runId, btn.dataset.key || btn.dataset.mid); }
     });
   }
 

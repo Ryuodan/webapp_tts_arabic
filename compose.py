@@ -1,5 +1,6 @@
 """Auto-Compose agent — turn a job + voice preferences into a ready-to-synthesize
-Arabic script and model-aware voice parameters, via one OpenAI structured-output call.
+Arabic script and model-aware voice parameters, via one structured-output LLM call. The
+model — Groq or OpenAI — comes from llm.py.
 
 Used by the gateway's POST /api/compose endpoint (see server.py). The frontend feeds the
 result straight into the existing synthesis controls, so every field here must already be
@@ -10,10 +11,12 @@ import pathlib
 from typing import Literal, Optional
 
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 BASE_DIR = pathlib.Path(__file__).parent
-load_dotenv(BASE_DIR / ".env")  # load OPENAI_* regardless of how the gateway is launched
+load_dotenv(BASE_DIR / ".env")  # load the LLM keys regardless of how the gateway is launched
+
+import llm  # noqa: E402 — reads the environment .env just filled in
 
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.5")
 
@@ -78,6 +81,27 @@ class ComposeResult(BaseModel):
     notes: str = Field(
         default="", description="One short sentence (Arabic or English) explaining the voice/tone choice")
 
+    # JSON mode (Groq) hands the model no schema, so a closed field can come back as "30" or
+    # "adult" — which would fail the whole answer over one setting the UI can simply leave
+    # open. An unknown value becomes "let the model decide"; numbers are clamped in compose().
+    @field_validator("gender", "age", mode="before")
+    @classmethod
+    def _unknown_choice_is_left_open(cls, v, info):
+        allowed = _GENDERS if info.field_name == "gender" else _AGES
+        v = str(v or "").strip().lower()
+        return v if v in allowed else ""
+
+    @field_validator("dialect", mode="before")
+    @classmethod
+    def _unknown_dialect_is_msa(cls, v):
+        v = str(v or "").strip().lower()
+        return v if v in _DIALECTS else "msa"
+
+    @field_validator("omnivoice_instruct", "voxcpm2_style", "notes", mode="before")
+    @classmethod
+    def _null_text_is_empty(cls, v):
+        return "" if v is None else v
+
 
 def _system_prompt() -> str:
     return (
@@ -99,7 +123,12 @@ def _system_prompt() -> str:
         "- `voxcpm2_style`: a short free-form English delivery cue WITHOUT parentheses "
         "(e.g. 'calm, formal' or 'cheerful, energetic, fast').\n"
         "- `cfg_value`: 1.0-5.0 (≈2.0 natural, higher = stronger style adherence).\n"
-        "- `inference_timesteps`: 5 (draft), 10 (balanced) or 20 (best quality)."
+        "- `inference_timesteps`: 5 (draft), 10 (balanced) or 20 (best quality).\n\n"
+        "Answer with a JSON object with exactly these keys: `dialect` (one of "
+        + ", ".join(f'"{d}"' for d in _DIALECTS) + "), `gender` (\"male\", \"female\" or \"\"), "
+        "`age` (\"young\", \"middle\", \"old\" or \"\" — a band, never a number), `text`, "
+        "`omnivoice_instruct`, `voxcpm2_style`, `cfg_value` (a number), `inference_timesteps` "
+        "(5, 10 or 20) and `notes`."
     )
 
 
@@ -147,25 +176,14 @@ def _filter_instruct(instruct: str) -> str:
 
 
 def _build_llm():
-    if not os.getenv("OPENAI_API_KEY"):
-        raise RuntimeError("OPENAI_API_KEY is not set (add it to .env or the environment).")
-    from langchain_openai import ChatOpenAI
-    kwargs = {"model": OPENAI_MODEL, "timeout": 60, "max_retries": 2}
-    # GPT-5.x reasoning models reject a custom temperature; only pass one if explicitly set.
-    temp = os.getenv("OPENAI_TEMPERATURE", "").strip()
-    if temp:
-        try:
-            kwargs["temperature"] = float(temp)
-        except ValueError:
-            pass
-    return ChatOpenAI(**kwargs).with_structured_output(ComposeResult)
+    return llm.structured_llm(ComposeResult)
 
 
 def compose(job: str, gender: str = "", age: str = "",
             dialect: str = "msa", brief: str = "") -> dict:
     """One Arabic script + sanitized settings for BOTH engines (OmniVoice + VoxCPM2)."""
-    llm = _build_llm()
-    result: ComposeResult = llm.invoke([
+    model = _build_llm()
+    result: ComposeResult = model.invoke([
         {"role": "system", "content": _system_prompt()},
         {"role": "user", "content": _user_prompt(job, gender, age, dialect, brief)},
     ])
@@ -191,4 +209,6 @@ def compose(job: str, gender: str = "", age: str = "",
         "inference_timesteps": _snap_timesteps(result.inference_timesteps),
         "notes": (result.notes or "").strip(),
         "openai_model": OPENAI_MODEL,
+        "provider": llm.provider(),
+        "model": llm.model_name(),
     }

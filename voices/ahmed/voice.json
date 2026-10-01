@@ -3,11 +3,26 @@
   "label": "أحمد — فصحى",
   "gender": "male",
   "language": "arb",
+  "order": 7,
+  "tags": [
+    "male",
+    "msa",
+    "unseen",
+    "reader"
+  ],
   "ref_audio": "ahmed_ref_6s.wav",
   "ref_text": "لَا يَمُرُّ يَوْمٌ إِلَّا وَأَسْتَقْبِلُ عِدَّةَ رَسَائِلَ، تَتَضَمَّنُ أَسْئِلَةً مُلِحَّةْ.",
   "sample_rate": 24000,
   "duration_s": 6.0,
   "source": "https://huggingface.co/IbrahimSalah/Arabic-TTS-Spark (reference.wav, resampled 44.1kHz stereo -> 24kHz mono)",
   "license": "Upstream repo: fair-noncommercial-research-license",
-  "notes": "MSA male reference clip from the Arabic-TTS-Spark repo; transcript is the demo Space's default reference text (fully diacritized)."
+  "notes": "MSA male reference clip from the Arabic-TTS-Spark repo; transcript is the demo Space's default reference text (fully diacritized). No model here trained on it. The omnivoice_najdi model keeps little of its timbre (similarity 0.46) and speaks it with a Saudi accent; for MSA in this voice use omnivoice_base.",
+  "clone_check": {
+    "model": "najdi_mix_v3_ft/checkpoint-1950, language ars, 8 unseen sentences",
+    "sim_speaker": 0.458,
+    "utmos": 3.53,
+    "cer": 0.022,
+    "p_gulf": 0.995,
+    "from": "omnivoice-finetune/scripts/pick_voice_refs.py -> outputs/voice_refs/picks.json"
+  }
 }
