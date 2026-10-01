@@ -2,6 +2,7 @@ fastapi>=0.111
 uvicorn[standard]>=0.30
 httpx>=0.27
 python-multipart>=0.0.9
+soundfile>=0.12        # MP3 downloads (GET /audio/...?format=mp3)
 
 # Auto-Compose agent (✨ التأليف التلقائي) — needs recent versions for GPT-5.x models
 langchain-openai>=1.3

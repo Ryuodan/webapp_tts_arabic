@@ -228,6 +228,7 @@ const ENDPOINTS = [
     fields: [
       { name: 'model',    type: 'select', in: 'path', options: ['omnivoice_najdi', 'omnivoice_base', 'transcribe'], value: 'omnivoice_najdi' },
       { name: 'filename', type: 'text',   in: 'path', value: 'omnivoice_xxxxxxxxxxxx.wav' },
+      { name: 'format',   type: 'select', in: 'query', options: ['wav', 'mp3'], value: 'wav', get note() { return t('ep.audio.format'); } },
     ],
     noTry: true,
   },

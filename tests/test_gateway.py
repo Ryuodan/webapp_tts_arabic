@@ -3,11 +3,13 @@
 The workers are replaced by an httpx MockTransport keyed on port, so these tests cover
 the gateway's own logic (including the streaming request body) without any worker running.
 """
+import io
 import json
 from urllib.parse import parse_qsl
 
 import httpx
 import pytest
+import soundfile as sf
 from fastapi.testclient import TestClient
 
 from conftest import fresh_import, write_wav
@@ -442,6 +444,35 @@ def test_audio_path_traversal_is_blocked(gateway, name):
 def test_audio_unknown_model_or_missing_file_is_404(gateway):
     assert gateway.get("/audio/nope/x.wav").status_code == 404
     assert gateway.get("/audio/transcribe/absent.wav").status_code == 404
+
+
+def test_audio_converts_to_mp3_on_request(gateway):
+    wav = make_output(gateway.workdir, "outputs_omnivoice", "omnivoice_a.wav")
+    r = gateway.get("/audio/omnivoice_najdi/omnivoice_a.wav?format=mp3")
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "audio/mpeg"
+    assert r.headers["cache-control"] == "no-store"
+    assert "omnivoice_a.mp3" in r.headers["content-disposition"]   # what a browser saves it as
+
+    info = sf.info(io.BytesIO(r.content))
+    assert info.format == "MP3" and info.samplerate == 16_000
+    assert abs(info.duration - 0.5) < 0.1                          # the whole clip, not a stub
+    assert [f.name for f in wav.parent.iterdir()] == ["omnivoice_a.wav"]   # nothing kept on disk
+
+
+def test_audio_format_is_wav_unless_asked(gateway):
+    make_output(gateway.workdir, "outputs_transcribe", "t.wav")
+    assert gateway.get("/audio/transcribe/t.wav?format=WAV").headers["content-type"] == "audio/wav"
+    assert gateway.get("/audio/transcribe/t.wav?format=MP3").headers["content-type"] == "audio/mpeg"
+    assert gateway.get("/audio/transcribe/t.wav?format=ogg").status_code == 400
+
+
+def test_mp3_conversion_keeps_the_audio_guards(gateway):
+    make_output(gateway.workdir, "outputs_transcribe", "t.wav", {"text": "نص"})
+    assert gateway.get("/audio/transcribe/absent.wav?format=mp3").status_code == 404
+    assert gateway.get("/audio/transcribe/..%2f..%2fserver.py?format=mp3").status_code == 404
+    # A sidecar is served from the same folder but is not audio: refused, never a 500.
+    assert gateway.get("/audio/transcribe/t.json?format=mp3").status_code == 415
 
 
 def test_fish_outputs_stay_readable(gateway):

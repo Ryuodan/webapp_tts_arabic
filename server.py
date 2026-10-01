@@ -3,6 +3,7 @@ Serves the frontend and proxies synthesis requests to model workers.
 Workers must be started separately (see start.sh).
 """
 import asyncio
+import io
 import json
 import os
 import pathlib
@@ -344,16 +345,42 @@ async def history(model: str, limit: int = 100):
     return items
 
 
+def _wav_to_mp3(path: pathlib.Path) -> bytes:
+    """Encode a stored recording as MP3 with libsndfile's LAME, at its best VBR quality:
+    about 100 kbps for the 24 kHz mono the workers write, a quarter of the wav."""
+    import soundfile as sf
+    data, rate = sf.read(str(path), dtype="float32")
+    buf = io.BytesIO()
+    sf.write(buf, data, rate, format="MP3", bitrate_mode="VARIABLE", compression_level=0.0)
+    return buf.getvalue()
+
+
 @app.get("/audio/{model}/{filename}")
-async def serve_audio(model: str, filename: str):
+async def serve_audio(model: str, filename: str, format: str = "wav"):
+    """A stored recording. `?format=mp3` converts it on the way out; only the wav is kept."""
     if model not in OUTPUT_DIRS:
         raise HTTPException(404, "Unknown model")
+    fmt = format.lower()
+    if fmt not in ("wav", "mp3"):
+        raise HTTPException(400, f"Unknown format '{format}'; use wav or mp3")
     safe = pathlib.Path(filename).name          # prevent path traversal
     path = OUTPUT_DIRS[model] / safe
     if not path.exists():
         raise HTTPException(404, "Audio file not found")
-    return FileResponse(str(path), media_type="audio/wav",
-                        headers={"Cache-Control": "no-store"})
+    if fmt == "wav":
+        return FileResponse(str(path), media_type="audio/wav",
+                            headers={"Cache-Control": "no-store"})
+
+    try:
+        mp3 = await asyncio.to_thread(_wav_to_mp3, path)
+    except ImportError as e:
+        raise HTTPException(501, f"MP3 conversion unavailable (install soundfile?): {e}")
+    except Exception as e:                     # not audio, or a rate/layout MP3 cannot carry
+        raise HTTPException(415, f"Could not convert {safe} to mp3: {e}")
+    name = quote(f"{path.stem}.mp3")
+    return Response(content=mp3, media_type="audio/mpeg",
+                    headers={"Cache-Control": "no-store",
+                             "Content-Disposition": f"inline; filename*=UTF-8''{name}"})
 
 
 @app.post("/api/compose")

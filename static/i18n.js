@@ -80,7 +80,8 @@ const I18N = (() => {
 
     // ── Player ────────────────────────────────────────────────
     'player.empty':       { ar: 'سيظهر الصوت المولّد هنا بعد الضغط على "توليد الصوت"', en: 'Generated audio will appear here once you press “Generate speech”' },
-    'player.download':    { ar: '⬇ تنزيل', en: '⬇ Download' },
+    'player.download':    { ar: '⬇ WAV', en: '⬇ WAV' },
+    'player.downloadMp3': { ar: '⬇ MP3', en: '⬇ MP3' },
     'metric.elapsed':     { ar: 'زمن التوليد', en: 'Generation time' },
     'metric.duration':    { ar: 'مدة الصوت',   en: 'Audio length' },
     'metric.rate':        { ar: 'العينة',      en: 'Sample rate' },
@@ -257,7 +258,8 @@ const I18N = (() => {
     'hist.confirmClear':  { ar: 'هل تريد مسح جميع سجلات التوليد؟', en: 'Clear the entire generation history?' },
     'hist.empty':         { ar: 'لا توجد مقاطع صوتية بعد', en: 'No audio yet' },
     'hist.play':          { ar: 'تشغيل', en: 'Play' },
-    'hist.download':      { ar: 'تنزيل', en: 'Download' },
+    'hist.download':      { ar: 'تنزيل WAV', en: 'Download WAV' },
+    'hist.downloadMp3':   { ar: 'تنزيل MP3', en: 'Download MP3' },
     'hist.delete':        { ar: 'حذف', en: 'Delete' },
 
     // Relative timestamps — short units, kept terse for the compact history rows.
@@ -467,6 +469,7 @@ const I18N = (() => {
     'ep.audio.title':     { ar: 'تنزيل ملف صوتي', en: 'Download an audio file' },
     'ep.audio.desc':      { ar: 'يخدم أي ملف يظهر في السجل أو في ردّ التوليد/التفريغ. رابط مباشر — لا حاجة لتجربته من هنا.',
                             en: 'Serves any file named in the history or in a synthesis/transcription response. A direct link — no need to try it here.' },
+    'ep.audio.format':    { ar: 'wav هو الملف المحفوظ؛ mp3 يُحوَّل عند الطلب', en: 'wav is the stored file; mp3 is converted on request' },
 
     // ── Request log console ───────────────────────────────────
     'logs.tagline':       { ar: 'سجل الطلبات والاستخدام', en: 'Request log and usage' },

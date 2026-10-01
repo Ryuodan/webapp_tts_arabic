@@ -9,6 +9,9 @@ const appUrl = path => new URL(String(path || '').replace(/^\/+/, ''), APP_BASE_
 const modelAudioUrl = (mid, filename) => appUrl(
   `audio/${encodeURIComponent(mid)}/${encodeURIComponent(filename)}`
 );
+// The gateway converts a stored wav on request, so every clip also downloads as MP3.
+const mp3Url  = url => `${url}${String(url).includes('?') ? '&' : '?'}format=mp3`;
+const mp3Name = filename => `${String(filename || 'audio').replace(/\.wav$/i, '')}.mp3`;
 
 // ── Model definitions ────────────────────────────────────────
 // The interface exposes two models: the Najdi fine-tune (house voice: Nasser) and the stock
@@ -1808,6 +1811,9 @@ async function loadPlayer(url, meta, text) {
   const dl = $('btn-dl');
   dl.href = url;
   dl.download = meta.filename;
+  const dlMp3 = $('btn-dl-mp3');
+  dlMp3.href = mp3Url(url);
+  dlMp3.download = mp3Name(meta.filename);
 
   // Player button color
   const playBtn = $('btn-play');
@@ -2032,6 +2038,7 @@ function renderHistory(filterModel = 'all') {
       <div class="hi-actions">
         <button class="hi-btn play" title="${t('hist.play')}">▶</button>
         <a class="hi-btn dl" href="${item.url}" download="${item.filename}" title="${t('hist.download')}">⬇</a>
+        <a class="hi-btn dl" href="${mp3Url(item.url)}" download="${mp3Name(item.filename)}" title="${t('hist.downloadMp3')}">MP3</a>
       </div>
     `;
     el.querySelector('.hi-btn.play').addEventListener('click', e => {

@@ -257,7 +257,7 @@ models/omnivoice/ fine-tuned checkpoint najdi_mix_v3_1950 (split parts + metadat
 
 Key endpoints: `POST /api/{model}/synthesize` (`model` ∈ `omnivoice_najdi`,
 `omnivoice_base`), `GET /api/status`, `GET /api/{model}/history`,
-`GET /audio/{model}/{file}`, `POST /api/compose`, `POST /api/prepare`, and the voice
+`GET /audio/{model}/{file}` (add `?format=mp3` for an MP3), `POST /api/compose`, `POST /api/prepare`, and the voice
 library: `GET`/`POST /api/voices`, `GET /api/voices/{voice_id}/audio`,
 `DELETE /api/voices/{voice_id}`.
 
