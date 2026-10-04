@@ -148,6 +148,53 @@ textarea { resize: vertical; }
   justify-content: space-between;
   gap: 8px;
 }
+.section-title { display: flex; align-items: center; gap: 7px; }
+/* The order to work in: 1 text, 2 voice, then Generate. */
+.step {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--border2);
+  background: var(--bg4);
+  color: var(--txt);
+  font-size: .66rem;
+  letter-spacing: 0;
+}
+/* What a section is currently set to, at the end of its header. */
+.tool-value {
+  margin-inline-start: auto;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--txt);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tool-value.online  { color: var(--green); }
+.tool-value.offline { color: var(--txt3); }
+.tool-value.loading { color: var(--yellow); }
+
+/* ── Folded tools (model, compare, transcription) ─────────── */
+.tool > summary {
+  cursor: pointer;
+  list-style: none;
+  justify-content: flex-start;
+  padding-bottom: 12px;
+  user-select: none;
+}
+.tool > summary::-webkit-details-marker { display: none; }
+.tool > summary::before { content: '▸'; width: 10px; color: var(--txt3); }
+.tool[open] > summary::before { content: '▾'; }
+.tool > summary:hover { color: var(--txt); }
+.tool[open] { padding-bottom: 12px; }
+.tool > .compose-desc, .tool > .model-credit, .tool > .file-zone { margin-inline: 12px; }
+.tool > .btn-compare { margin-inline: 12px; width: calc(100% - 24px); }
+.tool > .prep-bar { padding-top: 8px; }
+.tool > .model-cards { padding-bottom: 0; }
+
 .char-count {
   font-size: .68rem;
   padding: 2px 7px;
@@ -192,18 +239,7 @@ textarea { resize: vertical; }
 .mc-icon    { font-size: 1.25rem; line-height: 1.2; width: 26px; text-align: center; flex-shrink: 0; }
 .mc-main    { min-width: 0; flex: 1; }
 .mc-name    { font-size: .78rem; font-weight: 700; direction: ltr; text-align: left; }
-.mc-specs   { font-size: .65rem; color: var(--txt2); margin-top: 1px; line-height: 1.4; direction: ltr; text-align: left; }
-.mc-role    { font-size: .7rem; color: var(--txt2); margin-top: 7px; line-height: 1.55; }
-.mc-traits  { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 7px; }
-.mc-traits span {
-  padding: 2px 6px;
-  border-radius: 999px;
-  background: var(--bg4);
-  color: var(--txt2);
-  border: 1px solid var(--border);
-  font-size: .62rem;
-  white-space: nowrap;
-}
+.mc-role    { font-size: .68rem; color: var(--txt2); margin-top: 2px; line-height: 1.45; }
 .mc-status  { display: block; margin-top: 3px; font-size: .68rem; font-weight: 600; }
 .mc-status.online  { color: var(--green); }
 .mc-status.offline { color: var(--txt3); }
@@ -222,23 +258,45 @@ textarea { resize: vertical; }
 .model-card.omnivoice_najdi .mc-load-btn:hover:not(:disabled) { border-color: var(--najdi); color: var(--najdi); }
 .mc-load-btn:disabled { opacity: .65; cursor: default; animation: blink .8s infinite; }
 
-/* ── Simple voice picker ───────────────────────────────────── */
-.voice-picker {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+/* ── Voice cards ──────────────────────────────────────────── */
+.voice-list { padding: 0 12px 6px; }
+.voice-group-label { margin: 10px 0 6px; font-size: .68rem; line-height: 1.4; color: var(--txt2); }
+.voice-group-label:first-child { margin-top: 0; }
+.voice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.voice-card {
+  display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 12px 6px;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg3);
+  cursor: pointer;
+  transition: var(--transition);
+  user-select: none;
 }
-.voice-picker .param-label {
-  grid-column: 1 / -1;
-  text-align: start;
+.voice-card:hover { border-color: var(--border2); background: var(--bg4); }
+.voice-card:focus-visible { outline: 2px solid var(--najdi); outline-offset: 1px; }
+.voice-card.active { border-color: var(--najdi); background: var(--najdi-dim); }
+.vc-play {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border2);
+  border-radius: 50%;
+  background: var(--bg4);
+  color: var(--txt);
+  font-size: .62rem;
+  transition: var(--transition);
 }
-.voice-picker .param-select {
-  width: 100%;
-  padding: 8px 10px;
-  font-size: .82rem;
-}
+.vc-play:hover, .vc-play.playing { border-color: var(--najdi); color: var(--najdi); }
+.vc-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.35; text-align: start; }
+.vc-name, .vc-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vc-name { font-size: .8rem; font-weight: 600; color: var(--txt); }
+.vc-sub  { font-size: .66rem; color: var(--txt2); }
 .simple-footer {
   justify-content: flex-start;
 }
@@ -671,12 +729,13 @@ textarea { resize: vertical; }
 }
 .btn-synth:hover:not(:disabled) { filter: brightness(1.12); transform: translateY(-1px); }
 .btn-synth:active:not(:disabled) { transform: translateY(0); }
-.btn-synth:disabled { background: var(--bg4); color: var(--txt3); cursor: not-allowed; transform: none; }
 .btn-synth.fish     { background: var(--fish); }
 .btn-synth.omnivoice{ background: var(--omni); }
 .btn-synth.voxcpm2  { background: var(--vox);  }
 .btn-synth.omnivoice_base{ background: var(--vox);  }
 .btn-synth.omnivoice_najdi{ background: var(--najdi); }
+/* After the model colours, which it must override: a disabled button has to look disabled. */
+.btn-synth:disabled { background: var(--bg4); color: var(--txt3); cursor: not-allowed; transform: none; }
 
 .synth-icon { font-size: .8rem; }
 .synth-progress { display: flex; flex-direction: column; gap: 6px; }
@@ -1213,32 +1272,11 @@ textarea { resize: vertical; }
   color: var(--txt2);
   unicode-bidi: plaintext;
 }
-/* What the selected voice is: one chip per tag from its voice.json. */
-.voice-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  padding: 0 12px 6px;
-}
-.voice-tags:empty { display: none; }
-.voice-tag {
-  padding: 2px 8px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--bg3);
-  font-size: .68rem;
-  line-height: 1.5;
-  color: var(--txt2);
-  white-space: nowrap;
-}
-.voice-tag[title] { cursor: help; }
-.voice-tag.vt-trained { border-color: var(--najdi); color: var(--najdi); background: var(--najdi-dim); }
-.voice-tag.vt-unseen  { border-color: var(--border2); color: var(--txt); }
-#btn-voice-add { margin: 0 12px 4px; }
+.voice-actions { display: flex; align-items: center; gap: 8px; padding: 0 12px 12px; }
 .voice-add {
   display: grid;
   gap: 6px;
-  margin: 4px 12px 0;
+  margin: 0 12px 12px;
   padding: 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius);

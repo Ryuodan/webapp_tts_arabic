@@ -8,6 +8,8 @@ the server, and the wav itself is fetched afterwards from /audio/{model}/{filena
     python scripts/synthesize.py "..." --voices          # list the built-in voices
     python scripts/synthesize.py "..." --model omnivoice_base --dialect saudi -o out.wav
 
+Without --dialect the worker speaks a saved voice in its own dialect, and anything else in MSA.
+
 httpx is the gateway's own dependency, so this runs in the arabic-tts-web env as is.
 """
 import argparse
@@ -27,7 +29,7 @@ def voices(base=BASE, model="omnivoice_base"):
     return health.get("voices", [])
 
 
-def synthesize(text, model="omnivoice_najdi", dialect="msa", voice="", gender="", age="",
+def synthesize(text, model="omnivoice_najdi", dialect="", voice="", gender="", age="",
                base=BASE):
     """POST the form and return the response JSON.
 
@@ -58,7 +60,8 @@ def main():
     ap.add_argument("--base", default=BASE, help=f"gateway URL (default {BASE})")
     ap.add_argument("--model", default="omnivoice_najdi",
                     choices=["omnivoice_najdi", "omnivoice_base"])
-    ap.add_argument("--dialect", default="msa", choices=["msa", "saudi", "egyptian"])
+    ap.add_argument("--dialect", default="", choices=["", "msa", "saudi", "egyptian"],
+                    help="empty = the voice's own dialect")
     ap.add_argument("--voice", default="", help="built-in voice id; empty = the model's own")
     ap.add_argument("--gender", default="", choices=["", "male", "female"])
     ap.add_argument("--age", default="", choices=["", "young", "middle", "old"])

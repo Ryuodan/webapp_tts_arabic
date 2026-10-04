@@ -1,0 +1,346 @@
+{
+  "model": "OmniVoice",
+  "fine_tune_run": "najdi_v4_ft",
+  "selected_checkpoint": "omnivoice-finetune/checkpoints/najdi_v4_ft/checkpoint-6250",
+  "global_step": 6250,
+  "local_alias": "models/omnivoice/najdi_v4_6250",
+  "lineage": "k2-fsa/OmniVoice -> najdi_v4_ft (6,500 steps, lr 3e-5, 400 warmup)",
+  "training_data": {
+    "dataset": "data/najdi_v4 (Saudi customer-support speech, six synthesiser voices, Najdi and MSA, 24 kHz)",
+    "clips": {
+      "train": 31186,
+      "val": 1388,
+      "test": 1828
+    },
+    "minutes": {
+      "train": 3261.3,
+      "val": 137.3,
+      "test": 193.9
+    },
+    "train_hours_by_register": {
+      "najdi": 32.8,
+      "msa_spoken": 13.3,
+      "msa_formal": 8.3
+    },
+    "train_by_voice": {
+      "nasser": {
+        "clips": 8012,
+        "hours": 11.0,
+        "registers": [
+          "najdi"
+        ]
+      },
+      "joud": {
+        "clips": 9017,
+        "hours": 11.6,
+        "registers": [
+          "msa_formal",
+          "msa_spoken",
+          "najdi"
+        ]
+      },
+      "nora": {
+        "clips": 6560,
+        "hours": 14.5,
+        "registers": [
+          "msa_formal",
+          "msa_spoken",
+          "najdi"
+        ]
+      },
+      "ali": {
+        "clips": 2615,
+        "hours": 5.5,
+        "registers": [
+          "msa_formal",
+          "msa_spoken",
+          "najdi"
+        ]
+      },
+      "firas": {
+        "clips": 2505,
+        "hours": 6.1,
+        "registers": [
+          "msa_formal",
+          "msa_spoken",
+          "najdi"
+        ]
+      },
+      "majed": {
+        "clips": 2477,
+        "hours": 5.8,
+        "registers": [
+          "msa_formal",
+          "msa_spoken",
+          "najdi"
+        ]
+      }
+    }
+  },
+  "voices": {
+    "trained": "voices/nasser, joud, nora, ali, firas and majed: the six speakers of najdi_v4. Nasser recorded Najdi only; the other five also recorded MSA",
+    "house_voice": "voices/nasser, cloned unless the request names another voice or uploads a reference",
+    "other_voices": "any other built-in or uploaded voice is cloned from its reference clip alone; the accent follows the clip more than it did with najdi_mix_v3, and the timbre moves toward the trained voices"
+  },
+  "selection": {
+    "criterion": "lowest mean held-out loss over four in-domain corpora (Nasser and Joud clips no run trained on, and the new voices' test clips in Najdi and in MSA) among the 26 najdi_v4_ft checkpoints, steps 250-6500",
+    "mean_loss": 3.6692,
+    "next_best": {
+      "v4 step 6500": 3.6692,
+      "v4 step 6000": 3.6695,
+      "v4 step 5750": 3.6706
+    },
+    "per_corpus": {
+      "najdi_v3_clean_nasser": 4.0044,
+      "najdi_v3_clean_joud": 3.6427,
+      "najdi_v4_new_najdi": 3.5353,
+      "najdi_v4_new_msa": 3.4942,
+      "sada_saudi": 5.256
+    },
+    "source": "omnivoice-finetune/outputs/najdi_v4_eval/pick.json (scripts/summarize_najdi_v4_eval.py pick)"
+  },
+  "benchmark": {
+    "source": "omnivoice-finetune/outputs/najdi_v4c_eval/report.txt and summary.json (scripts/run_eval_najdi_v4.sh, then run_eval_najdi_v4c.sh for the 11th model)",
+    "design": "11 models x 283 held-out sentences (100 SADA, 60 Najdi Nasser-style, 35 Najdi other voices, 28 MSA, 30 Najdi and 30 MSA from the new voices) x 4 voices (own, Nasser, Abeer, a SADA broadcaster) = 12,452 clips, rendered with language arb",
+    "result": "best all-round: the lowest mean rank over the benchmark's five axes",
+    "ranking": [
+      {
+        "model": "v4_6250",
+        "mean_rank": 4.6,
+        "ranks": {
+          "Saudi accent P(Gulf)": 6,
+          "Saudi CER (all voices)": 2,
+          "Saudi UTMOS (all voices)": 7,
+          "SIM, unseen Saudi voices": 7,
+          "Saudi held-out loss": 1
+        }
+      },
+      {
+        "model": "base",
+        "mean_rank": 5,
+        "ranks": {
+          "Saudi accent P(Gulf)": 11,
+          "Saudi CER (all voices)": 3,
+          "Saudi UTMOS (all voices)": 5,
+          "SIM, unseen Saudi voices": 1,
+          "Saudi held-out loss": 5
+        }
+      },
+      {
+        "model": "v4c_1000",
+        "mean_rank": 5,
+        "ranks": {
+          "Saudi accent P(Gulf)": 7,
+          "Saudi CER (all voices)": 1,
+          "Saudi UTMOS (all voices)": 9,
+          "SIM, unseen Saudi voices": 6,
+          "Saudi held-out loss": 2
+        }
+      },
+      {
+        "model": "v3_1950",
+        "mean_rank": 5.4,
+        "ranks": {
+          "Saudi accent P(Gulf)": 3,
+          "Saudi CER (all voices)": 5,
+          "Saudi UTMOS (all voices)": 3,
+          "SIM, unseen Saudi voices": 8,
+          "Saudi held-out loss": 8
+        }
+      }
+    ],
+    "saudi_sets_all_voices": {
+      "this_checkpoint": {
+        "clips_judged_gulf": 0.71,
+        "cer": 0.072,
+        "utmos": 3.454,
+        "sim_unseen_voices": 0.624,
+        "clips_judged_gulf_unseen_voices": 0.53,
+        "msa_cer": 0.054
+      },
+      "najdi_v4c_ft/checkpoint-1000": {
+        "clips_judged_gulf": 0.71,
+        "cer": 0.07,
+        "utmos": 3.429,
+        "sim_unseen_voices": 0.626,
+        "clips_judged_gulf_unseen_voices": 0.51,
+        "msa_cer": 0.053
+      },
+      "najdi_mix_v3_ft/checkpoint-1950 (the previous card)": {
+        "clips_judged_gulf": 0.89,
+        "cer": 0.081,
+        "utmos": 3.544,
+        "sim_unseen_voices": 0.618,
+        "clips_judged_gulf_unseen_voices": 0.84,
+        "msa_cer": 0.064
+      },
+      "k2-fsa/OmniVoice": {
+        "clips_judged_gulf": 0.22,
+        "cer": 0.074,
+        "utmos": 3.521,
+        "sim_unseen_voices": 0.753,
+        "clips_judged_gulf_unseen_voices": 0.12,
+        "msa_cer": 0.054
+      }
+    },
+    "by_voice_this_checkpoint": {
+      "unseen voices": {
+        "clips_judged_gulf": 0.53,
+        "cer": 0.082,
+        "utmos": 3.46,
+        "sim_ref": 0.624
+      },
+      "Nasser": {
+        "clips_judged_gulf": 0.94,
+        "cer": 0.083,
+        "utmos": 3.569,
+        "sim_ref": 0.732
+      },
+      "default voice": {
+        "clips_judged_gulf": 0.84,
+        "cer": 0.042,
+        "utmos": 3.326,
+        "sim_ref": null
+      },
+      "all voices": {
+        "clips_judged_gulf": 0.71,
+        "cer": 0.072,
+        "utmos": 3.454,
+        "sim_ref": 0.66
+      }
+    },
+    "held_out_loss": {
+      "sada_saudi": 5.304,
+      "najdi_v3_clean_nasser": 3.957,
+      "najdi_v3_clean_joud": 3.615,
+      "najdi_cs_v2_unseen": 5.108,
+      "commonvoice_msa": 5.17,
+      "najdi_v4_new_najdi": 3.501,
+      "najdi_v4_new_msa": 3.48,
+      "saudi_avg": 4.496
+    },
+    "versus_najdi_mix_v3_1950": {
+      "Saudi sets (SADA, Najdi Nasser, Najdi CS)": {
+        "wer": {
+          "this": 0.128,
+          "v3_1950": 0.14,
+          "verdict": "BETTER"
+        },
+        "cer": {
+          "this": 0.072,
+          "v3_1950": 0.081,
+          "verdict": "BETTER"
+        },
+        "utmos": {
+          "this": 3.454,
+          "v3_1950": 3.544,
+          "verdict": "WORSE"
+        },
+        "sim_ref": {
+          "this": 0.66,
+          "v3_1950": 0.657,
+          "verdict": "tie"
+        },
+        "gulf": {
+          "this": 0.702,
+          "v3_1950": 0.866,
+          "verdict": "WORSE"
+        }
+      },
+      "MSA authored": {
+        "wer": {
+          "this": 0.06,
+          "v3_1950": 0.074,
+          "verdict": "BETTER"
+        },
+        "cer": {
+          "this": 0.054,
+          "v3_1950": 0.064,
+          "verdict": "BETTER"
+        },
+        "utmos": {
+          "this": 3.346,
+          "v3_1950": 3.505,
+          "verdict": "WORSE"
+        },
+        "sim_ref": {
+          "this": 0.689,
+          "v3_1950": 0.689,
+          "verdict": "tie"
+        },
+        "gulf": {
+          "this": 0.433,
+          "v3_1950": 0.814,
+          "verdict": "WORSE"
+        }
+      },
+      "new voices, Najdi (v4_najdi)": {
+        "wer": {
+          "this": 0.099,
+          "v3_1950": 0.109,
+          "verdict": "tie"
+        },
+        "cer": {
+          "this": 0.05,
+          "v3_1950": 0.049,
+          "verdict": "tie"
+        },
+        "utmos": {
+          "this": 3.343,
+          "v3_1950": 3.482,
+          "verdict": "WORSE"
+        },
+        "sim_ref": {
+          "this": 0.664,
+          "v3_1950": 0.641,
+          "verdict": "BETTER"
+        },
+        "gulf": {
+          "this": 0.681,
+          "v3_1950": 0.913,
+          "verdict": "WORSE"
+        }
+      },
+      "new voices, MSA (v4_msa)": {
+        "wer": {
+          "this": 0.127,
+          "v3_1950": 0.134,
+          "verdict": "tie"
+        },
+        "cer": {
+          "this": 0.104,
+          "v3_1950": 0.106,
+          "verdict": "tie"
+        },
+        "utmos": {
+          "this": 3.306,
+          "v3_1950": 3.482,
+          "verdict": "WORSE"
+        },
+        "sim_ref": {
+          "this": 0.66,
+          "v3_1950": 0.655,
+          "verdict": "tie"
+        },
+        "gulf": {
+          "this": 0.546,
+          "v3_1950": 0.918,
+          "verdict": "WORSE"
+        }
+      }
+    },
+    "caveat": "against v3_1950 it reads text more accurately (CER 0.072 vs 0.081) and knows four more voices and MSA, at the cost of a weaker Saudi accent when the voice is not one it trained on (53% of clips judged Gulf with unseen voices, v3 84%) and a lower UTMOS (3.45 vs 3.54). Cloning Nasser the two are tied"
+  },
+  "artifact": {
+    "model_safetensors_bytes": 2450344144,
+    "model_safetensors_sha256": "463a10624977ae7177edba87473137948927d5b3800ddac811234438501c3b4d",
+    "config_json_sha256": "958f818c4e5b92a8a465784338431604b10f1b4a1a6e430dbb1412deae7dcdc6",
+    "tokenizer_json_sha256": "408f669b7e2b045fdf54201d815bd364e6667dbd845115da81239c40bc6dcfd1",
+    "train_config_json_sha256": "981073c23f959b2768220495e535468c8c9bb5de19effc57611e10eeacc14e66",
+    "parts": 25,
+    "part_bytes": 99614720
+  },
+  "optimizer_state": "not copied (optimizer.bin, scheduler.bin, random_states_0.pkl are training-only)",
+  "replaces": "models/omnivoice/najdi_mix_v3_1950 (najdi_mix_v3_ft/checkpoint-1950)",
+  "selected_on": "2026-10-04"
+}

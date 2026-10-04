@@ -1,0 +1,65 @@
+{
+  "id": "majed",
+  "label": "ماجد — نجدي",
+  "gender": "male",
+  "language": "ars",
+  "order": 6,
+  "tags": [
+    "male",
+    "najdi",
+    "trained",
+    "synthetic",
+    "support"
+  ],
+  "ref_audio": "majed_ref_7s.wav",
+  "ref_text": "إي والله تأخرتوا، شنطتي زادت كيلو، ورسوم التخليص طلعت مية وعشرين ريال.",
+  "sample_rate": 24000,
+  "duration_s": 6.83,
+  "source": "omnivoice-finetune/data/najdi_v4/wavs/af2c97f71435.wav (id najdi_v4_af2c97f71435: in the najdi_v4 test split, so the shipped najdi_v4_ft checkpoint never trained on it)",
+  "notes": "Majed (a synthesiser voice described as measured and steady), a Najdi male support agent: one of the six voices the omnivoice_najdi model trained on (2,477 of his clips, 5.8 h, in Najdi and MSA). A customer complaining about a late delivery. Picked from his 14 held-out Najdi clips of 5-9 s: of the eight cloned on eight unseen sentences with the shipped model this one ranked first, and on 20 more held-out Najdi lines it beat the runner-up on UTMOS (+0.10 +/- 0.04) and on accent (P(Gulf) +0.24 +/- 0.07). His is the lowest UTMOS of the six trained voices (2.85; this clip itself scores 2.64), and his clones speak faster than he does (1.17x).",
+  "clone_check": {
+    "model": "najdi_v4_ft/checkpoint-6250, language arb, 8 unseen sentences",
+    "sim_speaker": 0.889,
+    "utmos": 2.855,
+    "cer": 0.002,
+    "p_gulf": 0.777,
+    "pace_vs_natural": 1.17,
+    "from": "omnivoice-finetune/scripts/pick_voice_refs_v4.py -> outputs/voice_refs_v4/picks.json"
+  },
+  "language_check": {
+    "model": "najdi_v4_ft/checkpoint-6250, 20 held-out Najdi lines and 20 held-out MSA lines, each code",
+    "najdi_text": {
+      "arb": {
+        "sim_speaker": 0.903,
+        "utmos": 2.831,
+        "cer": 0.162,
+        "p_gulf": 0.679,
+        "p_msa": 0.297
+      },
+      "ars": {
+        "sim_speaker": 0.911,
+        "utmos": 2.811,
+        "cer": 0.161,
+        "p_gulf": 0.728,
+        "p_msa": 0.254
+      }
+    },
+    "msa_text": {
+      "arb": {
+        "sim_speaker": 0.916,
+        "utmos": 2.726,
+        "cer": 0.121,
+        "p_gulf": 0.351,
+        "p_msa": 0.644
+      },
+      "ars": {
+        "sim_speaker": 0.915,
+        "utmos": 2.73,
+        "cer": 0.129,
+        "p_gulf": 0.326,
+        "p_msa": 0.666
+      }
+    },
+    "from": "omnivoice-finetune/scripts/check_voice_language_v4.py -> outputs/voice_refs_v4/language/report.txt"
+  }
+}

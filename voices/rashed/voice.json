@@ -3,7 +3,7 @@
   "label": "راشد — نجدي",
   "gender": "male",
   "language": "ars",
-  "order": 3,
+  "order": 7,
   "tags": [
     "male",
     "najdi",
@@ -15,15 +15,51 @@
   "ref_text": "وإذا فيه تعليمات للموقع مثل بوابة أو رقم شقة، أضفها عشان ما يتعطل الوصول.",
   "sample_rate": 24000,
   "duration_s": 5.79,
-  "source": "omnivoice-finetune/data/najdi_cs/wavs/najdi_cs_4_najdi_cs_01_clean_010.wav (id najdi_cs_00380, cut from set 4's najdi_cs_01_clean.wav; no najdi_cs clip is in najdi_mix_v3, so the shipped checkpoint never trained on this voice)",
-  "notes": "The male voice of the synthetic najdi_cs customer-support sets, where the agent calls himself Rashed (set 4), Fahad (set 7) and Khaled (sets 2, 5): one synthesiser voice under several names (speaker similarity 0.89 across its 22 recordings). The omnivoice_najdi model only clones it. Picked from 29 candidate segments of 5-9 s: of the eight cloned with the shipped model this gave the closest clones (similarity 0.749, next 0.738) with the highest UTMOS (3.40).",
+  "source": "omnivoice-finetune/data/najdi_cs/wavs/najdi_cs_4_najdi_cs_01_clean_010.wav (id najdi_cs_00380, cut from set 4's najdi_cs_01_clean.wav; no najdi_cs clip is in najdi_v4, so the shipped checkpoint never trained on this voice)",
+  "notes": "The male voice of the synthetic najdi_cs customer-support sets, where the agent calls himself Rashed (set 4), Fahad (set 7) and Khaled (sets 2, 5): one synthesiser voice under several names (speaker similarity 0.89 across its 22 recordings). No model here trained on it; the omnivoice_najdi model only clones it. Picked on 2026-10-01 from 29 candidate segments of 5-9 s. Re-checked on 2026-10-04 with najdi_v4_ft/checkpoint-6250 against the eight best: the best alternative was within noise of this one (similarity +0.013 +/- 0.014, UTMOS -0.080 +/- 0.099), so this clip stays. Of all the voices his accent gains the most from being spoken with ars: P(Gulf) on 20 Najdi lines 0.32 with arb, 0.61 with ars.",
   "clone_check": {
-    "model": "najdi_mix_v3_ft/checkpoint-1950, language ars, 8 unseen sentences",
-    "sim_speaker": 0.749,
-    "utmos": 3.399,
-    "cer": 0.002,
-    "p_gulf": 0.985,
-    "pace_vs_natural": 0.95,
-    "from": "omnivoice-finetune/scripts/pick_voice_refs.py -> outputs/voice_refs/picks.json"
+    "model": "najdi_v4_ft/checkpoint-6250, language arb, 8 unseen sentences",
+    "sim_speaker": 0.739,
+    "utmos": 3.345,
+    "cer": 0.0,
+    "p_gulf": 0.337,
+    "pace_vs_natural": 0.99,
+    "from": "omnivoice-finetune/scripts/pick_voice_refs_v4.py -> outputs/voice_refs_v4/picks.json"
+  },
+  "language_check": {
+    "model": "najdi_v4_ft/checkpoint-6250, 20 held-out Najdi lines and 20 held-out MSA lines, each code",
+    "najdi_text": {
+      "arb": {
+        "sim_speaker": 0.767,
+        "utmos": 3.268,
+        "cer": 0.16,
+        "p_gulf": 0.317,
+        "p_msa": 0.466
+      },
+      "ars": {
+        "sim_speaker": 0.755,
+        "utmos": 3.3,
+        "cer": 0.137,
+        "p_gulf": 0.606,
+        "p_msa": 0.296
+      }
+    },
+    "msa_text": {
+      "arb": {
+        "sim_speaker": 0.78,
+        "utmos": 3.262,
+        "cer": 0.126,
+        "p_gulf": 0.027,
+        "p_msa": 0.861
+      },
+      "ars": {
+        "sim_speaker": 0.778,
+        "utmos": 3.317,
+        "cer": 0.117,
+        "p_gulf": 0.127,
+        "p_msa": 0.701
+      }
+    },
+    "from": "omnivoice-finetune/scripts/check_voice_language_v4.py -> outputs/voice_refs_v4/language/report.txt"
   }
 }

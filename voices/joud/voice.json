@@ -15,15 +15,51 @@
   "ref_text": "الله يعطيك العافية. رقم جوالك المسجل عندنا وش يكون؟ عشان أقدر أتحقق من هويتك",
   "sample_rate": 24000,
   "duration_s": 6.69,
-  "source": "omnivoice-finetune/data/najdi_mix_v3/wavs/c1530756413e.wav (id najdi_v3_c1530756413e: in the v3 test split, so the shipped najdi_mix_v3_ft checkpoint never trained on it)",
-  "notes": "Joud ('Joud - Saudi Gentle & Warm', a synthesiser voice), the Najdi female support agent: with Nasser, one of the two voices the omnivoice_najdi model trained on (8,276 of her clips, 10.3 h). An agent asking for the caller's number, at her natural pace. Picked from the 178 held-out Joud clips of 5-9 s: the ten best by their own quality were each cloned on eight unseen sentences with the shipped model, and this one gave the most Joud-like clones (similarity 0.874, the next 0.865) with the highest UTMOS (3.11, next 3.07) at 0.97x her natural pace.",
+  "source": "omnivoice-finetune/data/najdi_mix_v3/wavs/c1530756413e.wav (id najdi_v3_c1530756413e, the same clip as najdi_v4_c1530756413e: in the test split of najdi_mix_v3 and of najdi_v4, so the shipped najdi_v4_ft checkpoint never trained on it)",
+  "notes": "Joud ('Joud - Saudi Gentle & Warm', a synthesiser voice), the Najdi female support agent: one of the six voices the omnivoice_najdi model trained on (9,017 of her clips, 11.6 h, nearly all Najdi). An agent asking for the caller's number, at her natural pace. Picked on 2026-10-01 from her held-out clips of 5-9 s. Re-checked on 2026-10-04 with najdi_v4_ft/checkpoint-6250 against the ten best of 194 such clips, each cloned on eight unseen sentences: the best alternative was within noise of this one (similarity +0.001 +/- 0.009, UTMOS +0.071 +/- 0.036), so this clip stays.",
   "clone_check": {
-    "model": "najdi_mix_v3_ft/checkpoint-1950, language ars, 8 unseen sentences",
-    "sim_speaker": 0.874,
-    "utmos": 3.107,
+    "model": "najdi_v4_ft/checkpoint-6250, language arb, 8 unseen sentences",
+    "sim_speaker": 0.864,
+    "utmos": 3.03,
     "cer": 0.006,
     "p_gulf": 0.994,
     "pace_vs_natural": 0.97,
-    "from": "omnivoice-finetune/scripts/pick_voice_refs.py -> outputs/voice_refs/picks.json"
+    "from": "omnivoice-finetune/scripts/pick_voice_refs_v4.py -> outputs/voice_refs_v4/picks.json"
+  },
+  "language_check": {
+    "model": "najdi_v4_ft/checkpoint-6250, 20 held-out Najdi lines and 20 held-out MSA lines, each code",
+    "najdi_text": {
+      "arb": {
+        "sim_speaker": 0.892,
+        "utmos": 3.039,
+        "cer": 0.02,
+        "p_gulf": 0.906,
+        "p_msa": 0.001
+      },
+      "ars": {
+        "sim_speaker": 0.882,
+        "utmos": 3.126,
+        "cer": 0.025,
+        "p_gulf": 0.981,
+        "p_msa": 0.001
+      }
+    },
+    "msa_text": {
+      "arb": {
+        "sim_speaker": 0.893,
+        "utmos": 3.023,
+        "cer": 0.044,
+        "p_gulf": 0.915,
+        "p_msa": 0.004
+      },
+      "ars": {
+        "sim_speaker": 0.892,
+        "utmos": 3.088,
+        "cer": 0.038,
+        "p_gulf": 0.951,
+        "p_msa": 0.002
+      }
+    },
+    "from": "omnivoice-finetune/scripts/check_voice_language_v4.py -> outputs/voice_refs_v4/language/report.txt"
   }
 }

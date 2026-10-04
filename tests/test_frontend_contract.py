@@ -178,6 +178,16 @@ def test_every_built_in_voice_says_how_the_najdi_model_knows_it():
             assert meta["gender"] in meta["tags"], vid
 
 
+def test_every_built_in_voice_names_a_dialect_the_worker_can_send():
+    """The studio sends no dialect, so a built-in voice's `language` is what it is spoken with;
+    a code outside the worker's map would silently fall back to MSA."""
+    for vid, meta in omnivoice_server._VOICES.items():
+        if not meta.get("custom"):
+            assert meta["language"] in omnivoice_server._ARABIC_DIALECT_LANG.values(), vid
+    script = (STATIC / "app.js").read_text(encoding="utf-8")
+    assert "dialect: ''" in script                       # nothing forces MSA over the voice
+
+
 def test_the_marks_switch_offers_exactly_the_modes_the_agent_knows():
     """Full tashkeel or shadda only: a button for a mode textprep does not know would
     silently get full tashkeel back."""
@@ -262,6 +272,21 @@ def test_ids_bound_after_render_are_ones_app_js_actually_generates():
 
     unreachable = [i for i in bound if f'id="{i}"' not in html and i not in generated]
     assert not unreachable, f"app.js binds to ids nothing ever creates: {sorted(unreachable)}"
+
+
+def test_the_main_flow_is_never_folded_away():
+    """Text, voice and Generate are what the studio opens on. The optional panels are folded
+    <details>, each with the id its open/closed state is remembered under."""
+    html = (STATIC / "index.html").read_text(encoding="utf-8")
+    folded = re.findall(r'<details class="panel-section tool"(?: id="([\w-]+)")?>(.*?)</details>', html, re.S)
+    assert folded, "no folded tools found — the extraction pattern went stale"
+    ids = [tool_id for tool_id, _ in folded]
+    assert all(ids) and len(set(ids)) == len(ids), ids
+    inside = "".join(body for _, body in folded)
+    for primary in ("text-input", "voice-list", "btn-synth"):
+        assert f'id="{primary}"' in html and f'id="{primary}"' not in inside, primary
+    for optional in ("model-cards", "btn-compare", "transcribe-zone"):
+        assert f'id="{optional}"' in inside, optional
 
 
 def test_the_api_console_page_loads_its_own_assets():

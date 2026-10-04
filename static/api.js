@@ -5,8 +5,9 @@
 // uploaded from the studio — so it renders as a dropdown instead of a free-text box the
 // caller has to guess at. The list here is what the repo ships; refreshVoices() swaps in
 // whatever the worker actually has (GET /api/voices), uploaded names included.
-let VOICES = [{ id: 'nasser' }, { id: 'joud' }, { id: 'rashed' }, { id: 'reem' },
-              { id: 'abeer' }, { id: 'sada_male' }, { id: 'ahmed' }];
+let VOICES = [{ id: 'nasser' }, { id: 'joud' }, { id: 'nora' }, { id: 'ali' }, { id: 'firas' },
+              { id: 'majed' }, { id: 'rashed' }, { id: 'reem' }, { id: 'abeer' },
+              { id: 'sada_male' }, { id: 'ahmed' }];
 
 function voiceOptions() {
   const opts = [{ value: '', get label() { return t('voice.none'); } }];
@@ -61,13 +62,14 @@ const ENDPOINTS = [
     fields: [
       { name: 'model',   type: 'select', in: 'path', options: ['omnivoice_najdi', 'omnivoice_base'], value: 'omnivoice_najdi' },
       { name: 'text',    type: 'text',   required: true, value: 'مرحباً، كيف حالك؟' },
-      { name: 'dialect', type: 'select', options: ['msa', 'saudi', 'egyptian'], value: 'msa' },
+      { name: 'dialect', type: 'select', options: ['', 'msa', 'saudi', 'egyptian'], value: '',
+        get note() { return t('ep.synth.dialect'); } },
       { name: 'voice',   type: 'select', get options() { return voiceOptions(); }, value: '',
         get note() { return t('ep.synth.voice'); } },
       { name: 'gender',  type: 'select', options: ['', 'male', 'female'], value: '', get note() { return t('ep.synth.gender'); } },
       { name: 'age',     type: 'select', options: ['', 'young', 'middle', 'old'], value: '' },
     ],
-    returns: '{ filename, model, model_input, duration_s, elapsed_s, rtf, sample_rate }',
+    returns: '{ filename, model, model_input, model_language, voice, duration_s, elapsed_s, rtf, sample_rate }',
   },
   {
     method: 'GET',
@@ -87,6 +89,8 @@ const ENDPOINTS = [
       { name: 'name',     type: 'text',   required: true, value: 'صوتي', get note() { return t('ep.voiceadd.name'); } },
       { name: 'audio',    type: 'file',   required: true, get note() { return t('ep.voiceadd.audio'); } },
       { name: 'ref_text', type: 'text',   value: '', get note() { return t('ep.voiceadd.text'); } },
+      { name: 'dialect',  type: 'select', options: ['', 'saudi', 'msa', 'egyptian'], value: '',
+        get note() { return t('ep.voiceadd.dialect'); } },
       { name: 'gender',   type: 'select', options: ['', 'male', 'female'], value: '' },
     ],
     returns: '{ id, label, gender, language, duration_s, ref_text, custom }',

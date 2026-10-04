@@ -22,14 +22,14 @@ from _common import WORKDIR, output_dir, register_audio_route, write_sidecar
 OUT_DIR = output_dir("OMNIVOICE_OUT_DIR", "outputs_omnivoice")
 REPO_DIR = pathlib.Path(__file__).resolve().parents[1]
 OMNIVOICE_BASE_MODEL_ID = os.getenv("OMNIVOICE_BASE_MODEL_ID", "k2-fsa/OmniVoice")
-# Najdi fine-tune najdi_mix_v3_ft/checkpoint-1950: the best model for Nasser in the v3 eval
-# (see models/omnivoice/najdi_mix_v3_1950_checkpoint.json). It backs the `najdi` variant,
+# Najdi fine-tune najdi_v4_ft/checkpoint-6250: the best all-round model in the v4 eval
+# (see models/omnivoice/najdi_v4_6250_checkpoint.json). It backs the `najdi` variant,
 # whose house voice is Nasser (see VARIANT_DEFAULT_VOICES). The repo ships it as split parts (start.sh
 # assembles them); the training project is the fallback source.
-REPO_NAJDI_CHECKPOINT = REPO_DIR / "models" / "omnivoice" / "najdi_mix_v3_1950"
+REPO_NAJDI_CHECKPOINT = REPO_DIR / "models" / "omnivoice" / "najdi_v4_6250"
 FINETUNE_PROJECT = pathlib.Path(
     os.getenv("OMNIVOICE_FINETUNE_DIR", str(REPO_DIR.parent / "omnivoice-finetune"))).expanduser()
-NAJDI_CHECKPOINT = FINETUNE_PROJECT / "checkpoints" / "najdi_mix_v3_ft" / "checkpoint-1950"
+NAJDI_CHECKPOINT = FINETUNE_PROJECT / "checkpoints" / "najdi_v4_ft" / "checkpoint-6250"
 
 
 def _najdi_model_id() -> str | None:
@@ -72,8 +72,15 @@ _ARABIC_DIALECT_LANG = {
 }
 
 
-def _dialect_language(dialect: str) -> str:
-    return _ARABIC_DIALECT_LANG.get((dialect or "msa").strip().lower(), _ARABIC_DIALECT_LANG["msa"])
+def _request_language(dialect: str, voice: dict | None) -> str:
+    """The language code a request is spoken with. A dialect the request names wins; without
+    one a saved voice is spoken in its own (`language` in its voice.json: a Najdi voice sounds
+    more Saudi with `ars`), and anything else in MSA."""
+    named = (dialect or "").strip().lower()
+    if named in _ARABIC_DIALECT_LANG:
+        return _ARABIC_DIALECT_LANG[named]
+    own = (voice or {}).get("language", "")
+    return own if own in _ARABIC_DIALECT_LANG.values() else _ARABIC_DIALECT_LANG["msa"]
 
 
 # Clone voices: <dir>/<id>/voice.json + reference wav. Built-in ones ship with the repo;
@@ -347,6 +354,7 @@ async def add_voice(
     audio: UploadFile | None = File(None),
     ref_text: str = Form(""),
     gender: str = Form(""),
+    dialect: str = Form(""),
 ):
     label = " ".join((name or "").split())
     if not label:
@@ -377,7 +385,9 @@ async def add_voice(
     vdir = CUSTOM_VOICES_DIR / vid
     vdir.mkdir(parents=True)
     sf.write(str(vdir / "ref.wav"), mono, sr, subtype="PCM_16")
-    meta = {"id": vid, "label": label, "gender": _attr(_GENDERS, gender), "language": "",
+    # The dialect the voice is spoken with when a request names none; empty = MSA.
+    meta = {"id": vid, "label": label, "gender": _attr(_GENDERS, gender),
+            "language": _attr(_ARABIC_DIALECT_LANG, dialect),
             "ref_audio": "ref.wav", "ref_text": (ref_text or "").strip(), "sample_rate": sr,
             "duration_s": round(seconds, 2), "created": time.time(),
             "source": f"uploaded from the studio as {pathlib.Path(audio.filename).name}"}
@@ -412,7 +422,7 @@ async def voice_audio(voice_id: str):
 @app.post("/synthesize")
 async def synthesize(
     text: str = Form(...),
-    dialect: str = Form("msa"),
+    dialect: str = Form(""),
     gender: str = Form(""),
     age: str = Form(""),
     speaker: str = Form(""),
@@ -463,8 +473,9 @@ async def synthesize(
     elif not ref_tmp and chosen and chosen.get("ref_text"):
         kwargs["ref_text"] = chosen["ref_text"]
 
-    # The Arabic dialect rides OmniVoice's language code — never the instruct field.
-    kwargs["language"] = _dialect_language(dialect)
+    # The Arabic dialect rides OmniVoice's language code — never the instruct field. A one-off
+    # uploaded reference is not the saved voice, so it does not bring that voice's dialect.
+    kwargs["language"] = _request_language(dialect, None if ref_tmp else chosen)
 
     instruct_override = (model_instruct_override or "").strip()
     if instruct_override:

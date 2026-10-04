@@ -100,7 +100,7 @@ def test_omni_writes_audio_metrics_and_sidecar(omni):
 # ── Najdi: a variant whose house voice is Nasser, and any other voice on request ──
 @pytest.fixture
 def najdi(tmp_path, monkeypatch, fake_omnivoice):
-    ckpt = tmp_path / "najdi_mix_v3_ft" / "checkpoint-1950"
+    ckpt = tmp_path / "najdi_v4_ft" / "checkpoint-6250"
     ckpt.mkdir(parents=True)
     module = fresh_import("omnivoice_server", monkeypatch,
                           {"OMNIVOICE_OUT_DIR": tmp_path / "out",
@@ -159,6 +159,42 @@ def test_an_uploaded_reference_replaces_the_default_voice(najdi, wav_file):
     assert kwargs["ref_audio"] != najdi.module._VOICES["nasser"]["ref_audio_path"]
     assert kwargs["ref_text"] == "نص المرجع"
     assert body["voice"] == "" and body["voice_label"] == ""
+
+
+@pytest.mark.parametrize("data, code", [
+    ({}, "ars"),                                        # the house voice, Nasser: Najdi
+    ({"voice": "nora"}, "ars"),
+    ({"voice": "ahmed"}, "arb"),                        # an MSA voice stays MSA
+    ({"voice": "nora", "dialect": "msa"}, "arb"),       # a dialect the request names wins
+    ({"voice": "ahmed", "dialect": "saudi"}, "ars"),
+    ({"voice": "nora", "dialect": "klingon"}, "ars"),   # not a dialect: as if none was named
+    ({"variant": "base"}, "arb"),                       # no voice at all
+    ({"variant": "base", "voice": "nasser"}, "ars"),    # the voice decides, on either model
+])
+def test_a_saved_voice_is_spoken_in_its_own_dialect(najdi, data, code):
+    """The studio names no dialect: each voice.json's `language` picks the code instead."""
+    body = najdi.post("/synthesize", data={"text": "مرحباً", "variant": "najdi", **data}).json()
+    assert najdi.rec["generate_kwargs"]["language"] == code
+    assert body["model_language"] == code
+
+
+def test_an_uploaded_voice_is_spoken_in_the_dialect_it_was_saved_with(najdi, tmp_path):
+    uploaded = add_voice(najdi, voice_wav(tmp_path), dialect="saudi").json()
+    assert uploaded["language"] == "ars"
+    najdi.post("/synthesize", data={"text": "مرحباً", "variant": "najdi", "voice": uploaded["id"]})
+    assert najdi.rec["generate_kwargs"]["language"] == "ars"
+
+
+def test_voices_without_a_dialect_of_their_own_are_spoken_in_msa(najdi, tmp_path, wav_file):
+    """A voice saved with no dialect has none, and a one-off reference is nobody's saved voice."""
+    uploaded = add_voice(najdi, voice_wav(tmp_path)).json()
+    assert uploaded["language"] == ""
+    najdi.post("/synthesize", data={"text": "مرحباً", "variant": "najdi", "voice": uploaded["id"]})
+    assert najdi.rec["generate_kwargs"]["language"] == "arb"
+
+    najdi.post("/synthesize", data={"text": "مرحباً", "variant": "najdi", "voice": "nasser"},
+               files={"ref_audio": ("ref.wav", wav_file.read_bytes(), "audio/wav")})
+    assert najdi.rec["generate_kwargs"]["language"] == "arb"
 
 
 @pytest.mark.parametrize("variant, voice", [("najdi", ""), ("najdi", "abeer"), ("base", "nasser")])
@@ -238,7 +274,9 @@ def test_voices_are_listed_with_what_they_are(najdi, tmp_path):
 
     voices = najdi.get("/voices").json()["voices"]
     by_id = {v["id"]: v for v in voices}
-    assert [v["id"] for v in voices][:2] == ["nasser", "joud"]       # the trained voices lead
+    trained = ["nasser", "joud", "nora", "ali", "firas", "majed"]    # the six speakers of najdi_v4
+    assert [v["id"] for v in voices][:6] == trained                  # the trained voices lead
+    assert [v["id"] for v in voices if "trained" in v["tags"]] == trained
     assert {"male", "najdi", "trained"} <= set(by_id["nasser"]["tags"])
     assert {"female", "najdi", "trained"} <= set(by_id["joud"]["tags"])
     assert "unseen" in by_id["abeer"]["tags"] and "trained" not in by_id["abeer"]["tags"]

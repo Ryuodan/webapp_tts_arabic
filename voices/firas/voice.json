@@ -1,0 +1,65 @@
+{
+  "id": "firas",
+  "label": "فراس — نجدي",
+  "gender": "male",
+  "language": "ars",
+  "order": 5,
+  "tags": [
+    "male",
+    "najdi",
+    "trained",
+    "synthetic",
+    "support"
+  ],
+  "ref_audio": "firas_ref_9s.wav",
+  "ref_text": "أبشري، بحولك للتوصيل، ومرجع مكالمتك عين تاء ثلاثة أربعة أربعة اثنين واحد صفر، خليك معي.",
+  "sample_rate": 24000,
+  "duration_s": 8.87,
+  "source": "omnivoice-finetune/data/najdi_v4/wavs/79804f2c03ba.wav (id najdi_v4_79804f2c03ba: in the najdi_v4 test split, so the shipped najdi_v4_ft checkpoint never trained on it)",
+  "notes": "Firas (a synthesiser voice described as Saudi, narrative), a Najdi male support agent: one of the six voices the omnivoice_najdi model trained on (2,505 of his clips, 6.1 h, in Najdi and MSA). An agent reading out a call reference. Picked from his 14 held-out Najdi clips of 5-9 s: of the eight cloned on eight unseen sentences with the shipped model, this one gave the most Firas-like clones (similarity 0.844) with the highest UTMOS (3.31, next 3.26).",
+  "clone_check": {
+    "model": "najdi_v4_ft/checkpoint-6250, language arb, 8 unseen sentences",
+    "sim_speaker": 0.844,
+    "utmos": 3.311,
+    "cer": 0.003,
+    "p_gulf": 0.961,
+    "pace_vs_natural": 1.08,
+    "from": "omnivoice-finetune/scripts/pick_voice_refs_v4.py -> outputs/voice_refs_v4/picks.json"
+  },
+  "language_check": {
+    "model": "najdi_v4_ft/checkpoint-6250, 20 held-out Najdi lines and 20 held-out MSA lines, each code",
+    "najdi_text": {
+      "arb": {
+        "sim_speaker": 0.855,
+        "utmos": 3.244,
+        "cer": 0.103,
+        "p_gulf": 0.928,
+        "p_msa": 0.033
+      },
+      "ars": {
+        "sim_speaker": 0.852,
+        "utmos": 3.253,
+        "cer": 0.053,
+        "p_gulf": 0.963,
+        "p_msa": 0.008
+      }
+    },
+    "msa_text": {
+      "arb": {
+        "sim_speaker": 0.859,
+        "utmos": 3.19,
+        "cer": 0.129,
+        "p_gulf": 0.86,
+        "p_msa": 0.123
+      },
+      "ars": {
+        "sim_speaker": 0.857,
+        "utmos": 3.248,
+        "cer": 0.122,
+        "p_gulf": 0.93,
+        "p_msa": 0.058
+      }
+    },
+    "from": "omnivoice-finetune/scripts/check_voice_language_v4.py -> outputs/voice_refs_v4/language/report.txt"
+  }
+}

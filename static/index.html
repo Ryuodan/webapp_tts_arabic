@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Arabic TTS Studio</title>
-  <link rel="stylesheet" href="style.css?v=21">
+  <link rel="stylesheet" href="style.css?v=22">
 </head>
 <body>
 
@@ -27,35 +27,71 @@
   <!-- ── Main layout ──────────────────────────────────────── -->
   <main class="workspace">
 
-    <!-- Left panel: controls ─────────────── -->
+    <!-- Left panel: text → voice → generate, then the folded tools ─────────────── -->
     <div class="left-panel">
 
-      <!-- Model cards -->
+      <!-- 1 · Text -->
       <section class="panel-section">
-        <h3 class="section-label" data-i18n="section.model">Model</h3>
-        <div class="model-cards" id="model-cards">
-          <!-- Cards rendered by JS -->
+        <h3 class="section-label">
+          <span class="section-title"><b class="step">1</b><span data-i18n="section.text">Text</span></span>
+          <span class="char-count" id="char-count">0</span>
+        </h3>
+        <textarea
+          id="text-input"
+          dir="auto"
+          data-i18n-placeholder="text.placeholder"
+          rows="6"
+          spellcheck="false"
+        ></textarea>
+        <div class="input-footer simple-footer">
+          <button class="btn-prep" id="btn-tashkeel" type="button"
+            data-i18n-title="tk.title" data-i18n="tk.run">✨ Add tashkeel</button>
+          <span class="compose-status" id="tashkeel-status"></span>
+          <button class="btn-ghost btn-xs" id="btn-clear-text" data-i18n="text.clear">Clear</button>
+        </div>
+
+        <!-- The diacritized copy, made by the Text-Prep agent; editable, never replaces the original -->
+        <div class="tashkeel-box" id="tashkeel-box" hidden>
+          <div class="tk-head">
+            <span class="variant-badge tashkeel" id="tashkeel-tag" data-i18n="tk.tag">Tashkeel</span>
+            <span class="tk-stale" id="tashkeel-stale" hidden data-i18n="tk.stale">The text above changed — it will be redone before speaking</span>
+          </div>
+          <textarea id="tashkeel-text" class="tashkeel-text" dir="rtl" rows="4" spellcheck="false"></textarea>
+          <!-- Which marks the copy carries: the whole tashkeel, or the shadda alone -->
+          <div class="segmented tk-marks" role="radiogroup">
+            <span class="segmented-label" data-i18n="tk.marks">Marks</span>
+            <button class="prep-toggle active" id="tk-marks-full" type="button" role="radio"
+              aria-checked="true" data-i18n-title="tk.marksFullTitle" data-i18n="tk.marksFull">Full tashkeel</button>
+            <button class="prep-toggle" id="tk-marks-shadda" type="button" role="radio"
+              aria-checked="false" data-i18n-title="tk.marksShaddaTitle" data-i18n="tk.marksShadda">Shadda only</button>
+          </div>
+          <div class="segmented" role="radiogroup">
+            <span class="segmented-label" data-i18n="tk.speak">Generate speaks</span>
+            <button class="prep-toggle active" id="speak-original" type="button" role="radio"
+              aria-checked="true" data-i18n="tk.original">Original</button>
+            <button class="prep-toggle" id="speak-tashkeel" type="button" role="radio"
+              aria-checked="false" data-i18n="tk.tashkeel">Tashkeel</button>
+          </div>
         </div>
       </section>
 
-      <!-- Simplified mode: advanced compose/prep/parameter/compare controls are intentionally hidden. -->
-
-      <!-- Voice library: pick the clone voice, preview it, add your own -->
+      <!-- 2 · Voice: one card per voice — click to pick it, ▶ to hear it -->
       <section class="panel-section">
-        <h3 class="section-label" data-i18n="section.voice">Voice</h3>
-        <div class="voice-picker">
-          <label class="param-label" for="voice-select" data-i18n="section.voice">Voice</label>
-          <select class="param-select" id="voice-select"></select>
-          <button class="btn-ghost btn-xs" id="btn-voice-preview" type="button"
-            data-i18n-title="voice.previewTitle" data-i18n="voice.preview">▶ Listen</button>
-          <button class="btn-ghost btn-xs" id="btn-voice-delete" type="button" hidden
-            data-i18n-title="voice.deleteTitle" data-i18n="voice.delete">🗑 Delete</button>
+        <h3 class="section-label">
+          <span class="section-title"><b class="step">2</b><span data-i18n="section.voice">Voice</span></span>
+          <span class="tool-value" id="voice-current"></span>
+        </h3>
+        <div class="voice-list" id="voice-list">
+          <!-- Cards rendered by JS -->
         </div>
-        <div class="voice-tags" id="voice-tags"></div>
         <p class="voice-hint" id="voice-hint" dir="auto"></p>
         <audio id="voice-preview-audio" preload="none" hidden></audio>
 
-        <button class="btn-prep" id="btn-voice-add" type="button" data-i18n="voice.add">➕ Add a voice</button>
+        <div class="voice-actions">
+          <button class="btn-prep" id="btn-voice-add" type="button" data-i18n="voice.add">➕ Add a voice</button>
+          <button class="btn-ghost btn-xs" id="btn-voice-delete" type="button" hidden
+            data-i18n-title="voice.deleteTitle" data-i18n="voice.delete">🗑 Delete</button>
+        </div>
         <div class="voice-add" id="voice-add" hidden>
           <label class="param-label" for="voice-name" data-i18n="voice.name">Name</label>
           <input class="param-text" type="text" id="voice-name" maxlength="60" dir="auto"
@@ -67,6 +103,13 @@
           <label class="param-label" for="voice-text" data-i18n="voice.text">What is said in the clip</label>
           <textarea class="param-text" id="voice-text" rows="2" dir="auto"
             data-i18n-placeholder="voice.textPh"></textarea>
+          <!-- The dialect the voice is spoken with: a Saudi voice sounds more Saudi with it -->
+          <label class="param-label" for="voice-dialect" data-i18n="voice.dialect">Dialect of the voice</label>
+          <select class="param-select" id="voice-dialect" data-i18n-title="voice.dialectTitle">
+            <option value="saudi" data-i18n="dialect.saudi">Saudi</option>
+            <option value="msa" data-i18n="dialect.msa">MSA</option>
+            <option value="egyptian" data-i18n="dialect.egyptian">Egyptian</option>
+          </select>
           <div class="prep-bar">
             <button class="btn-prep" id="btn-voice-transcribe" type="button" data-i18n="voice.transcribe">▷ Transcribe the clip</button>
             <button class="btn-prep btn-primary" id="btn-voice-save" type="button" data-i18n="voice.save">✓ Save voice</button>
@@ -76,9 +119,38 @@
         </div>
       </section>
 
+      <!-- Generate -->
+      <div class="synth-wrap">
+        <button class="btn-synth" id="btn-synth" disabled>
+          <span class="synth-icon">▶</span>
+          <span id="synth-label" data-i18n="synth.run">Generate speech</span>
+        </button>
+        <div class="synth-progress hidden" id="synth-progress">
+          <div class="progress-track">
+            <div class="progress-fill indeterminate" id="progress-fill"></div>
+          </div>
+          <span class="progress-hint" id="progress-hint" data-i18n="synth.running">Generating…</span>
+        </div>
+      </div>
+
+      <!-- Everything below is optional and starts folded; each panel remembers if it was left open. -->
+
+      <!-- Model: the Najdi fine-tune (default) or the stock model -->
+      <details class="panel-section tool" id="tool-model">
+        <summary class="section-label">
+          <span data-i18n="section.model">Model</span>
+          <span class="tool-value" id="model-current"></span>
+        </summary>
+        <div class="model-cards" id="model-cards">
+          <!-- Cards rendered by JS -->
+        </div>
+      </details>
+
       <!-- Compare: the same text with and without tashkeel, or across every model -->
-      <section class="panel-section">
-        <h3 class="section-label" data-i18n="section.compareRun">Compare</h3>
+      <details class="panel-section tool" id="tool-compare">
+        <summary class="section-label">
+          <span data-i18n="section.compareRun">Compare</span>
+        </summary>
         <div class="segmented" role="radiogroup">
           <button class="prep-toggle active" id="cmp-mode-tashkeel" type="button" role="radio"
             aria-checked="true" data-i18n="cmp.modeTashkeel">Original vs tashkeel</button>
@@ -90,13 +162,14 @@
         <button class="btn-compare" id="btn-compare" type="button" disabled>
           <span id="compare-label" data-i18n="cmp.run">Compare now</span>
         </button>
-      </section>
+      </details>
 
-      <!-- Transcription (ASR) — audio in, text out; fills the box below.
-           Flat section, not an accordion: simplified mode no longer wires them up. -->
-      <section class="panel-section">
-        <h3 class="section-label" data-i18n="section.transcribe">📝 Transcription</h3>
-        <p class="compose-desc" data-i18n="tr.desc">Upload an audio clip or record from your microphone; the model turns it into text you can drop into the box below. Long clips are split and stitched back together automatically.</p>
+      <!-- Transcription (ASR) — audio in, text out; fills the text box above. -->
+      <details class="panel-section tool" id="tool-transcribe">
+        <summary class="section-label">
+          <span data-i18n="section.transcribe">📝 Transcription</span>
+        </summary>
+        <p class="compose-desc" data-i18n="tr.desc">Upload an audio clip or record from your microphone; the model turns it into text you can drop into the text box. Long clips are split and stitched back together automatically.</p>
         <p class="model-credit">
           <span data-i18n="tr.modelLabel">Model</span>
           <a href="https://huggingface.co/NAMAA-Space/cohere-transcribe-arabic-07-2026-int8"
@@ -133,67 +206,7 @@
             <button class="btn-prep" id="btn-transcribe-use" data-i18n="tr.use">✓ Use as synthesis text</button>
           </div>
         </div>
-      </section>
-
-      <!-- Text input -->
-      <section class="panel-section">
-        <h3 class="section-label">
-          <span data-i18n="section.text">Text</span>
-          <span class="char-count" id="char-count">0</span>
-        </h3>
-        <textarea
-          id="text-input"
-          dir="auto"
-          data-i18n-placeholder="text.placeholder"
-          rows="6"
-          spellcheck="false"
-        ></textarea>
-        <div class="input-footer simple-footer">
-          <button class="btn-prep" id="btn-tashkeel" type="button"
-            data-i18n-title="tk.title" data-i18n="tk.run">✨ Add tashkeel</button>
-          <span class="compose-status" id="tashkeel-status"></span>
-          <button class="btn-ghost btn-xs" id="btn-clear-text" data-i18n="text.clear">Clear</button>
-        </div>
-
-        <!-- Which marks the agent adds: the whole tashkeel, or the shadda alone -->
-        <div class="segmented tk-marks" role="radiogroup">
-          <span class="segmented-label" data-i18n="tk.marks">Marks</span>
-          <button class="prep-toggle active" id="tk-marks-full" type="button" role="radio"
-            aria-checked="true" data-i18n-title="tk.marksFullTitle" data-i18n="tk.marksFull">Full tashkeel</button>
-          <button class="prep-toggle" id="tk-marks-shadda" type="button" role="radio"
-            aria-checked="false" data-i18n-title="tk.marksShaddaTitle" data-i18n="tk.marksShadda">Shadda only</button>
-        </div>
-
-        <!-- The diacritized copy, made by the Text-Prep agent; editable, never replaces the original -->
-        <div class="tashkeel-box" id="tashkeel-box" hidden>
-          <div class="tk-head">
-            <span class="variant-badge tashkeel" id="tashkeel-tag" data-i18n="tk.tag">Tashkeel</span>
-            <span class="tk-stale" id="tashkeel-stale" hidden data-i18n="tk.stale">The text above changed — it will be redone before speaking</span>
-          </div>
-          <textarea id="tashkeel-text" class="tashkeel-text" dir="rtl" rows="4" spellcheck="false"></textarea>
-          <div class="segmented" role="radiogroup">
-            <span class="segmented-label" data-i18n="tk.speak">Generate speaks</span>
-            <button class="prep-toggle active" id="speak-original" type="button" role="radio"
-              aria-checked="true" data-i18n="tk.original">Original</button>
-            <button class="prep-toggle" id="speak-tashkeel" type="button" role="radio"
-              aria-checked="false" data-i18n="tk.tashkeel">Tashkeel</button>
-          </div>
-        </div>
-      </section>
-
-      <!-- Synthesize button -->
-      <div class="synth-wrap">
-        <button class="btn-synth" id="btn-synth" disabled>
-          <span class="synth-icon">▶</span>
-          <span id="synth-label" data-i18n="synth.run">Generate speech</span>
-        </button>
-        <div class="synth-progress hidden" id="synth-progress">
-          <div class="progress-track">
-            <div class="progress-fill indeterminate" id="progress-fill"></div>
-          </div>
-          <span class="progress-hint" id="progress-hint" data-i18n="synth.running">Generating…</span>
-        </div>
-      </div>
+      </details>
 
     </div><!-- /left-panel -->
 
@@ -252,7 +265,7 @@
             <button class="btn-ghost btn-xs" id="btn-toggle-history" aria-expanded="true" aria-controls="history-list" data-i18n="hist.collapse">Collapse</button>
             <select class="filter-select" id="history-filter">
               <option value="all" data-i18n="hist.all">All models</option>
-              <option value="omnivoice_najdi" data-i18n="model.najdi.name">OmniVoice Najdi &mdash; Nasser</option>
+              <option value="omnivoice_najdi" data-i18n="model.najdi.name">OmniVoice Najdi</option>
               <option value="omnivoice_base" data-i18n="model.base.name">OmniVoice base</option>
             </select>
             <button class="btn-ghost btn-xs" id="btn-clear-history" data-i18n="hist.clear">Clear all</button>
@@ -272,8 +285,8 @@
   <!-- Toast notification -->
   <div class="toast hidden" id="toast"></div>
 
-  <script src="i18n.js?v=7"></script>
+  <script src="i18n.js?v=9"></script>
   <script src="recorder.js?v=2"></script>
-  <script src="app.js?v=35"></script>
+  <script src="app.js?v=37"></script>
 </body>
 </html>

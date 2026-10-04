@@ -3,7 +3,7 @@
   "label": "أحمد — فصحى",
   "gender": "male",
   "language": "arb",
-  "order": 7,
+  "order": 11,
   "tags": [
     "male",
     "msa",
@@ -16,13 +16,49 @@
   "duration_s": 6.0,
   "source": "https://huggingface.co/IbrahimSalah/Arabic-TTS-Spark (reference.wav, resampled 44.1kHz stereo -> 24kHz mono)",
   "license": "Upstream repo: fair-noncommercial-research-license",
-  "notes": "MSA male reference clip from the Arabic-TTS-Spark repo; transcript is the demo Space's default reference text (fully diacritized). No model here trained on it. The omnivoice_najdi model keeps little of its timbre (similarity 0.46) and speaks it with a Saudi accent; for MSA in this voice use omnivoice_base.",
+  "notes": "MSA male reference clip from the Arabic-TTS-Spark repo; transcript is the demo Space's default reference text (fully diacritized). No model here trained on it. The one built-in voice spoken with arb: cloned with the omnivoice_najdi model it keeps most of its timbre (similarity 0.76) and reads MSA text as MSA (P(MSA) 0.75 on 20 MSA lines, 0.59 with ars). For Najdi speech pick one of the trained voices.",
   "clone_check": {
-    "model": "najdi_mix_v3_ft/checkpoint-1950, language ars, 8 unseen sentences",
-    "sim_speaker": 0.458,
-    "utmos": 3.53,
-    "cer": 0.022,
-    "p_gulf": 0.995,
-    "from": "omnivoice-finetune/scripts/pick_voice_refs.py -> outputs/voice_refs/picks.json"
+    "model": "najdi_v4_ft/checkpoint-6250, language arb, 8 unseen sentences",
+    "sim_speaker": 0.727,
+    "utmos": 3.483,
+    "cer": 0.0,
+    "p_gulf": 0.352,
+    "from": "omnivoice-finetune/scripts/pick_voice_refs_v4.py -> outputs/voice_refs_v4/picks.json"
+  },
+  "language_check": {
+    "model": "najdi_v4_ft/checkpoint-6250, 20 held-out Najdi lines and 20 held-out MSA lines, each code",
+    "najdi_text": {
+      "arb": {
+        "sim_speaker": 0.741,
+        "utmos": 3.534,
+        "cer": 0.14,
+        "p_gulf": 0.524,
+        "p_msa": 0.315
+      },
+      "ars": {
+        "sim_speaker": 0.733,
+        "utmos": 3.558,
+        "cer": 0.14,
+        "p_gulf": 0.684,
+        "p_msa": 0.162
+      }
+    },
+    "msa_text": {
+      "arb": {
+        "sim_speaker": 0.756,
+        "utmos": 3.447,
+        "cer": 0.128,
+        "p_gulf": 0.192,
+        "p_msa": 0.75
+      },
+      "ars": {
+        "sim_speaker": 0.745,
+        "utmos": 3.466,
+        "cer": 0.126,
+        "p_gulf": 0.352,
+        "p_msa": 0.588
+      }
+    },
+    "from": "omnivoice-finetune/scripts/check_voice_language_v4.py -> outputs/voice_refs_v4/language/report.txt"
   }
 }

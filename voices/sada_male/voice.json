@@ -3,7 +3,7 @@
   "label": "مذيع سادا — سعودي",
   "gender": "male",
   "language": "ars",
-  "order": 6,
+  "order": 10,
   "tags": [
     "male",
     "saudi",
@@ -17,13 +17,49 @@
   "duration_s": 6.09,
   "source": "omnivoice-finetune/data/saudi_hq/wavs/sada_test_0000630_6k_v_SBA3_2444_0-seg_581_650-587_740.wav (id saudi_hq_val_000207, SADA 2022; held out of every training run)",
   "license": "Upstream corpus: SADA 2022 (SDAIA / Saudi Broadcasting Authority), published for non-commercial use (CC BY-NC-SA 4.0) - check its terms before redistributing or using this voice commercially",
-  "notes": "An unnamed male speaker from Saudi television, the clone_sada_male voice of the Saudi benchmark: the held-out male SADA clip with the best UTMOS. A real recording in broadcast quality (16 kHz), which no model here trained on. Cloned with the omnivoice_najdi model the accent stays Saudi (P(Gulf) 0.99) while the timbre moves toward the model's own voices (similarity to this clip 0.64; the stock model reaches 0.75).",
+  "notes": "An unnamed male speaker from Saudi television, the clone_sada_male voice of the Saudi benchmark: the held-out male SADA clip with the best UTMOS. A real recording in broadcast quality (16 kHz), which no model here trained on. Cloned with the omnivoice_najdi model the timbre moves toward the model's own voices (similarity to this clip 0.69), and the accent is Saudi when he is spoken with ars: P(Gulf) on 20 Najdi lines 0.84, against 0.59 with arb.",
   "clone_check": {
-    "model": "najdi_mix_v3_ft/checkpoint-1950, language ars, 8 unseen sentences",
-    "sim_speaker": 0.635,
-    "utmos": 3.572,
-    "cer": 0.01,
-    "p_gulf": 0.994,
-    "from": "omnivoice-finetune/scripts/pick_voice_refs.py -> outputs/voice_refs/picks.json"
+    "model": "najdi_v4_ft/checkpoint-6250, language arb, 8 unseen sentences",
+    "sim_speaker": 0.66,
+    "utmos": 3.22,
+    "cer": 0.0,
+    "p_gulf": 0.923,
+    "from": "omnivoice-finetune/scripts/pick_voice_refs_v4.py -> outputs/voice_refs_v4/picks.json"
+  },
+  "language_check": {
+    "model": "najdi_v4_ft/checkpoint-6250, 20 held-out Najdi lines and 20 held-out MSA lines, each code",
+    "najdi_text": {
+      "arb": {
+        "sim_speaker": 0.692,
+        "utmos": 3.202,
+        "cer": 0.144,
+        "p_gulf": 0.592,
+        "p_msa": 0.209
+      },
+      "ars": {
+        "sim_speaker": 0.689,
+        "utmos": 3.258,
+        "cer": 0.122,
+        "p_gulf": 0.838,
+        "p_msa": 0.085
+      }
+    },
+    "msa_text": {
+      "arb": {
+        "sim_speaker": 0.685,
+        "utmos": 3.173,
+        "cer": 0.135,
+        "p_gulf": 0.254,
+        "p_msa": 0.689
+      },
+      "ars": {
+        "sim_speaker": 0.703,
+        "utmos": 3.18,
+        "cer": 0.126,
+        "p_gulf": 0.512,
+        "p_msa": 0.434
+      }
+    },
+    "from": "omnivoice-finetune/scripts/check_voice_language_v4.py -> outputs/voice_refs_v4/language/report.txt"
   }
 }

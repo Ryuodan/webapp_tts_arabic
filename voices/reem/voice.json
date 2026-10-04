@@ -3,7 +3,7 @@
   "label": "ريم — نجدية",
   "gender": "female",
   "language": "ars",
-  "order": 4,
+  "order": 8,
   "tags": [
     "female",
     "najdi",
@@ -11,19 +11,55 @@
     "synthetic",
     "support"
   ],
-  "ref_audio": "reem_ref_8s.wav",
-  "ref_text": "نقبل البطاقات الائتمانية، وبطاقات مدى، والتحويل البنكي، والدفع عند الاستلام في مدن محددة.",
+  "ref_audio": "reem_ref_6s.wav",
+  "ref_text": "نبدأ بمراجعة كتابة الرمز، لأن أي مسافة أو حرف مختلف ممكن يمنع قبوله.",
   "sample_rate": 24000,
-  "duration_s": 7.94,
-  "source": "omnivoice-finetune/data/najdi_cs/wavs/najdi_cs_11_najdi_s7_09_clean_001.wav (id najdi_cs_00111, cut from set 11's najdi_s7_09_clean.wav; no najdi_cs clip is in najdi_mix_v3, so the shipped checkpoint never trained on this voice)",
-  "notes": "The female voice of the synthetic najdi_cs customer-support sets, where the agent calls herself Reem (sets 7-11), Noura (set 3) and Sara (set 13): one synthesiser voice under several names (speaker similarity 0.87 across its 74 recordings). The omnivoice_najdi model only clones it. From set 11, her regular professional delivery. Picked from 42 candidate segments of 5-9 s: of the eight cloned with the shipped model this gave the closest clones (similarity 0.791, next 0.763) at an UTMOS (3.56) level with the rest.",
+  "duration_s": 6.02,
+  "source": "omnivoice-finetune/data/najdi_cs/wavs/najdi_cs_3_najdi_cs_f_08_clean_004.wav (id najdi_cs_00337, cut from set 3's najdi_cs_f_08_clean.wav; no najdi_cs clip is in najdi_v4, so the shipped checkpoint never trained on this voice)",
+  "notes": "The female voice of the synthetic najdi_cs customer-support sets, where the agent calls herself Reem (sets 7-11), Noura (set 3) and Sara (set 13): one synthesiser voice under several names (speaker similarity 0.87 across its 74 recordings). She is not the trained voice Nora. No model here trained on her; the omnivoice_najdi model only clones her. From set 3. Picked from 42 candidate segments of 5-9 s: of the eight cloned on eight unseen sentences with the shipped model (najdi_v4_ft/checkpoint-6250), this one gave the closest clones (similarity 0.827, next 0.826) with the highest UTMOS (3.67). It replaced the set-11 clip chosen with the v3 model, which it beat on both: similarity +0.022 +/- 0.008, UTMOS +0.195 +/- 0.075.",
   "clone_check": {
-    "model": "najdi_mix_v3_ft/checkpoint-1950, language ars, 8 unseen sentences",
-    "sim_speaker": 0.791,
-    "utmos": 3.557,
-    "cer": 0.009,
-    "p_gulf": 0.991,
+    "model": "najdi_v4_ft/checkpoint-6250, language arb, 8 unseen sentences",
+    "sim_speaker": 0.827,
+    "utmos": 3.672,
+    "cer": 0.0,
+    "p_gulf": 0.992,
     "pace_vs_natural": 0.96,
-    "from": "omnivoice-finetune/scripts/pick_voice_refs.py -> outputs/voice_refs/picks.json"
+    "from": "omnivoice-finetune/scripts/pick_voice_refs_v4.py -> outputs/voice_refs_v4/picks.json"
+  },
+  "language_check": {
+    "model": "najdi_v4_ft/checkpoint-6250, 20 held-out Najdi lines and 20 held-out MSA lines, each code",
+    "najdi_text": {
+      "arb": {
+        "sim_speaker": 0.833,
+        "utmos": 3.61,
+        "cer": 0.105,
+        "p_gulf": 0.88,
+        "p_msa": 0.077
+      },
+      "ars": {
+        "sim_speaker": 0.832,
+        "utmos": 3.584,
+        "cer": 0.097,
+        "p_gulf": 0.943,
+        "p_msa": 0.003
+      }
+    },
+    "msa_text": {
+      "arb": {
+        "sim_speaker": 0.849,
+        "utmos": 3.502,
+        "cer": 0.111,
+        "p_gulf": 0.637,
+        "p_msa": 0.307
+      },
+      "ars": {
+        "sim_speaker": 0.843,
+        "utmos": 3.507,
+        "cer": 0.118,
+        "p_gulf": 0.873,
+        "p_msa": 0.109
+      }
+    },
+    "from": "omnivoice-finetune/scripts/check_voice_language_v4.py -> outputs/voice_refs_v4/language/report.txt"
   }
 }

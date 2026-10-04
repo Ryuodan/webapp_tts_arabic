@@ -3,7 +3,7 @@
   "label": "عبير — سعودية",
   "gender": "female",
   "language": "ars",
-  "order": 5,
+  "order": 9,
   "tags": [
     "female",
     "saudi",
@@ -16,13 +16,49 @@
   "sample_rate": 24000,
   "duration_s": 6.0,
   "source": "tts-05172026/cloneVoice/abeer_ref_6s.wav (cut from 'Saudi Voice Artist Abeer Female Audio Sample.wav')",
-  "notes": "Abeer, a Saudi female voice artist: a real recording, cut from her demo sample, which no model here trained on (the clone_abeer voice of the Saudi benchmark). Cloned with the omnivoice_najdi model the speech stays Saudi (P(Gulf) 0.99) and scores the highest UTMOS of the built-in voices (3.70), while the timbre moves toward the model's own voices (similarity to her sample 0.62; the stock model reaches 0.75).",
+  "notes": "Abeer, a Saudi female voice artist: a real recording, cut from her demo sample, which no model here trained on (the clone_abeer voice of the Saudi benchmark). The clip is a formal phone-menu line and the clone follows it: cloned with the omnivoice_najdi model it scores among the highest UTMOS of the built-in voices (3.65 on 20 Najdi lines) and keeps part of her timbre (similarity to her sample 0.71), while her Najdi lines come out only partly Gulf (P(Gulf) 0.63 with ars, 0.54 with arb).",
   "clone_check": {
-    "model": "najdi_mix_v3_ft/checkpoint-1950, language ars, 8 unseen sentences",
-    "sim_speaker": 0.619,
-    "utmos": 3.704,
-    "cer": 0.003,
-    "p_gulf": 0.986,
-    "from": "omnivoice-finetune/scripts/pick_voice_refs.py -> outputs/voice_refs/picks.json"
+    "model": "najdi_v4_ft/checkpoint-6250, language arb, 8 unseen sentences",
+    "sim_speaker": 0.692,
+    "utmos": 3.652,
+    "cer": 0.006,
+    "p_gulf": 0.434,
+    "from": "omnivoice-finetune/scripts/pick_voice_refs_v4.py -> outputs/voice_refs_v4/picks.json"
+  },
+  "language_check": {
+    "model": "najdi_v4_ft/checkpoint-6250, 20 held-out Najdi lines and 20 held-out MSA lines, each code",
+    "najdi_text": {
+      "arb": {
+        "sim_speaker": 0.701,
+        "utmos": 3.55,
+        "cer": 0.081,
+        "p_gulf": 0.54,
+        "p_msa": 0.3
+      },
+      "ars": {
+        "sim_speaker": 0.711,
+        "utmos": 3.646,
+        "cer": 0.107,
+        "p_gulf": 0.63,
+        "p_msa": 0.236
+      }
+    },
+    "msa_text": {
+      "arb": {
+        "sim_speaker": 0.705,
+        "utmos": 3.519,
+        "cer": 0.122,
+        "p_gulf": 0.207,
+        "p_msa": 0.716
+      },
+      "ars": {
+        "sim_speaker": 0.705,
+        "utmos": 3.507,
+        "cer": 0.111,
+        "p_gulf": 0.369,
+        "p_msa": 0.577
+      }
+    },
+    "from": "omnivoice-finetune/scripts/check_voice_language_v4.py -> outputs/voice_refs_v4/language/report.txt"
   }
 }

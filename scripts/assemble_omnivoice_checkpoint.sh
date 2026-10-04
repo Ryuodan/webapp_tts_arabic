@@ -5,16 +5,16 @@
 # is versioned as model.safetensors.part-* chunks. Run this once after cloning or pulling;
 # the OmniVoice worker then picks the checkpoints up automatically.
 #
-#   najdi_mix_v3_1950  Najdi v3 fine-tune (najdi_mix_v3_ft, step 1950), pinned to Nasser -> najdi variant
+#   najdi_v4_6250  Najdi v4 fine-tune (najdi_v4_ft, step 6250), house voice Nasser -> najdi variant
 #
-# Usage: bash scripts/assemble_omnivoice_checkpoint.sh [najdi_mix_v3_1950 ...]
+# Usage: bash scripts/assemble_omnivoice_checkpoint.sh [najdi_v4_6250 ...]
 #        (no arguments = every checkpoint)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../models/omnivoice" && pwd)"
 
 declare -A EXPECTED_SHA=(
-  [najdi_mix_v3_1950]="e66a5bf7e4c0e4fd5483377a78a59c9ff36d0fcde30683d0800bdf5caea9805a"
+  [najdi_v4_6250]="463a10624977ae7177edba87473137948927d5b3800ddac811234438501c3b4d"
 )
 
 sha_of() { sha256sum "$1" | cut -d' ' -f1; }
@@ -63,7 +63,7 @@ assemble() {
 }
 
 names=("$@")
-[[ ${#names[@]} -eq 0 ]] && names=(najdi_mix_v3_1950)
+[[ ${#names[@]} -eq 0 ]] && names=(najdi_v4_6250)
 
 status=0
 for name in "${names[@]}"; do

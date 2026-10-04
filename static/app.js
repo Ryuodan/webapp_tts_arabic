@@ -32,6 +32,10 @@ const mp3Name = filename => `${String(filename || 'audio').replace(/\.wav$/i, ''
 let voiceCatalog = [
   { id: 'nasser',    custom: false, tags: ['male', 'najdi', 'trained', 'synthetic', 'support'] },
   { id: 'joud',      custom: false, tags: ['female', 'najdi', 'trained', 'synthetic', 'support'] },
+  { id: 'nora',      custom: false, tags: ['female', 'najdi', 'trained', 'synthetic', 'support'] },
+  { id: 'ali',       custom: false, tags: ['male', 'najdi', 'trained', 'synthetic', 'support'] },
+  { id: 'firas',     custom: false, tags: ['male', 'najdi', 'trained', 'synthetic', 'support'] },
+  { id: 'majed',     custom: false, tags: ['male', 'najdi', 'trained', 'synthetic', 'support'] },
   { id: 'rashed',    custom: false, tags: ['male', 'najdi', 'unseen', 'synthetic', 'support'] },
   { id: 'reem',      custom: false, tags: ['female', 'najdi', 'unseen', 'synthetic', 'support'] },
   { id: 'abeer',     custom: false, tags: ['female', 'saudi', 'unseen', 'human', 'artist'] },
@@ -39,8 +43,8 @@ let voiceCatalog = [
   { id: 'ahmed',     custom: false, tags: ['male', 'msa', 'unseen', 'reader'] },
 ];
 
-// The picker's sections, in order: speakers the Najdi model trained on, voices it clones
-// from their clip alone, and the user's own uploads.
+// The picker's sections, in order: speakers the Najdi model trained on (the recommended
+// ones), voices it clones from their clip alone, and the user's own uploads.
 const VOICE_GROUPS = ['trained', 'cloned', 'custom'];
 function voiceGroup(v) {
   if (v.custom) return 'custom';
@@ -79,9 +83,8 @@ const MODELS = {
     id: 'omnivoice_najdi',
     get name() { return t('model.najdi.name'); },
     icon: '🎙️',
-    specs: '0.6B · 24kHz · Najdi FT v3 · step 1950',
+    specs: '0.6B · 24kHz · Najdi FT v4 · step 6250',
     get role() { return t('model.najdi.role'); },
-    get traits() { return [t('model.trait.najdi'), t('model.trait.nasserVoice'), t('model.trait.trainedVoices'), '24kHz']; },
     get profile() {
       return [
         { label: t('model.profile.bestUse'), value: t('model.najdi.bestUse') },
@@ -101,7 +104,6 @@ const MODELS = {
     icon: '🌐',
     specs: '0.6B · 24kHz · 600+ lang',
     get role() { return t('model.base.role'); },
-    get traits() { return [t('model.trait.langs'), 'Arabic-ready', 'Voice design', '24kHz']; },
     get profile() {
       return [
         { label: t('model.profile.bestUse'), value: t('model.base.bestUse') },
@@ -169,7 +171,10 @@ function buildModelInput(mid, text) {
   const cloning = Boolean(v.voice || MODELS[mid].defaultVoice);
   if (!cloning && GENDER_EN[v.gender]) attrs.push(GENDER_EN[v.gender]);
   if (AGE_EN[v.age]) attrs.push(AGE_EN[v.age]);
-  return { text: body, instruct: attrs.join(', '), lang: DIALECT_LANG[v.dialect || 'msa'] || DIALECT_LANG.msa };
+  // No dialect named: the worker speaks a saved voice in its own language code, else MSA.
+  const voice = voiceCatalog.find(x => x.id === (v.voice || MODELS[mid].defaultVoice));
+  return { text: body, instruct: attrs.join(', '),
+           lang: DIALECT_LANG[v.dialect] || (voice && voice.language) || DIALECT_LANG.msa };
 }
 
 const SAMPLE_SENTENCES = [
@@ -335,7 +340,8 @@ function showToast(msg, type = '', duration = 3000) {
 // ── Init param values ─────────────────────────────────────────
 function initParamValues() {
   for (const [mid, m] of Object.entries(MODELS)) {
-    paramValues[mid] = { dialect: 'msa', gender: '', age: '' };   // Arabic forced; persona auto
+    // Arabic forced; no dialect named, so each voice is spoken in its own; persona auto
+    paramValues[mid] = { dialect: '', gender: '', age: '' };
     for (const p of m.params) {
       paramValues[mid][p.id] = p.default;
     }
@@ -366,12 +372,8 @@ function renderModelCards() {
         <div class="mc-icon">${m.icon}</div>
         <div class="mc-main">
           <div class="mc-name">${escapeHtml(m.name)}</div>
-          <div class="mc-specs">${escapeHtml(m.specs)}</div>
+          <div class="mc-role">${escapeHtml(m.role)}</div>
         </div>
-      </div>
-      <div class="mc-role">${escapeHtml(m.role)}</div>
-      <div class="mc-traits">
-        ${(m.traits || []).map(t => `<span>${escapeHtml(t)}</span>`).join('')}
       </div>
       <div class="mc-footer">
         <span class="mc-status ${statusCls}">${statusText}</span>
@@ -380,10 +382,19 @@ function renderModelCards() {
           : ''}
       </div>
     `;
+    card.title = m.specs;
     card.addEventListener('click', () => selectModel(m.id));
     const loadBtn = card.querySelector('.mc-load-btn');
     if (loadBtn) loadBtn.addEventListener('click', (e) => { e.stopPropagation(); loadModel(m.id); });
     container.appendChild(card);
+  }
+
+  // The folded Model panel still says which model is in use, and whether it is up.
+  const current = $('model-current');
+  if (current) {
+    const st = workerStatus[selectedModel] || 'offline';
+    current.textContent = MODELS[selectedModel].name;
+    current.className = `tool-value ${st === 'checking' ? 'loading' : st}`;
   }
 }
 
@@ -412,13 +423,15 @@ async function loadModel(id) {
 // ── Render status badges ──────────────────────────────────────
 function renderStatusBadges() {
   const row = $('status-row');
-  row.innerHTML = '';
+  // Redraw the badges only: the row also holds the links to the log and API pages.
+  row.querySelectorAll('.status-badge').forEach(el => el.remove());
+  const links = row.firstChild;
   for (const m of Object.values(MODELS)) {
     const st = workerStatus[m.id] || 'offline';
     const badge = document.createElement('div');
     badge.className = `status-badge ${st === 'checking' ? 'loading' : st}`;
     badge.innerHTML = `<span class="status-dot"></span>${m.name}`;
-    row.appendChild(badge);
+    row.insertBefore(badge, links);
   }
 }
 
@@ -652,41 +665,57 @@ function renderParams() {
   }
 }
 
+// One card per voice: click it to pick the voice, ▶ to hear its reference clip.
+function voiceCardHtml(id, label, fallbackSub, active, tip) {
+  const [name, ...rest] = String(label).split(' — ');     // "Nasser — Najdi male"
+  return `
+    <div class="voice-card${active ? ' active' : ''}" role="radio" tabindex="0"
+         aria-checked="${active}" data-voice="${escapeAttr(id)}"
+         ${tip ? `title="${escapeAttr(tip)}"` : ''}>
+      ${id ? `<button class="vc-play" type="button" data-play="${escapeAttr(id)}"
+                title="${escapeAttr(t('voice.previewTitle'))}">▶</button>` : ''}
+      <span class="vc-text">
+        <span class="vc-name" dir="auto">${escapeHtml(name)}</span>
+        <span class="vc-sub" dir="auto">${escapeHtml(rest.join(' — ') || fallbackSub)}</span>
+      </span>
+    </div>`;
+}
+
 function renderVoicePicker() {
-  const select = $('voice-select');
-  if (!select) return;
+  const list = $('voice-list');
+  if (!list) return;
 
   const model = MODELS[selectedModel];
-  const voiceParam = (model.params || []).find(p => p.id === 'voice');
-  if (!voiceParam) {
-    select.innerHTML = `<option value="">${t('voice.none')}</option>`;
-    select.disabled = true;
-    return;
-  }
-
   const current = currentVoiceId(selectedModel);
-  const option = (value, label) => `
-    <option value="${escapeHtml(String(value))}" ${value === current ? 'selected' : ''}>
-      ${escapeHtml(label)}
-    </option>`;
   // A model with a house voice always clones someone, so "no cloning" is not offered there.
-  const none = model.defaultVoice ? '' : option('', t('voice.none'));
+  const none = model.defaultVoice ? '' : `
+    <div class="voice-grid">${voiceCardHtml('', t('voice.none'), t('voice.noneSub'), !current, '')}</div>`;
   const groups = VOICE_GROUPS.map(group => {
     const members = voiceCatalog.filter(v => voiceGroup(v) === group);
     if (!members.length) return '';
-    return `<optgroup label="${escapeHtml(t(`voice.group.${group}`))}">
-      ${members.map(v => option(v.id, voiceLabel(v))).join('')}</optgroup>`;
+    const tip = group === 'custom' ? '' : t(`vtag.${group === 'trained' ? 'trained' : 'unseen'}.tip`);
+    return `
+      <div class="voice-group-label">${escapeHtml(t(`voice.group.${group}`))}</div>
+      <div class="voice-grid" role="radiogroup">
+        ${members.map(v => voiceCardHtml(v.id, voiceLabel(v), voiceKind(v), v.id === current, tip)).join('')}
+      </div>`;
   });
-  select.disabled = false;
-  select.innerHTML = none + groups.join('');
+  list.innerHTML = none + groups.join('');
+  syncVoicePlayButtons();
+  renderVoiceDetails();
+}
 
-  // One voice choice for every model, so a cross-model comparison hears the same speaker.
-  select.onchange = e => {
-    for (const mid of Object.keys(MODELS)) {
-      if (paramValues[mid]) paramValues[mid].voice = e.target.value;
-    }
-    renderVoiceDetails();
-  };
+// One voice choice for every model, so a cross-model comparison hears the same speaker.
+function pickVoice(id) {
+  for (const mid of Object.keys(MODELS)) {
+    if (paramValues[mid]) paramValues[mid].voice = id;
+  }
+  const current = currentVoiceId(selectedModel);
+  $$('#voice-list .voice-card').forEach(card => {
+    const on = card.dataset.voice === current;
+    card.classList.toggle('active', on);
+    card.setAttribute('aria-checked', String(on));
+  });
   renderVoiceDetails();
 }
 
@@ -707,28 +736,35 @@ function voiceNameFor(id) {
   return v ? voiceLabel(v) : (id || '');
 }
 
-// Under the picker: what the selected voice is, and whether it can be deleted.
+// Tags a voice's own name already carries ("Nasser — Najdi male").
+const VOICE_NAME_TAGS = ['male', 'female', 'najdi', 'saudi', 'msa'];
+
+// A card's second line when the name does not bring its own.
+function voiceKind(v) {
+  if (v.custom) return t('voice.custom');
+  return (v.tags || []).filter(key => VOICE_NAME_TAGS.includes(key)).map(voiceTagLabel).join(' · ');
+}
+
+// Under the cards: what the picked voice is, and whether it can be deleted.
 function renderVoiceDetails() {
   const v = selectedVoice();
-  const preview = $('btn-voice-preview');
   const del = $('btn-voice-delete');
-  const hint = $('voice-hint');
-  if (preview) preview.disabled = !v;
   if (del) del.hidden = !(v && v.custom);
-  const tags = $('voice-tags');
-  if (tags) {
-    tags.innerHTML = ((v && v.tags) || []).map(key => {
-      const tip = t(`vtag.${key}.tip`);
-      return `<span class="voice-tag${/^[a-z_]+$/.test(key) ? ` vt-${key}` : ''}"
-        ${tip !== `vtag.${key}.tip` ? `title="${escapeHtml(tip)}"` : ''}>${escapeHtml(voiceTagLabel(key))}</span>`;
-    }).join('');
-  }
+  const current = $('voice-current');
+  if (current) current.textContent = v ? voiceLabel(v).split(' — ')[0] : t('voice.none');
+  const hint = $('voice-hint');
   if (!hint) return;
   if (!v) { hint.textContent = t('voice.noneHint'); return; }
-  const bits = [v.custom ? t('voice.custom') : t('voice.builtin')];
+  if (!v.custom) {
+    hint.textContent = (v.tags || []).filter(key => !VOICE_NAME_TAGS.includes(key))
+      .map(voiceTagLabel).join(' · ');
+    return;
+  }
+  const bits = [t('voice.custom')];
+  const dialect = DIALECTS.find(d => DIALECT_LANG[d.id] === v.language);
+  if (dialect) bits.push(dialect.label);
   if (v.duration_s) bits.push(`${Number(v.duration_s).toFixed(1)} s`);
-  const said = v.ref_text ? `«${v.ref_text}»` : (v.custom ? t('voice.noText') : '');
-  hint.textContent = bits.join(' · ') + (said ? ` — ${said}` : '');
+  hint.textContent = `${bits.join(' · ')} — ${v.ref_text ? `«${v.ref_text}»` : t('voice.noText')}`;
 }
 
 // ── Render emotion tags ───────────────────────────────────────
@@ -1289,14 +1325,25 @@ function syncVoicesWithStatus(data) {
   if (info.voices.slice().sort().join() !== known) loadVoices();
 }
 
-function toggleVoicePreview() {
-  const v = selectedVoice();
+// Play a voice's reference clip, or stop it if that clip is the one playing.
+function toggleVoicePreview(id) {
   const audio = $('voice-preview-audio');
-  if (!v || !audio) return;
-  if (!audio.paused && audio.dataset.voice === v.id) { audio.pause(); return; }
-  audio.src = appUrl(`api/voices/${encodeURIComponent(v.id)}/audio`);
-  audio.dataset.voice = v.id;
+  if (!id || !audio) return;
+  if (!audio.paused && audio.dataset.voice === id) { audio.pause(); return; }
+  audio.src = appUrl(`api/voices/${encodeURIComponent(id)}/audio`);
+  audio.dataset.voice = id;
   audio.play().catch(e => showToast(`${t('misc.error')}: ${e.message}`, 'error'));
+}
+
+// The ▶ of the clip that is playing shows ⏸.
+function syncVoicePlayButtons() {
+  const audio = $('voice-preview-audio');
+  const playing = audio && !audio.paused ? audio.dataset.voice : '';
+  $$('#voice-list .vc-play').forEach(btn => {
+    const on = btn.dataset.play === playing;
+    btn.textContent = on ? '⏸' : '▶';
+    btn.classList.toggle('playing', on);
+  });
 }
 
 async function deleteSelectedVoice() {
@@ -1321,6 +1368,7 @@ function openVoiceForm(open) {
   voiceUpload = null;
   $('voice-name').value = '';
   $('voice-text').value = '';
+  $('voice-dialect').value = 'saudi';
   const zone = $('voice-zone');
   zone.classList.remove('has-file');
   zone.querySelector('.zone-label').textContent = t('voice.drop');
@@ -1382,12 +1430,12 @@ async function saveVoice() {
     fd.append('name', name);
     fd.append('audio', voiceUpload, voiceUpload.name);
     fd.append('ref_text', $('voice-text').value.trim());
+    fd.append('dialect', $('voice-dialect').value);
     const r = await fetch(appUrl('api/voices'), { method: 'POST', body: fd });
     if (!r.ok) throw new Error(await errorText(r));
     const voice = await r.json();
     await loadVoices();
-    for (const mid of Object.keys(MODELS)) paramValues[mid].voice = voice.id;   // use it right away
-    renderVoicePicker();
+    pickVoice(voice.id);                 // use it right away
     openVoiceForm(false);
     showToast(t('voice.saved', { name: voice.label }), 'success');
   } catch (e) {
@@ -1399,7 +1447,18 @@ async function saveVoice() {
 
 function setupVoiceLibrary() {
   if (!$('voice-add')) return;
-  $('btn-voice-preview').addEventListener('click', toggleVoicePreview);
+  // The cards are re-rendered, so their clicks are handled on the list that holds them.
+  $('voice-list').addEventListener('click', e => {
+    const play = e.target.closest('[data-play]');
+    if (play) { toggleVoicePreview(play.dataset.play); return; }
+    const card = e.target.closest('.voice-card');
+    if (card) pickVoice(card.dataset.voice);
+  });
+  $('voice-list').addEventListener('keydown', e => {
+    if ((e.key !== 'Enter' && e.key !== ' ') || !e.target.classList.contains('voice-card')) return;
+    e.preventDefault();
+    pickVoice(e.target.dataset.voice);
+  });
   $('btn-voice-delete').addEventListener('click', deleteSelectedVoice);
   $('btn-voice-add').addEventListener('click', () => openVoiceForm(true));
   $('btn-voice-cancel').addEventListener('click', () => openVoiceForm(false));
@@ -1408,9 +1467,7 @@ function setupVoiceLibrary() {
   $('voice-zone').querySelector('input').addEventListener('change', e => setVoiceFile(e.target.files[0]));
 
   const audio = $('voice-preview-audio');
-  const btn = $('btn-voice-preview');
-  const label = () => { btn.textContent = audio.paused ? t('voice.preview') : t('voice.stop'); };
-  ['play', 'pause', 'ended'].forEach(ev => audio.addEventListener(ev, label));
+  ['play', 'pause', 'ended', 'emptied'].forEach(ev => audio.addEventListener(ev, syncVoicePlayButtons));
   loadVoices();
 }
 
@@ -2550,6 +2607,24 @@ function setAccordionOpen(sectionId, open) {
   section.classList.toggle('open', open);
 }
 
+// ── Folded tools (model, compare, transcription) ──────────────
+// The page opens on text → voice → generate; the rest stays folded, and each panel
+// remembers whether it was left open.
+const TOOLS_OPEN_KEY = 'tts_tools_open_v1';
+
+function setupTools() {
+  let open = {};
+  try { open = JSON.parse(localStorage.getItem(TOOLS_OPEN_KEY) || '{}'); } catch { /* private mode */ }
+  if (!open || typeof open !== 'object') open = {};
+  $$('details.tool').forEach(el => {
+    if (el.id in open) el.open = Boolean(open[el.id]);
+    el.addEventListener('toggle', () => {
+      open[el.id] = el.open;
+      try { localStorage.setItem(TOOLS_OPEN_KEY, JSON.stringify(open)); } catch { /* private mode */ }
+    });
+  });
+}
+
 // ── Clear history ─────────────────────────────────────────────
 function clearHistory() {
   if (!confirm(t('hist.confirmClear'))) return;
@@ -2640,6 +2715,7 @@ function init() {
   setupTashkeel();
   setupCompareModes();
   setupVoiceLibrary();
+  setupTools();
 
   try {
     renderVoicePicker();
