@@ -123,6 +123,20 @@ def test_the_openai_path_is_built_as_before(monkeypatch, chat):
     assert chat["structured"] == {}
 
 
+def test_a_job_can_ask_openai_for_less_thinking(monkeypatch, chat):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    llm.structured_llm(textprep.PrepareResult, effort="low")
+    assert chat["init"]["reasoning_effort"] == "low"
+
+
+def test_groq_keeps_its_own_effort_setting(monkeypatch, chat):
+    """`reasoning_effort` is a 400 on some Groq models, so a job's wish never reaches them."""
+    monkeypatch.setenv("GROQ_API_KEY", "gsk_test")
+    llm.structured_llm(textprep.PrepareResult, effort="low")
+    assert "reasoning_effort" not in chat["init"]
+    assert chat["init"]["extra_body"] == {"max_completion_tokens": 16384}
+
+
 def test_openai_without_its_key_still_says_so(monkeypatch, chat):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
@@ -137,15 +151,22 @@ REWORDED = "الْحَالَيْنَ تَقْدِرْ تَسْتَخْدِمِ �
 
 @pytest.fixture
 def answers(monkeypatch):
-    """textprep's model, answering with the queued diacritized texts in turn."""
-    queue, seen = [], []
+    """textprep's model, answering with the queued diacritized texts in turn (a queued dict
+    is a whole answer, field by field). `seen.efforts` is what each call asked the model for."""
+    class Calls(list):
+        efforts = []
+
+    queue, seen = [], Calls()
 
     class Model:
         def invoke(self, messages):
             seen.append(messages)
-            return textprep.PrepareResult(diacritized=queue.pop(0))
+            answer = queue.pop(0)
+            return textprep.PrepareResult(**(answer if isinstance(answer, dict)
+                                             else {"diacritized": answer}))
 
-    monkeypatch.setattr(textprep, "_build_llm", lambda: Model())
+    monkeypatch.setattr(textprep, "_build_llm",
+                        lambda effort="": seen.efforts.append(effort) or Model())
     return queue, seen
 
 
@@ -218,6 +239,50 @@ def test_the_letter_check_still_guards_shadda_mode(answers):
     out = textprep.prepare_text(ORIGINAL, "saudi", normalize=False, diacritize=True,
                                 marks="shadda")
     assert out["letters_changed"] is True
+
+
+# ── textprep: the lite copy ───────────────────────────────────
+PLAIN = "المعلم شد الحبل بقوة ثم علم الطالب"
+LITE = "الْمعلّم شدّ الْحبْل بقوّة، ثمّ عَلِم الطّالب."      # shadda, sukun, a comma and a stop, one عَلِم
+
+
+def test_lite_mode_asks_for_the_lite_copy_alone_and_returns_it(answers):
+    queue, seen = answers
+    queue.append({"lite": LITE})
+    out = textprep.prepare_text(PLAIN, "msa", normalize=False, diacritize=True, marks="lite")
+    assert out["marks"] == "lite"
+    assert out["diacritized"] == out["text"] == out["diacritized_lite"] == LITE
+    assert out["diacritized_full"] == "" and out["diacritized_shadda"] == ""   # never made
+    assert out["letters_changed"] is False and len(seen) == 1   # the added «،» and «.» are no letters
+    system, user = seen[0][0]["content"], seen[0][1]["content"]
+    assert "LITE" in system and "DIACRITIZE" not in system and "(lite)" in user
+    assert "shadda" in system and "sukun" in system         # both marks are the agent's to place
+    assert "`lite`" in system.split("\n")[-1]                # the key JSON mode has to be told
+    assert seen.efforts == ["low"]                           # a quick job: 11-18 s, not 28-59
+
+
+def test_the_other_modes_neither_ask_for_nor_return_a_lite_copy(answers):
+    queue, seen = answers
+    queue.extend([{"diacritized": FULL, "lite": "ignored because not requested"}] * 2)
+    for marks in ("full", "shadda"):
+        out = textprep.prepare_text("المعلم شد الحبل بقوة", "msa", normalize=False,
+                                    diacritize=True, marks=marks)
+        assert out["diacritized_lite"] == "" and out["diacritized_full"] == FULL
+    assert all("LITE" not in call[0]["content"] and "`lite`" not in call[0]["content"]
+               for call in seen)
+    assert seen.efforts == ["", ""]                          # the full tashkeel thinks as before
+
+
+def test_the_letter_check_guards_the_lite_copy_too(answers):
+    queue, seen = answers
+    queue.extend([{"lite": REWORDED}, {"lite": "الْحينْ تقْدرْ تسْتخْدمْ الْخدْمةْ."}])
+    out = textprep.prepare_text(ORIGINAL, "saudi", normalize=False, diacritize=True, marks="lite")
+    assert out["diacritized"] == "الْحينْ تقْدرْ تسْتخْدمْ الْخدْمةْ." and out["letters_changed"] is False
+    assert len(seen) == 2 and "punctuation" in seen[1][-1]["content"]
+
+    queue.extend([{"lite": REWORDED}, {"lite": REWORDED}])
+    out = textprep.prepare_text(ORIGINAL, "saudi", normalize=False, diacritize=True, marks="lite")
+    assert out["letters_changed"] is True and out["diacritized_lite"] == REWORDED
 
 
 def test_the_answer_names_the_provider_and_model(answers, monkeypatch):

@@ -232,7 +232,7 @@ MSA case endings onto colloquial speech. The copy appears in its own box, editab
 replaces the original; **Generate speaks: Original | Tashkeel** picks which one is synthesized.
 If the original changes, the tashkeel is redone automatically before it is spoken.
 
-**Marks: Full tashkeel | Shadda only** in the tashkeel box picks what the copy carries: every
+**Marks: Full tashkeel | Shadda only** beside the button picks what the copy carries: every
 haraka on every word of the sentence, or the shadda alone, with the rest of the sentence
 left unmarked. The agent diacritizes the whole sentence once either way — that is where it
 places the shadda best — and the studio keeps both forms, so switching is instant and needs
@@ -240,9 +240,28 @@ no second call. Runs are marked *Tashkeel* or *Shadda only* accordingly. Over th
 `marks: "full" | "shadda"` on `POST /api/prepare`; the answer always carries both forms as
 `diacritized_full` and `diacritized_shadda`.
 
+**Marks: Lite tashkeel** is the third choice, for text that should read naturally without
+being covered in harakat. The agent writes this copy itself: the shadda on every doubled
+letter, the sukun on every consonant with no vowel after it, added commas and full stops
+where a speaker pauses, and a short vowel only on a word that could be misread — a homograph
+(عَلِم / عِلْم), a passive verb (عُقِد), an unusual name:
+
+> أبشر طال عمرك طلبك وصلنا وبنكلمك خلال ساعة ونعلمك وش صار عليه →
+> أبْشرْ طالْ عمْركْ، طلبكْ وصلْنا، وبنْكلّمكْ خلالْ ساعةْ، ونعلّمكْ وشْ صارْ عليهْ.
+
+It is a separate request to the agent (`marks: "lite"`, answered as `diacritized_lite` with
+the other two forms empty), so switching to or from it asks the agent once; the studio then
+keeps every form made for the text. Runs are marked *Lite tashkeel*.
+
+The agent writes the lite copy at low reasoning effort (`LITE_REASONING_EFFORT`, OpenAI
+only): on six MSA and Najdi sentences gpt-5.5 took 11–18 s a sentence at `low` against
+28–59 s at its default, kept every letter both ways, and agreed with its own full tashkeel
+on all 26 shaddas and 86 of 97 sukuns both ways. At `low` it misread one passive verb as
+active (عَقَد for عُقِد), which the default got right.
+
 **Compare → Original vs tashkeel** (the panel's default mode) generates the selected model twice, once
-per version, side by side — making the tashkeel (or the shadda-only copy, when that is the
-chosen mark) first if there is none yet. **Compare → Every
+per version, side by side — making the tashkeel (or the shadda-only or lite copy, when that
+is the chosen mark) first if there is none yet. **Compare → Every
 model** keeps the old behaviour: the same text on every available model. History, the player
 and the saved comparisons show the full text of every run, marked *Original* or *Tashkeel*,
 with the voice it used.

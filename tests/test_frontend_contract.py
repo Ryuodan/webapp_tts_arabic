@@ -189,7 +189,7 @@ def test_every_built_in_voice_names_a_dialect_the_worker_can_send():
 
 
 def test_the_marks_switch_offers_exactly_the_modes_the_agent_knows():
-    """Full tashkeel or shadda only: a button for a mode textprep does not know would
+    """Full tashkeel, shadda only or lite: a button for a mode textprep does not know would
     silently get full tashkeel back."""
     import textprep
     page = (STATIC / "index.html").read_text(encoding="utf-8")
@@ -197,8 +197,15 @@ def test_the_marks_switch_offers_exactly_the_modes_the_agent_knows():
     assert offered == set(textprep.MARK_MODES)
     script = (STATIC / "app.js").read_text(encoding="utf-8")
     assert "marks: tashkeelMarks" in script                 # the choice reaches /api/prepare
-    for key in ("diacritized_full", "diacritized_shadda"):  # both forms are kept for switching
-        assert key in script, key
+    # Every mode names itself in the studio, and the form the agent returns for it is kept.
+    shown = js_globals("app.js", ["modes: Object.keys(MARKS_KEYS)",
+        "labels: Object.values(MARKS_KEYS).map(k => Object.values(k).filter(Boolean).map(key => [key, t(key)]))"])
+    assert set(shown["modes"]) == offered
+    for key, label in (pair for mode in shown["labels"] for pair in mode):
+        assert label and label != key, key
+    assert "data[`diacritized_${form}`]" in script
+    for mode in offered:
+        assert f"diacritized_{mode}" in textprep.prepare_text("")
 
 
 def test_transcription_is_not_a_synthesis_model():

@@ -897,8 +897,7 @@ function updateCompareLabel() {
   if (compareMode === 'tashkeel') {
     ready = up(selectedModel);
     if (label) label.textContent = t('cmp.runTashkeel');
-    if (hint) hint.textContent = t(tashkeelMarks === 'shadda' ? 'cmp.hintShadda' : 'cmp.hintTashkeel',
-                                   { model: MODELS[selectedModel].name });
+    if (hint) hint.textContent = t(MARKS_KEYS[tashkeelMarks].hint, { model: MODELS[selectedModel].name });
   } else {
     const n = Object.keys(MODELS).filter(up).length;
     ready = n > 0;
@@ -1475,17 +1474,26 @@ function setupVoiceLibrary() {
 // A diacritized copy of the text box, made by the Text-Prep agent (POST /api/prepare with
 // tashkeel only). It sits beside the original rather than replacing it, so Generate can
 // speak either one and Compare can play the two side by side.
-// `source` is the original it was made from; `full` and `shadda` are the two forms the agent
-// returned for it, and `text` is the one on screen (hand edits included).
-let tashkeel = { source: '', text: '', full: '', shadda: '' };
+// `source` is the original it was made from; `full`, `shadda` and `lite` are the forms the
+// agent has returned for it so far, `text` is the one on screen (hand edits included) and
+// `marks` says which form that is.
+const NO_TASHKEEL = { source: '', text: '', marks: '', full: '', shadda: '', lite: '' };
+let tashkeel = { ...NO_TASHKEEL };
 let speakVariant = 'original';             // which version Generate speaks
-// Which marks the agent's copy carries: the whole tashkeel, or the shadda alone.
+// Which marks the agent's copy carries: the whole tashkeel, the shadda alone, or the lite
+// copy (shadda, commas and full stops, a haraka only where a word could be misread). Each
+// names the box, the status line, Generate and the compare hint with its own strings.
+const MARKS_KEYS = {
+  full:   { tag: 'tk.tag',    done: 'tk.doneBy',     same: '',            run: 'synth.runTashkeel', hint: 'cmp.hintTashkeel' },
+  shadda: { tag: 'tk.shadda', done: 'tk.doneShadda', same: 'tk.noShadda', run: 'synth.runShadda',   hint: 'cmp.hintShadda' },
+  lite:   { tag: 'tk.lite',   done: 'tk.doneLite',   same: 'tk.noLite',   run: 'synth.runLite',     hint: 'cmp.hintLite' },
+};
 const TASHKEEL_MARKS_KEY = 'tts_tashkeel_marks';
 let tashkeelMarks = 'full';
-// What a run spoken from the agent's copy is called: 'tashkeel' or 'shadda'.
-const markedVariant = () => (tashkeelMarks === 'shadda' ? 'shadda' : 'tashkeel');
+// What a run spoken from the agent's copy is called: 'tashkeel', 'shadda' or 'lite'.
+const markedVariant = () => (tashkeelMarks === 'full' ? 'tashkeel' : tashkeelMarks);
 
-const VARIANT_LABELS = { tashkeel: 'tk.tashkeel', shadda: 'tk.shadda' };
+const VARIANT_LABELS = { tashkeel: 'tk.tashkeel', shadda: 'tk.shadda', lite: 'tk.lite' };
 const variantLabel = variant => t(VARIANT_LABELS[variant] || 'tk.original');
 const variantBadgeHtml = variant =>
   `<span class="variant-badge ${VARIANT_LABELS[variant] ? 'tashkeel' : 'original'}">${escapeHtml(variantLabel(variant))}</span>`;
@@ -1522,17 +1530,26 @@ async function makeTashkeel(original) {
     const data = await r.json();
     const out = (data.diacritized || '').trim();
     if (!out) throw new Error(t('tk.empty'));
-    // Both forms come back from the one call, so switching marks needs no second one.
-    tashkeel = { source: text, text: out,
-                 full: (data.diacritized_full || '').trim(),
-                 shadda: (data.diacritized_shadda || '').trim() };
+    // Full and shadda-only come back from the one call, so switching between them needs no
+    // second one; the lite copy is its own call. Forms already made for this text are kept.
+    const marks = MARKS_KEYS[data.marks] ? data.marks : tashkeelMarks;
+    tashkeel = { ...(tashkeel.source === text ? tashkeel : NO_TASHKEEL), source: text, text: out, marks };
+    for (const form of Object.keys(MARKS_KEYS)) {
+      const made = (data[`diacritized_${form}`] || '').trim();
+      if (made) tashkeel[form] = made;
+    }
+    // The marks were switched while the agent worked: stay on the form now chosen, if it is here.
+    if (marks !== tashkeelMarks && tashkeel[tashkeelMarks]) {
+      tashkeel.text = tashkeel[tashkeelMarks];
+      tashkeel.marks = tashkeelMarks;
+    }
     renderTashkeel();
     // The agent retries once when it rewrites a word; if it still did, say so before the
     // user compares two sentences that differ by more than their harakat.
+    const keys = MARKS_KEYS[marks];
     if (data.letters_changed) setStatusLine('tashkeel-status', t('tk.changed'), 'warn');
-    else if (tashkeelMarks === 'shadda' && out === text) setStatusLine('tashkeel-status', t('tk.noShadda'), 'warn');
-    else setStatusLine('tashkeel-status', t(tashkeelMarks === 'shadda' ? 'tk.doneShadda' : 'tk.doneBy',
-                                            { model: data.model || '' }), 'success');
+    else if (keys.same && out === text) setStatusLine('tashkeel-status', t(keys.same), 'warn');
+    else setStatusLine('tashkeel-status', t(keys.done, { model: data.model || '' }), 'success');
     return out;
   } catch (e) {
     const msg = String(e.message).slice(0, 200);
@@ -1544,9 +1561,10 @@ async function makeTashkeel(original) {
   }
 }
 
-// The tashkeel for `original`, made now if the one on screen belongs to older text.
+// The tashkeel for `original`, made now if the one on screen belongs to older text or
+// carries other marks than the ones chosen.
 async function ensureTashkeel(original) {
-  if (tashkeel.text && tashkeel.source === original) return tashkeel.text;
+  if (tashkeel.text && tashkeel.source === original && tashkeel.marks === tashkeelMarks) return tashkeel.text;
   return makeTashkeel(original);
 }
 
@@ -1559,14 +1577,20 @@ async function textToSpeak(original) {
   return { text, variant: markedVariant() };
 }
 
-// Full tashkeel or the shadda alone. A copy already made for this text is swapped for its
-// other form on the spot; anything typed into the box since is replaced by it.
-function setTashkeelMarks(marks) {
-  tashkeelMarks = marks === 'shadda' ? 'shadda' : 'full';
+// Full tashkeel, the shadda alone, or the lite copy. A form already made for this text is
+// swapped in on the spot; anything typed into the box since is replaced by it. One not made
+// yet (lite after full, or the other way round) is fetched, and the switch is taken back
+// if that fails, so the box never claims marks its text does not carry.
+async function setTashkeelMarks(marks) {
+  const before = tashkeelMarks;
+  const chosen = MARKS_KEYS[marks] ? marks : 'full';
+  tashkeelMarks = chosen;
+  const made = tashkeel[chosen];
+  if (tashkeel.text && made) { tashkeel.text = made; tashkeel.marks = chosen; }
+  renderTashkeel();
+  updateSynthBtn();
+  if (tashkeel.text && !made && !(await makeTashkeel()) && tashkeelMarks === chosen) tashkeelMarks = before;
   try { localStorage.setItem(TASHKEEL_MARKS_KEY, tashkeelMarks); } catch { /* private mode */ }
-  const other = tashkeel[tashkeelMarks];
-  if (tashkeel.text && other) tashkeel.text = other;
-  else if (tashkeel.text) tashkeel = { source: '', text: '', full: '', shadda: '' };   // made before both forms existed
   renderTashkeel();
   updateSynthBtn();
 }
@@ -1590,13 +1614,14 @@ function renderTashkeel() {
     $(id).classList.toggle('active', on);
     $(id).setAttribute('aria-checked', String(on));
   }
-  for (const [id, marks] of [['tk-marks-full', 'full'], ['tk-marks-shadda', 'shadda']]) {
-    if (!$(id)) continue;
-    $(id).classList.toggle('active', tashkeelMarks === marks);
-    $(id).setAttribute('aria-checked', String(tashkeelMarks === marks));
+  for (const marks of Object.keys(MARKS_KEYS)) {
+    const btn = $(`tk-marks-${marks}`);
+    if (!btn) continue;
+    btn.classList.toggle('active', tashkeelMarks === marks);
+    btn.setAttribute('aria-checked', String(tashkeelMarks === marks));
   }
   // The box and the "speaks" choice are named after the marks they carry.
-  if ($('tashkeel-tag')) $('tashkeel-tag').textContent = t(tashkeelMarks === 'shadda' ? 'tk.shadda' : 'tk.tag');
+  if ($('tashkeel-tag')) $('tashkeel-tag').textContent = t(MARKS_KEYS[tashkeelMarks].tag);
   $('speak-tashkeel').textContent = variantLabel(markedVariant());
 }
 
@@ -1609,9 +1634,13 @@ function setupTashkeel() {
   $('speak-tashkeel').addEventListener('click', () => setSpeakVariant('tashkeel'));
   $('text-input').addEventListener('input', renderTashkeel);
   if ($('tk-marks-full')) {
-    try { tashkeelMarks = localStorage.getItem(TASHKEEL_MARKS_KEY) === 'shadda' ? 'shadda' : 'full'; } catch { /* private mode */ }
-    $('tk-marks-full').addEventListener('click', () => setTashkeelMarks('full'));
-    $('tk-marks-shadda').addEventListener('click', () => setTashkeelMarks('shadda'));
+    try {
+      const saved = localStorage.getItem(TASHKEEL_MARKS_KEY);
+      tashkeelMarks = MARKS_KEYS[saved] ? saved : 'full';
+    } catch { /* private mode */ }
+    for (const marks of Object.keys(MARKS_KEYS)) {
+      $(`tk-marks-${marks}`).addEventListener('click', () => setTashkeelMarks(marks));
+    }
     renderTashkeel();
   }
 }
@@ -1653,8 +1682,7 @@ function updateSynthBtn() {
     !available ? t('synth.unavailable') :
     isGenerating || isComparing ? t('synth.running') :
     useAll ? t('synth.compare') :
-    speakVariant !== 'tashkeel' ? t('synth.run') :
-    tashkeelMarks === 'shadda' ? t('synth.runShadda') : t('synth.runTashkeel');
+    speakVariant !== 'tashkeel' ? t('synth.run') : t(MARKS_KEYS[tashkeelMarks].run);
   updateCompareLabel();
 }
 

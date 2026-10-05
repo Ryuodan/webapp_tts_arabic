@@ -418,7 +418,7 @@ async def compose(request: Request):
 @app.post("/api/prepare")
 async def prepare(request: Request):
     """Text-Prep agent: rewrite raw Arabic for TTS (normalize numbers/abbrev + optional tashkeel).
-    `marks` = "full" (default) or "shadda" picks which marks the tashkeel keeps.
+    `marks` = "full" (default), "shadda" or "lite" picks which marks the tashkeel keeps.
     Operates ONLY on the text string — the workers/models are untouched."""
     try:
         body = await request.json()

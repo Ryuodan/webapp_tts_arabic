@@ -158,10 +158,10 @@ const ENDPOINTS = [
       { name: 'dialect',    type: 'select', options: ['msa', 'saudi', 'egyptian'], value: 'msa' },
       { name: 'normalize',  type: 'select', options: ['true', 'false'], value: 'true', json: 'bool' },
       { name: 'diacritize', type: 'select', options: ['false', 'true'], value: 'false', json: 'bool' },
-      { name: 'marks',      type: 'select', options: ['full', 'shadda'], value: 'full',
+      { name: 'marks',      type: 'select', options: ['full', 'shadda', 'lite'], value: 'full',
         get note() { return t('ep.prep.marks'); } },
     ],
-    returns: '{ original, normalized, diacritized, diacritized_full, diacritized_shadda, marks, text, notes, letters_changed, provider, model }',
+    returns: '{ original, normalized, diacritized, diacritized_full, diacritized_shadda, diacritized_lite, marks, text, notes, letters_changed, provider, model }',
   },
   {
     method: 'POST',

@@ -300,6 +300,11 @@ textarea { resize: vertical; }
 .simple-footer {
   justify-content: flex-start;
 }
+/* The marks choice sits beside the tashkeel button; the agent's status takes its own line
+   under them, and no room while there is nothing to say. */
+.simple-footer .segmented { padding: 0; }
+.simple-footer .compose-status { flex: 1 1 100%; margin-top: 0; }
+.simple-footer .compose-status:empty { display: none; }
 
 .compare-toggle {
   display: flex;

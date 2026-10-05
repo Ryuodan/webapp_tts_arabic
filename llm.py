@@ -57,8 +57,11 @@ def model_name() -> str:
     return os.getenv("OPENAI_MODEL") or OPENAI_DEFAULT_MODEL
 
 
-def structured_llm(schema, timeout: int = 60):
+def structured_llm(schema, timeout: int = 60, effort: str = ""):
     """A chat model whose replies parse into `schema` (a pydantic model).
+
+    `effort` is how hard an OpenAI reasoning model thinks about this job (low | medium |
+    high); empty leaves it to the model. Groq takes its own from GROQ_REASONING_EFFORT.
 
     Raises RuntimeError when the chosen provider's key is missing; the gateway turns that
     into a 503 the studio shows as-is.
@@ -80,6 +83,8 @@ def structured_llm(schema, timeout: int = 60):
         raise RuntimeError("OPENAI_API_KEY is not set (add it to .env or the environment).")
     from langchain_openai import ChatOpenAI
     kwargs = {"model": model_name(), "timeout": timeout, "max_retries": 2}
+    if effort:
+        kwargs["reasoning_effort"] = effort
     # GPT-5.x reasoning models reject a custom temperature; only pass one if explicitly set.
     temp = os.getenv("OPENAI_TEMPERATURE", "").strip()
     if temp:
