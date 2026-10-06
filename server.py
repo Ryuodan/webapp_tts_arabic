@@ -28,10 +28,11 @@ OUTPUT_DIRS = {
     # Keep old Fish/VoxCPM2 recordings serveable, but they are no longer active workers.
     "fish":      WORKDIR / "outputs",
     "voxcpm2":   WORKDIR / "outputs_voxcpm2",
-    # The interface models are OmniVoice variants sharing one worker + output dir.
-    "omnivoice":        WORKDIR / "outputs_omnivoice",
-    "omnivoice_base":   WORKDIR / "outputs_omnivoice",
-    "omnivoice_najdi":  WORKDIR / "outputs_omnivoice",
+    # Every OmniVoice model is a variant of one worker, with one output dir.
+    "omnivoice":            WORKDIR / "outputs_omnivoice",
+    "omnivoice_base":       WORKDIR / "outputs_omnivoice",
+    "omnivoice_najdi":      WORKDIR / "outputs_omnivoice",
+    "omnivoice_najdi_v4c":  WORKDIR / "outputs_omnivoice",
     "transcribe":       WORKDIR / "outputs_transcribe",
 }
 
@@ -40,9 +41,11 @@ _OMNIVOICE_URL = "http://127.0.0.1:8082"
 # Speech-out (TTS) workers — only these answer /api/{model}/synthesize.
 TTS_WORKERS = {
     # Aliases for the SAME worker; the frontend fixes the `variant` form field per model.
-    "omnivoice":        _OMNIVOICE_URL,
-    "omnivoice_base":   _OMNIVOICE_URL,
-    "omnivoice_najdi":  _OMNIVOICE_URL,
+    # The studio offers the two Najdi fine-tunes; the stock model is reachable here only.
+    "omnivoice":            _OMNIVOICE_URL,
+    "omnivoice_base":       _OMNIVOICE_URL,
+    "omnivoice_najdi":      _OMNIVOICE_URL,
+    "omnivoice_najdi_v4c":  _OMNIVOICE_URL,
 }
 # Speech-in (ASR) worker — answers /api/transcribe.
 ASR_WORKER = "http://127.0.0.1:8084"
@@ -53,9 +56,11 @@ WORKER_URLS = {**TTS_WORKERS, "transcribe": ASR_WORKER}
 
 # Which worker-side model variant each alias warms on /load ("" = worker default).
 MODEL_VARIANT = {
-    "omnivoice_base":   "base",
-    # Najdi fine-tune; clones the built-in Nasser voice unless the request names another.
-    "omnivoice_najdi":  "najdi",
+    "omnivoice_base":       "base",
+    # The Najdi fine-tunes: v4, and v4 trained on for 1,000 steps on four of its voices. Each
+    # clones the built-in Nasser voice unless the request names another.
+    "omnivoice_najdi":      "najdi",
+    "omnivoice_najdi_v4c":  "najdi_v4c",
 }
 
 

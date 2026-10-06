@@ -11,20 +11,20 @@
     "synthetic",
     "support"
   ],
-  "ref_audio": "ali_ref_6s.wav",
-  "ref_text": "أبغى ثلاثة أرباع النقاط، وتسلم يا سعد، ما قصرت، كذا حل ظريف.",
+  "ref_audio": "ali_ref_14s.wav",
+  "ref_text": "معك حق أم فهد، وأنا متأسف على هاللخبطة. خليني أتأكد، طلبك خمسة ستة ثلاثة سبعة أربعة ثمانية، صح، وإذا جاب لك التطبيق موعد غلط نعدل لك الجدول.",
   "sample_rate": 24000,
-  "duration_s": 5.94,
-  "source": "omnivoice-finetune/data/najdi_v4/wavs/3e0cbb7194a9.wav (id najdi_v4_3e0cbb7194a9: in the najdi_v4 test split, so the shipped najdi_v4_ft checkpoint never trained on it)",
-  "notes": "Ali (a synthesiser voice described as Saudi Arabic, the most used Saudi male voice in its library), a Najdi male support agent: one of the six voices the omnivoice_najdi model trained on (2,615 of his clips, 5.5 h, in Najdi and MSA). A customer thanking the agent, at his natural pace. Picked from his 25 held-out Najdi clips of 5-9 s: of the ten cloned on eight unseen sentences with the shipped model three came out level, and on 20 more held-out Najdi lines this one gave the most Ali-like clones (similarity 0.876, next 0.852) with the lowest error rate and an UTMOS level with the best. To the accent classifier he is the least Saudi-sounding of the six trained voices, with any of his three best clips and with either language code: P(Gulf) 0.47 on the 20 Najdi lines with ars.",
+  "duration_s": 14.07,
+  "source": "omnivoice-finetune/data/najdi_v4/wavs/dd3a19d523d5.wav (id najdi_v4_dd3a19d523d5: in the najdi_v4 val split, which the run measured its loss on but never trained on)",
+  "notes": "Ali (a synthesiser voice described as Saudi Arabic, the most used Saudi male voice in its library), a Najdi male support agent: one of the six voices the omnivoice_najdi model trained on (2,615 of his clips, 5.5 h, in Najdi and MSA). An agent apologising and checking an order number. It replaces, on 2026-10-05, a 5.9 s customer's line that the data's judge gave 66 for naturalness, and was chosen by ear from the audition page of that day. He has no held-out agent line of 9.5-18 s in a warm manner, so the candidates were his nine neutral agent lines and five warm customer lines; of the five cloned on six sentences (four short, two long) with the shipped model, this one gave the most natural clones (UTMOS +0.25 over the short clip, beyond two standard errors) and they are somewhat less like him (similarity -0.04). To the accent classifier he remains the least Saudi-sounding of the six trained voices.",
   "clone_check": {
-    "model": "najdi_v4_ft/checkpoint-6250, language arb, 8 unseen sentences",
-    "sim_speaker": 0.861,
-    "utmos": 3.18,
-    "cer": 0.003,
-    "p_gulf": 0.319,
-    "pace_vs_natural": 0.99,
-    "from": "omnivoice-finetune/scripts/pick_voice_refs_v4.py -> outputs/voice_refs_v4/picks.json"
+    "model": "najdi_v4_ft/checkpoint-6250, language ars, 6 sentences (4 short, 2 long)",
+    "sim_speaker": 0.832,
+    "utmos": 3.349,
+    "cer": 0.02,
+    "p_gulf": 0.697,
+    "pace_vs_natural": 1.09,
+    "from": "omnivoice-finetune/scripts/pick_voice_refs_long.py -> outputs/voice_refs_long/picks.json"
   },
   "language_check": {
     "model": "najdi_v4_ft/checkpoint-6250, 20 held-out Najdi lines and 20 held-out MSA lines, each code",
@@ -60,6 +60,7 @@
         "p_msa": 0.433
       }
     },
-    "from": "omnivoice-finetune/scripts/check_voice_language_v4.py -> outputs/voice_refs_v4/language/report.txt"
+    "from": "omnivoice-finetune/scripts/check_voice_language_v4.py -> outputs/voice_refs_v4/language/report.txt",
+    "clip": "measured with the previous clip, ali_ref_6s.wav"
   }
 }

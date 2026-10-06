@@ -60,7 +60,7 @@ const ENDPOINTS = [
     get desc() { return t('ep.synth.desc'); },
     encoding: 'form',
     fields: [
-      { name: 'model',   type: 'select', in: 'path', options: ['omnivoice_najdi', 'omnivoice_base'], value: 'omnivoice_najdi' },
+      { name: 'model',   type: 'select', in: 'path', options: ['omnivoice_najdi', 'omnivoice_najdi_v4c', 'omnivoice_base'], value: 'omnivoice_najdi' },
       { name: 'text',    type: 'text',   required: true, value: 'مرحباً، كيف حالك؟' },
       { name: 'dialect', type: 'select', options: ['', 'msa', 'saudi', 'egyptian'], value: '',
         get note() { return t('ep.synth.dialect'); } },
@@ -124,7 +124,7 @@ const ENDPOINTS = [
     get title() { return t('ep.load.title'); },
     get desc() { return t('ep.load.desc'); },
     fields: [
-      { name: 'model', type: 'select', in: 'path', options: ['omnivoice_najdi', 'omnivoice_base', 'transcribe'], value: 'transcribe' },
+      { name: 'model', type: 'select', in: 'path', options: ['omnivoice_najdi', 'omnivoice_najdi_v4c', 'omnivoice_base', 'transcribe'], value: 'transcribe' },
     ],
   },
   {
@@ -133,7 +133,7 @@ const ENDPOINTS = [
     get title() { return t('ep.one.title'); },
     get desc() { return t('ep.one.desc'); },
     fields: [
-      { name: 'model', type: 'select', in: 'path', options: ['omnivoice_najdi', 'omnivoice_base', 'transcribe'], value: 'transcribe' },
+      { name: 'model', type: 'select', in: 'path', options: ['omnivoice_najdi', 'omnivoice_najdi_v4c', 'omnivoice_base', 'transcribe'], value: 'transcribe' },
     ],
   },
   {
@@ -142,7 +142,7 @@ const ENDPOINTS = [
     get title() { return t('ep.hist.title'); },
     get desc() { return t('ep.hist.desc'); },
     fields: [
-      { name: 'model', type: 'select', in: 'path', options: ['omnivoice_najdi', 'omnivoice_base', 'transcribe'], value: 'transcribe' },
+      { name: 'model', type: 'select', in: 'path', options: ['omnivoice_najdi', 'omnivoice_najdi_v4c', 'omnivoice_base', 'transcribe'], value: 'transcribe' },
       { name: 'limit', type: 'text', in: 'query', value: '10' },
     ],
     returns: '[ { filename, model, text, params, duration_s, rtf, mtime, size_bytes } ]',
@@ -230,7 +230,7 @@ const ENDPOINTS = [
     get title() { return t('ep.audio.title'); },
     get desc() { return t('ep.audio.desc'); },
     fields: [
-      { name: 'model',    type: 'select', in: 'path', options: ['omnivoice_najdi', 'omnivoice_base', 'transcribe'], value: 'omnivoice_najdi' },
+      { name: 'model',    type: 'select', in: 'path', options: ['omnivoice_najdi', 'omnivoice_najdi_v4c', 'omnivoice_base', 'transcribe'], value: 'omnivoice_najdi' },
       { name: 'filename', type: 'text',   in: 'path', value: 'omnivoice_xxxxxxxxxxxx.wav' },
       { name: 'format',   type: 'select', in: 'query', options: ['wav', 'mp3'], value: 'wav', get note() { return t('ep.audio.format'); } },
     ],

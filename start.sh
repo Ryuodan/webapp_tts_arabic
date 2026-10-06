@@ -120,8 +120,8 @@ for ckpt in "${SCRIPT_DIR}"/models/omnivoice/*/; do
 done
 
 # ── start workers ───────────────────────────────────────────────
-# Fish S2 Pro and VoxCPM2 are intentionally disabled; the interface exposes the three
-# OmniVoice variants (fine-tuned, Najdi, base), which share the single worker below,
+# Fish S2 Pro and VoxCPM2 are intentionally disabled; the interface exposes the two Najdi
+# OmniVoice variants (v4 and v4 continued), which share the single worker below,
 # plus the ASR worker that backs transcription.
 start_worker omnivoice-tts  "${SCRIPT_DIR}/workers/omnivoice_server.py"  8082
 start_worker transcribe-asr "${SCRIPT_DIR}/workers/transcribe_server.py" 8084

@@ -11,19 +11,19 @@
     "human",
     "artist"
   ],
-  "ref_audio": "abeer_ref_6s.wav",
-  "ref_text": "عند الانتهاء من مساعدتك، سيتم تحويل مكالمتكم لتقييم مدى رضاكم",
+  "ref_audio": "abeer_ref_9s.wav",
+  "ref_text": "عند الانتهاء من مساعدتك، سيتم تحويل مكالمتكم لتقييم مدى رضاكم، لذا يرجى الانتظار على الخط.",
   "sample_rate": 24000,
-  "duration_s": 6.0,
-  "source": "tts-05172026/cloneVoice/abeer_ref_6s.wav (cut from 'Saudi Voice Artist Abeer Female Audio Sample.wav')",
-  "notes": "Abeer, a Saudi female voice artist: a real recording, cut from her demo sample, which no model here trained on (the clone_abeer voice of the Saudi benchmark). The clip is a formal phone-menu line and the clone follows it: cloned with the omnivoice_najdi model it scores among the highest UTMOS of the built-in voices (3.65 on 20 Najdi lines) and keeps part of her timbre (similarity to her sample 0.71), while her Najdi lines come out only partly Gulf (P(Gulf) 0.63 with ars, 0.54 with arb).",
+  "duration_s": 8.9,
+  "source": "omnivoice-finetune/cloneVoice/'Saudi Voice Artist Abeer Female Audio Sample.wav', 9.7-18.6 s of its 60 s",
+  "notes": "Abeer, a Saudi female voice artist: a real recording, cut from her demo sample, which no model here trained on (the clone_abeer voice of the Saudi benchmark). One complete sentence of the demo's first phone-menu message; until 2026-10-06 the clip was its first 6.0 s. The text is the speech recogniser's, which gets the shorter clip's known text right word for word. Three longer cuts were cloned on six sentences with the shipped model (omnivoice-finetune, scripts/check_abeer_ref.py): this one is level with the short clip (similarity +0.02, UTMOS -0.00). The whole 18 s message gives clones more like her (similarity +0.07, beyond two standard errors) that are heard as less Saudi (P(Gulf) 0.54 against 0.83), so it was not used. The clip is formal speech and the clone follows it.",
   "clone_check": {
-    "model": "najdi_v4_ft/checkpoint-6250, language arb, 8 unseen sentences",
-    "sim_speaker": 0.692,
-    "utmos": 3.652,
-    "cer": 0.006,
-    "p_gulf": 0.434,
-    "from": "omnivoice-finetune/scripts/pick_voice_refs_v4.py -> outputs/voice_refs_v4/picks.json"
+    "model": "najdi_v4_ft/checkpoint-6250, language ars, 6 sentences (4 short, 2 long)",
+    "sim_speaker": 0.702,
+    "utmos": 3.34,
+    "cer": 0.008,
+    "p_gulf": 0.58,
+    "from": "omnivoice-finetune/scripts/check_abeer_ref.py -> outputs/voice_refs_long/abeer/report.txt"
   },
   "language_check": {
     "model": "najdi_v4_ft/checkpoint-6250, 20 held-out Najdi lines and 20 held-out MSA lines, each code",
@@ -59,6 +59,7 @@
         "p_msa": 0.577
       }
     },
-    "from": "omnivoice-finetune/scripts/check_voice_language_v4.py -> outputs/voice_refs_v4/language/report.txt"
+    "from": "omnivoice-finetune/scripts/check_voice_language_v4.py -> outputs/voice_refs_v4/language/report.txt",
+    "clip": "measured with an earlier clip, abeer_ref_6s.wav"
   }
 }

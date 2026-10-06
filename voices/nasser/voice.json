@@ -11,20 +11,20 @@
     "synthetic",
     "support"
   ],
-  "ref_audio": "nasser_ref_cheerful_6s.wav",
-  "ref_text": "أهلين يا أخوي صالح، أنا أنس من معارض الديرة. الله يسلمك، كيف حالك اليوم؟",
+  "ref_audio": "nasser_ref_10s.wav",
+  "ref_text": "طيب أخوي، نقدر نسوي لك استرجاع جزء من المبلغ، مثلاً خمسين ريال، وبنضيف لك خصم مية وتسعة وتسعين ريال على الطلب الجاي، موافق؟",
   "sample_rate": 24000,
-  "duration_s": 5.76,
-  "source": "omnivoice-finetune/data/najdi_mix_v3/wavs/8da9f4db2b57.wav (id najdi_v3_8da9f4db2b57, the same clip as najdi_v4_8da9f4db2b57: in the test split of najdi_mix_v3 and of najdi_v4, so neither the shipped najdi_v4_ft checkpoint nor najdi_mix_v3_ft trained on it; older runs did)",
-  "notes": "Nasser AlJubaily, Najdi male support agent: a cheerful agent greeting at his natural pace. One of the six voices the omnivoice_najdi model trained on (8,012 of his clips, 11.0 h, all Najdi), and its house voice: cloned unless the request names another. A short clip at his own pace, because the clone copies the reference's: cloned with the shipped model it speaks at 1.00x his natural pace, where an earlier 17 s clip came out slow. Re-checked on 2026-10-04 with najdi_v4_ft/checkpoint-6250 against the ten best of his 123 held-out clips of 5-9 s, each cloned on eight unseen sentences: the best of them was within noise of this one (similarity +0.008 +/- 0.009, UTMOS +0.002 +/- 0.048), so this clip stays.",
+  "duration_s": 10.5,
+  "source": "omnivoice-finetune/data/najdi_v4/wavs/db52d2907e77.wav (id najdi_v4_db52d2907e77: in the najdi_v4 val split, which the run measured its loss on but never trained on)",
+  "notes": "Nasser AlJubaily, Najdi male support agent: one of the six voices the omnivoice_najdi model trained on (8,012 of his clips, 11.0 h, all Najdi), and its house voice: cloned unless the request names another. An agent offering a refund and a discount, said cheerfully. A longer clip than the 5.8 s greeting used until 2026-10-05, chosen by ear from the audition page of that day. Of his 11 held-out agent lines of 9.5-18 s spoken warmly or calmly, the four nearest his own pace were each cloned on six sentences (four short, two long) with the shipped model: this one measures level with the short clip (similarity -0.004, UTMOS +0.06, both within noise) and gave the lowest error rate of the four. Its clones run a little slower than he does (0.94x).",
   "clone_check": {
-    "model": "najdi_v4_ft/checkpoint-6250, language arb, 8 unseen sentences",
-    "sim_speaker": 0.862,
-    "utmos": 3.631,
-    "cer": 0.008,
-    "p_gulf": 0.995,
-    "pace_vs_natural": 1.0,
-    "from": "omnivoice-finetune/scripts/pick_voice_refs_v4.py -> outputs/voice_refs_v4/picks.json"
+    "model": "najdi_v4_ft/checkpoint-6250, language ars, 6 sentences (4 short, 2 long)",
+    "sim_speaker": 0.882,
+    "utmos": 3.445,
+    "cer": 0.003,
+    "p_gulf": 0.996,
+    "pace_vs_natural": 0.94,
+    "from": "omnivoice-finetune/scripts/pick_voice_refs_long.py -> outputs/voice_refs_long/picks.json"
   },
   "language_check": {
     "model": "najdi_v4_ft/checkpoint-6250, 20 held-out Najdi lines and 20 held-out MSA lines, each code",
@@ -60,6 +60,7 @@
         "p_msa": 0.001
       }
     },
-    "from": "omnivoice-finetune/scripts/check_voice_language_v4.py -> outputs/voice_refs_v4/language/report.txt"
+    "from": "omnivoice-finetune/scripts/check_voice_language_v4.py -> outputs/voice_refs_v4/language/report.txt",
+    "clip": "measured with the previous clip, nasser_ref_cheerful_6s.wav"
   }
 }

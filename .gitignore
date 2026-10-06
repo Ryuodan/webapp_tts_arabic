@@ -37,6 +37,8 @@ outputs_voxcpm2/
 *.mp3
 # ...except the small bundled voice-clone references (versioned assets)
 !voices/**/*.wav
+# Listening reports carry their clips inside the html: generated audio too
+reports/
 
 # Models / weights (large binaries)
 *.gguf

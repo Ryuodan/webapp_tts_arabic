@@ -14,9 +14,9 @@ const mp3Url  = url => `${url}${String(url).includes('?') ? '&' : '?'}format=mp3
 const mp3Name = filename => `${String(filename || 'audio').replace(/\.wav$/i, '')}.mp3`;
 
 // ── Model definitions ────────────────────────────────────────
-// The interface exposes two models: the Najdi fine-tune (house voice: Nasser) and the stock
-// one. Both ride the SAME worker (gateway aliases -> port 8082); fixedParams.variant tells the
-// worker which checkpoint to load. A model with `defaultVoice` clones that voice unless
+// The interface exposes two models, both Najdi fine-tunes with Nasser as house voice: v4 and
+// v4 continued. Both ride the SAME worker (gateway aliases -> port 8082); fixedParams.variant
+// tells the worker which checkpoint to load. The stock model is served over the API only. A model with `defaultVoice` clones that voice unless
 // another is picked — the worker applies the same default, so API calls behave alike.
 // VoxCPM2/Fish are retired from the interface.
 // Every user-facing label below is a getter rather than a string: it re-resolves on each
@@ -97,22 +97,24 @@ const MODELS = {
     defaultVoice: 'nasser',
     fixedParams: { variant: 'najdi' },
   },
-  omnivoice_base: {
+  // v4 trained 1,000 steps more on four of its six voices (no Ali, no Majed).
+  omnivoice_najdi_v4c: {
     ...OMNI_SHARED,
-    id: 'omnivoice_base',
-    get name() { return t('model.base.name'); },
-    icon: '🌐',
-    specs: '0.6B · 24kHz · 600+ lang',
-    get role() { return t('model.base.role'); },
+    id: 'omnivoice_najdi_v4c',
+    get name() { return t('model.najdi_v4c.name'); },
+    icon: '🎧',
+    specs: '0.6B · 24kHz · Najdi FT v4 continued · step 1000 after v4',
+    get role() { return t('model.najdi_v4c.role'); },
     get profile() {
       return [
-        { label: t('model.profile.bestUse'), value: t('model.base.bestUse') },
-        { label: t('model.profile.control'), value: t('model.control') },
-        { label: t('model.profile.note'),    value: t('model.base.note') },
+        { label: t('model.profile.bestUse'), value: t('model.najdi_v4c.bestUse') },
+        { label: t('model.profile.control'), value: t('model.najdi.control') },
+        { label: t('model.profile.note'),    value: t('model.najdi_v4c.note') },
       ];
     },
-    get compareNote() { return t('model.base.compareNote'); },
-    fixedParams: { variant: 'base' },
+    get compareNote() { return t('model.najdi_v4c.compareNote'); },
+    defaultVoice: 'nasser',
+    fixedParams: { variant: 'najdi_v4c' },
   },
 };
 
@@ -1318,7 +1320,7 @@ async function loadVoices() {
 
 // The status poll carries the worker's voice ids; refetch only when that set changed.
 function syncVoicesWithStatus(data) {
-  const info = data && (data.omnivoice_najdi || data.omnivoice_base);
+  const info = data && Object.keys(MODELS).map(mid => data[mid]).find(Boolean);
   if (!info || !Array.isArray(info.voices)) return;
   const known = voiceCatalog.map(v => v.id).sort().join();
   if (info.voices.slice().sort().join() !== known) loadVoices();
@@ -1507,9 +1509,9 @@ function hasTashkeel(text) {
   return letters > 0 && marks / letters > 0.3;
 }
 
-// The Najdi card's text is Najdi speech, so its tashkeel follows that register, not MSA's.
+// A Najdi card's text is Najdi speech, so its tashkeel follows that register, not MSA's.
 function tashkeelDialect() {
-  if (selectedModel === 'omnivoice_najdi') return 'saudi';
+  if (String(MODELS[selectedModel].fixedParams.variant).startsWith('najdi')) return 'saudi';
   return (paramValues[selectedModel] || {}).dialect || 'msa';
 }
 
@@ -1954,7 +1956,7 @@ async function drawWaveform(url, mid = selectedModel) {
     ctx.fillRect(0, 0, W, H);
 
     // Color based on model
-    const color = mid === 'omnivoice_base' ? '#3fb950' : mid === 'omnivoice_najdi' ? '#bc8cff' : '#58a6ff';
+    const color = mid === 'omnivoice_najdi' ? '#bc8cff' : '#58a6ff';
     ctx.fillStyle = color + '90';
 
     for (let i = 0; i < W; i++) {

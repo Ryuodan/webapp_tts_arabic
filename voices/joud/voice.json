@@ -11,20 +11,20 @@
     "synthetic",
     "support"
   ],
-  "ref_audio": "joud_ref_7s.wav",
-  "ref_text": "الله يعطيك العافية. رقم جوالك المسجل عندنا وش يكون؟ عشان أقدر أتحقق من هويتك",
+  "ref_audio": "joud_ref_10s.wav",
+  "ref_text": "خلاص قررت أسوي لك استرجاع. رقم الطلب اثنين خمسة واحد واحد سبعة أربعة صفر. الرمز هاء صاد ياء تسعة ستة ثمانية أربعة واحد.",
   "sample_rate": 24000,
-  "duration_s": 6.69,
-  "source": "omnivoice-finetune/data/najdi_mix_v3/wavs/c1530756413e.wav (id najdi_v3_c1530756413e, the same clip as najdi_v4_c1530756413e: in the test split of najdi_mix_v3 and of najdi_v4, so the shipped najdi_v4_ft checkpoint never trained on it)",
-  "notes": "Joud ('Joud - Saudi Gentle & Warm', a synthesiser voice), the Najdi female support agent: one of the six voices the omnivoice_najdi model trained on (9,017 of her clips, 11.6 h, nearly all Najdi). An agent asking for the caller's number, at her natural pace. Picked on 2026-10-01 from her held-out clips of 5-9 s. Re-checked on 2026-10-04 with najdi_v4_ft/checkpoint-6250 against the ten best of 194 such clips, each cloned on eight unseen sentences: the best alternative was within noise of this one (similarity +0.001 +/- 0.009, UTMOS +0.071 +/- 0.036), so this clip stays.",
+  "duration_s": 9.8,
+  "source": "omnivoice-finetune/data/najdi_v4/wavs/d2a79c0096df.wav (id najdi_v4_d2a79c0096df: in the najdi_v4 val split, which the run measured its loss on but never trained on)",
+  "notes": "Joud ('Joud - Saudi Gentle & Warm', a synthesiser voice), the Najdi female support agent: one of the six voices the omnivoice_najdi models trained on (9,017 of her clips, 11.6 h, nearly all Najdi). An agent confirming a refund and reading out its order number and code. It replaces, on 2026-10-06, the 6.7 s clip used until then. She has few long held-out lines: of the four of 9.5-18 s cloned with the shipped model, this is the longest of the clips that are not measurably worse than any other (two standard errors over six sentences: four short, two long); against the short clip it is level on similarity and UTMOS (-0.01), and the three longer ones lost 0.11-0.14 in UTMOS.",
   "clone_check": {
-    "model": "najdi_v4_ft/checkpoint-6250, language arb, 8 unseen sentences",
-    "sim_speaker": 0.864,
-    "utmos": 3.03,
-    "cer": 0.006,
-    "p_gulf": 0.994,
-    "pace_vs_natural": 0.97,
-    "from": "omnivoice-finetune/scripts/pick_voice_refs_v4.py -> outputs/voice_refs_v4/picks.json"
+    "model": "najdi_v4_ft/checkpoint-6250, language ars, 6 sentences (4 short, 2 long)",
+    "sim_speaker": 0.88,
+    "utmos": 2.915,
+    "cer": 0.012,
+    "p_gulf": 0.996,
+    "pace_vs_natural": 1.0,
+    "from": "omnivoice-finetune/scripts/pick_voice_refs_long.py -> outputs/voice_refs_long/picks.json"
   },
   "language_check": {
     "model": "najdi_v4_ft/checkpoint-6250, 20 held-out Najdi lines and 20 held-out MSA lines, each code",
@@ -60,6 +60,7 @@
         "p_msa": 0.002
       }
     },
-    "from": "omnivoice-finetune/scripts/check_voice_language_v4.py -> outputs/voice_refs_v4/language/report.txt"
+    "from": "omnivoice-finetune/scripts/check_voice_language_v4.py -> outputs/voice_refs_v4/language/report.txt",
+    "clip": "measured with an earlier clip, joud_ref_7s.wav"
   }
 }

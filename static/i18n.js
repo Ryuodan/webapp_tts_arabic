@@ -124,8 +124,8 @@ const I18N = (() => {
     'voice.ahmed':        { ar: 'أحمد — فصحى',   en: 'Ahmed — MSA male' },
 
     // The picker's sections, and the words that say what the selected voice is.
-    'voice.group.trained': { ar: 'الموصى بها — تدرّب عليها النموذج النجدي', en: 'Recommended — the Najdi model trained on these' },
-    'voice.group.cloned':  { ar: 'أصوات أخرى — تُستنسخ من مقطع قصير',      en: 'Other voices — cloned from a short clip' },
+    'voice.group.trained': { ar: 'الموصى بها — تدرّب عليها النموذجان النجديان', en: 'Recommended — the Najdi models trained on these' },
+    'voice.group.cloned':  { ar: 'أصوات أخرى — تُستنسخ من مقطعها فقط',      en: 'Other voices — cloned from their clip alone' },
     'voice.group.custom':  { ar: 'أصواتك المرفوعة',                         en: 'Your uploaded voices' },
     'vtag.male':          { ar: 'رجل',   en: 'Male' },
     'vtag.female':        { ar: 'امرأة', en: 'Female' },
@@ -133,9 +133,9 @@ const I18N = (() => {
     'vtag.najdi.tip':     { ar: 'لهجة نجد، وسط السعودية', en: 'The dialect of Najd, central Saudi Arabia' },
     'vtag.saudi':         { ar: 'لهجة سعودية', en: 'Saudi dialect' },
     'vtag.msa':           { ar: 'فصحى', en: 'MSA' },
-    'vtag.trained':       { ar: 'تدرّب عليه النموذج النجدي', en: 'Trained into the Najdi model' },
+    'vtag.trained':       { ar: 'تدرّب عليه النموذجان النجديان', en: 'Trained into the Najdi models' },
     'vtag.trained.tip':   { ar: 'هذا المتحدث ضمن بيانات تدريب النموذج النجدي، فالنموذج يعرف صوته ولهجته.',
-                            en: 'This speaker is in the Najdi model’s training data, so the model knows the voice and its accent.' },
+                            en: 'This speaker is in the Najdi models’ training data, so they know the voice and its accent.' },
     'vtag.unseen':        { ar: 'استنساخ من المقطع فقط', en: 'Cloned from the clip only' },
     'vtag.unseen.tip':    { ar: 'لم يتدرّب أي نموذج على هذا الصوت؛ يُستنسخ من المقطع المرجعي وحده. اللهجة تتبع المقطع، والنموذج النجدي يقرّب الجرس من أصوات تدريبه.',
                             en: 'No model here trained on this voice; it is cloned from the reference clip alone. The accent follows the clip, and the Najdi model pulls the timbre toward the voices it trained on.' },
@@ -281,18 +281,18 @@ const I18N = (() => {
     'ago.d':              { ar: 'ي', en: 'd' },
 
     // ── Models ────────────────────────────────────────────────
-    'model.base.name':    { ar: 'OmniVoice الأصلي', en: 'OmniVoice base' },
-    'model.base.role': {
-      ar: 'النموذج الأصلي k2-fsa/OmniVoice بدون ضبط — خط أساس للمقارنة.',
-      en: 'The stock k2-fsa/OmniVoice model, unmodified — a baseline to compare against.',
-    },
-    'model.base.compareNote': { ar: 'الأصل بدون ضبط — خط الأساس.', en: 'Unmodified base — the baseline.' },
-    'model.najdi.name':  { ar: 'OmniVoice النجدي', en: 'OmniVoice Najdi' },
+    'model.najdi.name':  { ar: 'OmniVoice النجدي v4', en: 'OmniVoice Najdi v4' },
     'model.najdi.role': {
       ar: 'ضبط دقيق على ٥٤ ساعة من كلام خدمة عملاء سعودي بستة أصوات، نجدي وفصحى — الأفضل إجمالاً بين أحد عشر نموذجاً.',
       en: 'Fine-tuned on 54 hours of Saudi support-call speech in six voices, Najdi and MSA — the best all-round of eleven models.',
     },
-    'model.najdi.compareNote': { ar: 'ناصر افتراضياً، أو أي صوت تختاره.', en: 'Nasser by default, or any voice you pick.' },
+    'model.najdi.compareNote': { ar: 'ستة أصوات، نجدي وفصحى.', en: 'Six voices, Najdi and MSA.' },
+    'model.najdi_v4c.name': { ar: 'OmniVoice النجدي v4 — تكملة', en: 'OmniVoice Najdi v4 continued' },
+    'model.najdi_v4c.role': {
+      ar: 'النموذج v4 بعد ١٠٠٠ خطوة تدريب إضافية على أربعة من أصواته الستة (بدون علي وماجد) — مماثل لـ v4 في معظم مقاييس الاختبار.',
+      en: 'v4 trained 1,000 steps more on four of its six voices (no Ali, no Majed) — level with v4 on most of the benchmark.',
+    },
+    'model.najdi_v4c.compareNote': { ar: 'v4 بعد ١٠٠٠ خطوة إضافية على أربعة أصوات.', en: 'v4 after 1,000 more steps on four voices.' },
     'model.trait.arabic': { ar: 'الأفضل للعربية', en: 'Best for Arabic' },
 
     'model.profile.bestUse': { ar: 'أفضل استخدام', en: 'Best for' },
@@ -310,17 +310,13 @@ const I18N = (() => {
       ar: 'يتطلب أوزان الـ checkpoint على السيرفر (models/omnivoice/najdi_v4_6250).',
       en: 'Requires the checkpoint weights on the server (models/omnivoice/najdi_v4_6250).',
     },
-    'model.base.bestUse': {
-      ar: 'خط أساس للمقارنة مع النسخة المحسّنة، أو نقل صوت مرجعي بين اللغات.',
-      en: 'A baseline to compare the fine-tune against, or to carry a reference voice across languages.',
+    'model.najdi_v4c.bestUse': {
+      ar: 'نفس استخدامات v4، للمقارنة معه على نصك: في الاختبار يتساويان في معظم المقاييس؛ هذا أدق نطقاً بصوت النموذج نفسه دون مقطع مرجعي، و v4 أعلى قليلاً في الطبيعية.',
+      en: 'The same uses as v4, to compare with it on your own text: the benchmark puts them level on most scores; this one reads more accurately in the model’s own voice, with no reference clip, and v4 is slightly more natural.',
     },
-    'model.control': {
-      ar: 'اللهجة عبر لغة النموذج تلقائياً؛ الجنس/العمر/الأسلوب عبر instruct الإنجليزي + صوت مرجعي اختياري.',
-      en: 'Dialect rides the model language automatically; gender/age/style via the English instruct field plus an optional reference clip.',
-    },
-    'model.base.note': {
-      ar: 'يشارك نفس العامل (worker)؛ التبديل بين النسختين يعيد تحميل النموذج (دقائق على CPU).',
-      en: 'Shares the same worker; switching variants reloads the model (minutes on CPU).',
+    'model.najdi_v4c.note': {
+      ar: 'يتطلب أوزان الـ checkpoint على السيرفر (models/omnivoice/najdi_v4c_1000).',
+      en: 'Requires the checkpoint weights on the server (models/omnivoice/najdi_v4c_1000).',
     },
 
     // ── Dialect / persona pickers ─────────────────────────────
@@ -426,8 +422,8 @@ const I18N = (() => {
     'ep.tr.lang':         { ar: 'النموذج عربي/إنجليزي فقط', en: 'The model handles Arabic/English only' },
     'ep.tr.punct':        { ar: 'false ⇐ نص بلا ترقيم', en: 'false ⇒ text without punctuation' },
     'ep.synth.title':     { ar: 'توليد كلام', en: 'Speech synthesis' },
-    'ep.synth.desc':      { ar: 'نص ← ملف wav. الأسماء أدناه نسخ من OmniVoice (النجدية والأصلية) تتشارك نفس العامل. omnivoice_najdi يستنسخ ناصر ما لم يُحدَّد voice. عند الاستنساخ لا يُرسل الجنس إلى instruct.',
-                            en: 'Text → a wav file. The names below are OmniVoice variants (Najdi and base) sharing one worker. omnivoice_najdi clones Nasser unless `voice` names another. When cloning, gender is left out of instruct.' },
+    'ep.synth.desc':      { ar: 'نص ← ملف wav. الأسماء أدناه نسخ من OmniVoice تتشارك نفس العامل: النجدي v4 (omnivoice_najdi)، وتكملته (omnivoice_najdi_v4c)، والنموذج الأصلي (omnivoice_base). النجديان يستنسخان ناصر ما لم يُحدَّد voice. عند الاستنساخ لا يُرسل الجنس إلى instruct.',
+                            en: 'Text → a wav file. The names below are OmniVoice variants sharing one worker: Najdi v4 (omnivoice_najdi), v4 continued (omnivoice_najdi_v4c) and the stock model (omnivoice_base). The two Najdi ones clone Nasser unless `voice` names another. When cloning, gender is left out of instruct.' },
     'ep.synth.voice':     { ar: 'معرّف صوت مدمج أو مرفوع (من GET /api/voices)، أو فارغ لصوت النموذج', en: 'A built-in or uploaded voice id (from GET /api/voices), or empty for the model’s own voice' },
     'ep.voices.title':    { ar: 'مكتبة الأصوات', en: 'Voice library' },
     'ep.voices.desc':     { ar: 'كل أصوات الاستنساخ: المدمجة في المستودع والمرفوعة من الاستوديو، مع وسوم tags تصف كل صوت، والصوت الافتراضي لكل نموذج.',

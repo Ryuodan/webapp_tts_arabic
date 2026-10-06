@@ -97,26 +97,39 @@ def test_omni_writes_audio_metrics_and_sidecar(omni):
                               "variant": omni.module.DEFAULT_VARIANT, "voice_label": ""}
 
 
-# ── Najdi: a variant whose house voice is Nasser, and any other voice on request ──
+# ── Najdi: two fine-tunes whose house voice is Nasser, and any other voice on request ──
 @pytest.fixture
 def najdi(tmp_path, monkeypatch, fake_omnivoice):
     ckpt = tmp_path / "najdi_v4_ft" / "checkpoint-6250"
+    ckpt_v4c = tmp_path / "najdi_v4c_ft" / "checkpoint-1000"
     ckpt.mkdir(parents=True)
+    ckpt_v4c.mkdir(parents=True)
     module = fresh_import("omnivoice_server", monkeypatch,
                           {"OMNIVOICE_OUT_DIR": tmp_path / "out",
                            "TTS_CUSTOM_VOICES_DIR": tmp_path / "voices_custom",
-                           "OMNIVOICE_NAJDI_MODEL_ID": ckpt})
+                           "OMNIVOICE_NAJDI_MODEL_ID": ckpt,
+                           "OMNIVOICE_NAJDI_V4C_MODEL_ID": ckpt_v4c})
     client = TestClient(module.app)
-    client.module, client.rec, client.ckpt = module, fake_omnivoice, ckpt
+    client.module, client.rec, client.ckpt, client.ckpt_v4c = module, fake_omnivoice, ckpt, ckpt_v4c
     return client
 
 
 def test_najdi_variant_is_offered_with_its_default_voice(najdi):
     health = najdi.get("/health").json()
     assert health["variants"]["najdi"] == str(najdi.ckpt)
-    assert health["variant_default_voices"] == {"najdi": "nasser"}
+    assert health["variants"]["najdi_v4c"] == str(najdi.ckpt_v4c)
+    assert health["variant_default_voices"] == {"najdi": "nasser", "najdi_v4c": "nasser"}
     assert "nasser" in health["voices"]
-    assert health["default_variant"] != "najdi"        # never the implicit choice
+    assert health["default_variant"] not in ("najdi", "najdi_v4c")     # never the implicit choice
+
+
+def test_each_najdi_variant_loads_its_own_checkpoint(najdi):
+    """v4 and v4 continued are two sets of weights behind one worker."""
+    for variant, ckpt in (("najdi_v4c", najdi.ckpt_v4c), ("najdi", najdi.ckpt)):
+        body = najdi.post("/synthesize", data={"text": "مرحباً", "variant": variant}).json()
+        assert najdi.rec["from_pretrained"][0] == str(ckpt)
+        assert body["model_variant"] == variant and body["model_id"] == str(ckpt)
+        assert body["voice"] == "nasser"                 # the same house voice on both
 
 
 def test_najdi_weights_resolve_repo_first_then_training_project(omni, tmp_path, monkeypatch):
@@ -131,6 +144,23 @@ def test_najdi_weights_resolve_repo_first_then_training_project(omni, tmp_path, 
 
     repo.mkdir(); (repo / "model.safetensors").touch()
     assert omni.module._najdi_model_id() == str(repo)
+
+
+def test_v4c_weights_resolve_the_same_way(omni, tmp_path, monkeypatch):
+    repo, project = tmp_path / "repo_v4c", tmp_path / "project_v4c"
+    monkeypatch.delenv("OMNIVOICE_NAJDI_V4C_MODEL_ID", raising=False)
+    monkeypatch.setattr(omni.module, "REPO_NAJDI_V4C_CHECKPOINT", repo)
+    monkeypatch.setattr(omni.module, "NAJDI_V4C_CHECKPOINT", project)
+    assert omni.module._najdi_v4c_model_id() is None
+
+    project.mkdir(); (project / "model.safetensors").touch()
+    assert omni.module._najdi_v4c_model_id() == str(project)
+
+    repo.mkdir(); (repo / "model.safetensors").touch()
+    assert omni.module._najdi_v4c_model_id() == str(repo)
+
+    monkeypatch.setenv("OMNIVOICE_NAJDI_V4C_MODEL_ID", "/elsewhere/v4c")
+    assert omni.module._najdi_v4c_model_id() == "/elsewhere/v4c"
 
 
 def test_najdi_clones_nasser_when_no_voice_is_named(najdi):

@@ -11,20 +11,20 @@
     "synthetic",
     "support"
   ],
-  "ref_audio": "nora_ref_6s.wav",
-  "ref_text": "هلا بك في منصّة خدماتي، معك منال، وش أقدر أقدّم لك اليوم؟",
+  "ref_audio": "nora_ref_14s.wav",
+  "ref_text": "أبشري، رفعت لك طلب مراجعة الرسوم، الرد خلال خمسة أيام، وأقدر أرتب لك متابعة ثانية يوم خمسة عشر أكتوبر ألفين وستة وعشرين، يناسبك الصبح؟",
   "sample_rate": 24000,
-  "duration_s": 5.57,
-  "source": "omnivoice-finetune/data/najdi_v4/wavs/f6f9136f876d.wav (id najdi_v4_f6f9136f876d: in the najdi_v4 test split, so the shipped najdi_v4_ft checkpoint never trained on it)",
-  "notes": "Nora ('Nora S', a synthesiser voice described as Saudi, natural and conversational), a Najdi female support agent: one of the six voices the omnivoice_najdi model trained on (6,560 of her clips, 14.5 h, in Najdi and MSA). An agent's greeting. Picked from her 39 held-out Najdi clips of 5-9 s: the ten best by their own quality were each cloned on eight unseen sentences with the shipped model, and this one gave the most Nora-like clones (similarity 0.887, next 0.885) at the pace closest to her own (1.03x), with UTMOS 3.60 (the best of the ten: 3.64).",
+  "duration_s": 14.44,
+  "source": "omnivoice-finetune/data/najdi_v4/wavs/0396fab5ddc6.wav (id najdi_v4_0396fab5ddc6: in the najdi_v4 test split, so the shipped checkpoints never trained on it)",
+  "notes": "Nora ('Nora S', a synthesiser voice described as Saudi, natural and conversational), a Najdi female support agent: one of the six voices the omnivoice_najdi models trained on (6,560 of her clips, 14.5 h, in Najdi and MSA). An agent confirming a request and offering a follow-up, said cheerfully. Of her 21 held-out agent lines of 9.5-18 s spoken warmly or calmly, the five best by their own audio were each cloned with the shipped model, and this is the longest of the clips that are not measurably worse than any other (two standard errors over six sentences: four short, two long). It measures level with the 5.6 s greeting used until 2026-10-05 (similarity -0.002, UTMOS -0.00); a 15.8 s clip is a little less like her.",
   "clone_check": {
-    "model": "najdi_v4_ft/checkpoint-6250, language arb, 8 unseen sentences",
-    "sim_speaker": 0.887,
-    "utmos": 3.597,
-    "cer": 0.003,
-    "p_gulf": 0.994,
-    "pace_vs_natural": 1.03,
-    "from": "omnivoice-finetune/scripts/pick_voice_refs_v4.py -> outputs/voice_refs_v4/picks.json"
+    "model": "najdi_v4_ft/checkpoint-6250, language ars, 6 sentences (4 short, 2 long)",
+    "sim_speaker": 0.904,
+    "utmos": 3.481,
+    "cer": 0.004,
+    "p_gulf": 0.996,
+    "pace_vs_natural": 1.02,
+    "from": "omnivoice-finetune/scripts/pick_voice_refs_long.py -> outputs/voice_refs_long/picks.json"
   },
   "language_check": {
     "model": "najdi_v4_ft/checkpoint-6250, 20 held-out Najdi lines and 20 held-out MSA lines, each code",
@@ -60,6 +60,7 @@
         "p_msa": 0.002
       }
     },
-    "from": "omnivoice-finetune/scripts/check_voice_language_v4.py -> outputs/voice_refs_v4/language/report.txt"
+    "from": "omnivoice-finetune/scripts/check_voice_language_v4.py -> outputs/voice_refs_v4/language/report.txt",
+    "clip": "measured with the previous clip, nora_ref_6s.wav"
   }
 }

@@ -117,10 +117,13 @@ def test_job_presets_match_the_compose_agent():
 
 # ── Model registry ────────────────────────────────────────────
 def test_the_ui_models_are_routable_tts_workers():
-    """Each interface model must resolve to a worker; `omnivoice` is a routing-only alias."""
+    """Each interface model must resolve to a worker. Two aliases are for the API alone:
+    `omnivoice`, which only routes, and `omnivoice_base`, the stock model, which the studio
+    no longer offers."""
     models = set(app_js("MODELS"))
+    assert models == {"omnivoice_najdi", "omnivoice_najdi_v4c"}
     assert models <= set(gateway.TTS_WORKERS)
-    assert set(gateway.TTS_WORKERS) - models == {"omnivoice"}
+    assert set(gateway.TTS_WORKERS) - models == {"omnivoice", "omnivoice_base"}
 
 
 def test_each_interface_model_pins_a_worker_variant():

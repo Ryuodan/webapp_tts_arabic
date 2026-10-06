@@ -11,20 +11,20 @@
     "synthetic",
     "support"
   ],
-  "ref_audio": "firas_ref_9s.wav",
-  "ref_text": "أبشري، بحولك للتوصيل، ومرجع مكالمتك عين تاء ثلاثة أربعة أربعة اثنين واحد صفر، خليك معي.",
+  "ref_audio": "firas_ref_13s.wav",
+  "ref_text": "حياك يا عبدالمحسن، أفهم إنك مستعجل. بنراجع سبب رفض الضمان، بس أول نكمل التحقق بالطريقة المعتمدة. وش رقم الجوال المسجل بالحساب؟",
   "sample_rate": 24000,
-  "duration_s": 8.87,
-  "source": "omnivoice-finetune/data/najdi_v4/wavs/79804f2c03ba.wav (id najdi_v4_79804f2c03ba: in the najdi_v4 test split, so the shipped najdi_v4_ft checkpoint never trained on it)",
-  "notes": "Firas (a synthesiser voice described as Saudi, narrative), a Najdi male support agent: one of the six voices the omnivoice_najdi model trained on (2,505 of his clips, 6.1 h, in Najdi and MSA). An agent reading out a call reference. Picked from his 14 held-out Najdi clips of 5-9 s: of the eight cloned on eight unseen sentences with the shipped model, this one gave the most Firas-like clones (similarity 0.844) with the highest UTMOS (3.31, next 3.26).",
+  "duration_s": 12.59,
+  "source": "omnivoice-finetune/data/najdi_v4/wavs/2470a7a05946.wav (id najdi_v4_2470a7a05946: in the najdi_v4 val split, which the run measured its loss on but never trained on)",
+  "notes": "Firas (a synthesiser voice described as Saudi, narrative), a Najdi male support agent: one of the six voices the omnivoice_najdi models trained on (2,505 of his clips, 6.1 h, in Najdi and MSA). An agent calming a caller in a hurry and asking for his number. Of his 11 held-out agent lines of 9.5-18 s, the five best by their own audio were each cloned with the shipped model, and this is the longest of the clips that are not measurably worse than any other (two standard errors over six sentences: four short, two long). Its clones are more like him than those of the 8.9 s clip used until 2026-10-05 (similarity +0.028, beyond two standard errors) at the same UTMOS; the two clips of nearly 15 s lost UTMOS or similarity.",
   "clone_check": {
-    "model": "najdi_v4_ft/checkpoint-6250, language arb, 8 unseen sentences",
-    "sim_speaker": 0.844,
-    "utmos": 3.311,
-    "cer": 0.003,
-    "p_gulf": 0.961,
-    "pace_vs_natural": 1.08,
-    "from": "omnivoice-finetune/scripts/pick_voice_refs_v4.py -> outputs/voice_refs_v4/picks.json"
+    "model": "najdi_v4_ft/checkpoint-6250, language ars, 6 sentences (4 short, 2 long)",
+    "sim_speaker": 0.873,
+    "utmos": 3.043,
+    "cer": 0.009,
+    "p_gulf": 0.991,
+    "pace_vs_natural": 1.09,
+    "from": "omnivoice-finetune/scripts/pick_voice_refs_long.py -> outputs/voice_refs_long/picks.json"
   },
   "language_check": {
     "model": "najdi_v4_ft/checkpoint-6250, 20 held-out Najdi lines and 20 held-out MSA lines, each code",
@@ -60,6 +60,7 @@
         "p_msa": 0.058
       }
     },
-    "from": "omnivoice-finetune/scripts/check_voice_language_v4.py -> outputs/voice_refs_v4/language/report.txt"
+    "from": "omnivoice-finetune/scripts/check_voice_language_v4.py -> outputs/voice_refs_v4/language/report.txt",
+    "clip": "measured with the previous clip, firas_ref_9s.wav"
   }
 }

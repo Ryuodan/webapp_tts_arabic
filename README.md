@@ -11,40 +11,43 @@ The page opens on the three things a clip needs, top to bottom:
 
 1. **Text** — type or paste what should be spoken. **✨ Add tashkeel** is optional.
 2. **Voice** — one card per voice. Click a card to pick it; **▶** on the card plays that
-   voice's reference clip without picking it. The six voices the Najdi model trained on
+   voice's reference clip without picking it. The six voices the Najdi models trained on
    come first.
 3. **Generate speech** — the clip appears in **Output**, with WAV and MP3 downloads, and
    stays in **History**.
 
-Everything else is folded under the button and opens with a click: **Model** (the Najdi
-fine-tune or the stock model), **Compare**, and **Transcription**. A panel you open stays
-open the next time you load the page.
+Everything else is folded under the button and opens with a click: **Model** (Najdi v4 or
+its continuation), **Compare**, and **Transcription**. A panel you open stays open the
+next time you load the page.
 
 ## The two models
 
-The interface exposes two models — the same OmniVoice worker running one
-of two checkpoints (one in memory at a time, swapped on demand):
+The interface exposes two models — the same OmniVoice worker running one of two
+fine-tuned checkpoints. Each loads the first time it is used and stays in memory until it
+has been idle for 15 minutes (`TTS_MODEL_IDLE_SECONDS`), so switching between the two
+after that is immediate; both loaded take about 4 GB of GPU memory:
 
 | Card | API id | Checkpoint | Use |
 | --- | --- | --- | --- |
-| 🎙️ **OmniVoice النجدي** (default) | `omnivoice_najdi` | `najdi_v4_ft/checkpoint-6250` — the best all-round of eleven models in the v4 eval | Saudi speech, Najdi or MSA, in six trained voices: Nasser by default, or any other saved voice on request |
-| 🌐 **OmniVoice الأصلي** | `omnivoice_base` | stock `k2-fsa/OmniVoice` (0.6B, 24 kHz, 600+ languages) | Baseline for comparison |
+| 🎙️ **OmniVoice النجدي v4** (default) | `omnivoice_najdi` | `najdi_v4_ft/checkpoint-6250` — the best all-round of eleven models in the v4 eval | Saudi speech, Najdi or MSA, in six trained voices: Nasser by default, or any other saved voice on request |
+| 🎧 **OmniVoice النجدي v4 — تكملة** (v4 continued) | `omnivoice_najdi_v4c` | `najdi_v4c_ft/checkpoint-1000` — v4 step 6250 trained 1,000 more steps on four of its six voices | The same voices and the same use; listen to both and keep the one that sounds better for the voice |
 
-The Najdi model is selected when the studio opens; the **Model** panel under the Generate
-button switches to the stock one, and **Compare → Every model** generates the same text
-with both, side by side.
+Najdi v4 is selected when the studio opens; the **Model** panel under the Generate button
+switches to the continuation, and **Compare → Every model** generates the same text with
+both, side by side.
 
-The model is chosen by the URL (`/api/{model}/synthesize`): the gateway forwards the
-alias's variant to the worker, so a plain curl call gets the checkpoint it named.
+The stock model (`omnivoice_base`, `k2-fsa/OmniVoice`, 0.6B, 24 kHz, 600+ languages) is no
+longer a card. The worker still serves it to API calls, as a baseline and for cloning an
+unseen voice's exact timbre.
 
-### Najdi (`omnivoice_najdi`)
+### Najdi v4 (`omnivoice_najdi`)
 
 Fine-tuned on Saudi customer-support speech (`najdi_v4_ft`: 31,186 clips, 54 hours, six
 voices; 6,500 steps). Three fifths of it is Najdi (33 h); the rest is MSA, spoken (13 h)
 and formal (8 h). Its **house voice is Nasser**, the Najdi male support agent: a request
 that names no `voice` (and uploads no `ref_audio`) clones `voices/nasser`, and `voice` can
 name any of the other five trained voices, or any other built-in or uploaded voice — see
-the [voice library](#voice-library). Whenever a reference is cloned, on either model, gender
+the [voice library](#voice-library). Whenever a reference is cloned, on any model, gender
 is kept out of the `instruct` string: the clip already fixes the speaker's sex, so sending
 it again could only contradict it.
 
@@ -106,11 +109,50 @@ Provenance and hashes:
 It replaced the v3 step-1950 checkpoint (`models/omnivoice/najdi_mix_v3_1950/`); the API
 id `omnivoice_najdi` is unchanged.
 
+### Najdi v4 continued (`omnivoice_najdi_v4c`)
+
+The same model one short run later: `najdi_v4c_ft` starts from v4 step 6250 and trains
+1,000 more steps at a third of the learning rate (1e-5) on four of the six voices — Nasser,
+Joud, Nora and Firas, 26,094 clips, 43 hours. Ali and Majed were left out because an audit
+of the training audio found them reading Najdi text with an MSA-like accent (P(Gulf) 0.47
+and 0.53 on their own Najdi clips) and with the lowest UTMOS of the six. The model still
+knows both voices from v4. The checkpoint is the run's last step, fixed before training.
+
+It is called like the other card, and Nasser is its house voice too:
+
+```bash
+curl -F 'text=هلا والله' -F 'voice=joud' \
+     http://localhost:8025/api/omnivoice_najdi_v4c/synthesize
+```
+
+**Against v4.** In the same benchmark the two are level on most scores, including the two
+ways the studio uses them: cloning Nasser, and cloning the two unseen voices. Its mean rank
+over the five axes is 5.0 against v4's 4.6. The scores where they differ beyond noise:
+
+| | v4 step 6250 | v4 continued |
+| --- | --- | --- |
+| UTMOS, Saudi sets, all voices ↑ | **3.45** | 3.43 |
+| P(Gulf), the new voices' Najdi lines ↑ | 0.68 | **0.75** |
+| P(Gulf), the new voices' MSA lines | 0.55 | 0.69 |
+| Similarity to the reference, the new voices' MSA lines ↑ | 0.66 | **0.67** |
+| No reference clip: CER ↓ | 0.048 | **0.034** |
+| No reference clip: P(Gulf) ↑ | 0.72 | **0.85** |
+| No reference clip: UTMOS ↑ | **3.24** | 3.21 |
+
+The continuation sounds more Saudi, on MSA text as well, and its clearest gains are with no
+reference clip, which neither card does (a request without a voice clones Nasser). So the
+benchmark does not pick one for studio use, which is why both are cards.
+
+Its weights are in `models/omnivoice/najdi_v4c_1000/`, resolved like v4's:
+`OMNIVOICE_NAJDI_V4C_MODEL_ID`, then that folder, then
+`$OMNIVOICE_FINETUNE_DIR/checkpoints/najdi_v4c_ft/checkpoint-1000`. Provenance and hashes:
+[models/omnivoice/najdi_v4c_1000_checkpoint.json](models/omnivoice/najdi_v4c_1000_checkpoint.json).
+
 ## Voice library
 
 The **Voice** panel shows one card per voice. Click a card to pick it, or **▶** on the
 card to hear its reference clip first. The cards come in three groups — the voices the
-Najdi model trained on, voices it clones from their clip alone, and your uploads — and
+Najdi models trained on, voices they clone from their clip alone, and your uploads — and
 the line under them says what the picked voice is.
 
 ### Built-in voices
@@ -119,27 +161,29 @@ Shipped with the repo under [voices/](voices/), each tagged with what it is:
 
 | Voice | id | What it is |
 | --- | --- | --- |
-| **ناصر (Nasser)** | `nasser` | Najdi male support agent · **trained into the Najdi model** — its house voice |
-| **جود (Joud)** | `joud` | Najdi female support agent · **trained into the Najdi model** |
-| **نورة (Nora)** | `nora` | Najdi female support agent · **trained into the Najdi model** |
-| **علي (Ali)** | `ali` | Najdi male support agent · **trained into the Najdi model** |
-| **فراس (Firas)** | `firas` | Najdi male support agent · **trained into the Najdi model** |
-| **ماجد (Majed)** | `majed` | Najdi male support agent · **trained into the Najdi model** |
+| **ناصر (Nasser)** | `nasser` | Najdi male support agent · **trained into the Najdi models** — their house voice |
+| **جود (Joud)** | `joud` | Najdi female support agent · **trained into the Najdi models** |
+| **نورة (Nora)** | `nora` | Najdi female support agent · **trained into the Najdi models** |
+| **علي (Ali)** | `ali` | Najdi male support agent · **trained into the Najdi models** |
+| **فراس (Firas)** | `firas` | Najdi male support agent · **trained into the Najdi models** |
+| **ماجد (Majed)** | `majed` | Najdi male support agent · **trained into the Najdi models** |
 | **راشد (Rashed)** | `rashed` | Najdi male support agent · synthetic voice · cloned from the clip only |
 | **ريم (Reem)** | `reem` | Najdi female support agent · synthetic voice · cloned from the clip only |
 | **عبير (Abeer)** | `abeer` | Saudi female voice artist · human recording · cloned from the clip only |
 | **مذيع سادا (SADA broadcaster)** | `sada_male` | Saudi male, from Saudi television (SADA 2022) · human recording · cloned from the clip only |
 | **أحمد (Ahmed)** | `ahmed` | MSA male, from [IbrahimSalah/Arabic-TTS-Spark](https://huggingface.co/IbrahimSalah/Arabic-TTS-Spark) · cloned from the clip only |
 
-- **Trained into the Najdi model** means the speaker is one of the six synthesiser voices
+- **Trained into the Najdi models** means the speaker is one of the six synthesiser voices
   of `najdi_v4`, the data `omnivoice_najdi` was fine-tuned on, so the model knows the voice
   and its accent. These are the ones to start with. Nasser recorded Najdi only; the other
-  five also recorded MSA.
+  five also recorded MSA. `omnivoice_najdi_v4c` trained further on four of them and knows
+  Ali and Majed from v4 only.
 - **Cloned from the clip only** means no model here trained on the voice. Its accent then
   follows the clip and the dialect the voice is spoken with (see
   [the dialect follows the voice](#the-dialect-follows-the-voice)), and it comes out less
-  Saudi than a trained voice. `omnivoice_najdi` also pulls the timbre toward its own voices
-  (see the benchmark table above). When the exact timbre matters most, use `omnivoice_base`.
+  Saudi than a trained voice. Both Najdi models also pull the timbre toward their own
+  voices (see the benchmark table above). When the exact timbre matters most, call
+  `omnivoice_base` over the API.
 - Rashed and Reem are the two voices of the earlier synthetic `najdi_cs` support sets,
   which name their agents Rashed, Fahad and Khaled, and Reem, Noura and Sara. Speaker
   embeddings show one male and one female voice behind those names. Reem is not Nora.
@@ -147,26 +191,38 @@ Shipped with the repo under [voices/](voices/), each tagged with what it is:
   keep that in mind.
 
 **How the reference clips were chosen.** The clone copies the reference's pace, pitch and
-energy, so each voice's clip was picked by cloning with the shipped checkpoint rather than
-by ear: held-out candidates of 5–9 s near the speaker's natural pace, the best of them each
-cloned on eight unseen sentences, and the clones scored for similarity to the speaker,
-UTMOS, accent and pace, with the error rate as a gate. With `najdi_v4_ft/checkpoint-6250`,
-for the six trained voices:
+mood, so each voice's clip was picked by cloning with the shipped v4 checkpoint: held-out
+candidates near the speaker's natural pace, the best of them each cloned on unseen
+sentences, and the clones scored for similarity to the speaker, UTMOS, accent and pace,
+with the error rate as a gate.
 
-| Voice | Clones: similarity to the speaker | UTMOS | pace vs their own |
-| --- | --- | --- | --- |
-| Nasser | 0.86 | 3.63 | 1.00× |
-| Joud | 0.86 | 3.03 | 0.97× |
-| Nora | 0.89 | 3.60 | 1.03× |
-| Ali | 0.86 | 3.18 | 0.99× |
-| Firas | 0.84 | 3.31 | 1.08× |
-| Majed | 0.89 | 2.85 | 1.17× |
+The first pick took clips of 5–9 s and looked only at how the clones measured, which gave
+Majed a frustrated customer's line and Ali one the data's judge had marked down. The second
+(2026-10-05) took clips of 9.5–18 s in the manner a support voice should have: an agent
+speaking warmly or calmly where the voice has such a line. Since 2026-10-06 every voice
+uses the longest clip that does not measure worse than any other candidate of that voice
+(two standard errors over six sentences), except Nasser, Ali and Majed, whose clips were
+chosen by ear:
 
-By UTMOS, Nasser and Nora are the clearest (3.63 and 3.60). Majed's own recordings score
-low on it, and so do his clones. Nasser's and Joud's clips stay: the best alternatives were
-within noise of them. Reem's clip is new: it beat the previous one on similarity
-(+0.022 ± 0.008) and UTMOS (+0.20 ± 0.08). Details and numbers:
-[voices/README.md](voices/README.md).
+| Voice | Clip | Clones: similarity to the speaker | UTMOS | pace vs their own | Against the short clip |
+| --- | --- | --- | --- | --- | --- |
+| Nasser | 10.5 s, cheerful agent · by ear | 0.88 | 3.44 | 0.94× | level on both |
+| Joud | 9.8 s, relieved agent | 0.88 | 2.91 | 1.00× | level on both |
+| Nora | 14.4 s, cheerful agent | 0.90 | 3.48 | 1.02× | level on both |
+| Ali | 14.1 s, agent · by ear | 0.83 | 3.35 | 1.09× | UTMOS +0.25, similarity −0.04 |
+| Firas | 12.6 s, hurried agent | 0.87 | 3.04 | 1.09× | similarity +0.03, UTMOS level |
+| Majed | 10.8 s, formal customer · by ear | 0.90 | 2.70 | 1.17× | level on both; a weaker Saudi accent |
+| Reem | 11.1 s | 0.83 | 3.30 | 0.95× | similarity level, UTMOS −0.12 (within noise) |
+| Abeer | 8.9 s | 0.70 | 3.34 | – | level on both; P(Gulf) 0.58 against 0.83 (within noise) |
+
+A longer clip did not by itself make the clones measure better: for every voice the long
+clip is within noise of the short one on most scores, and what changes is the manner the
+clone copies, which the scores do not see. Three of these are worth a listen for that
+reason: Joud's line has the agent reading out an order number and a code, Firas's is
+tagged hurried in the data, and Abeer's longer cut measured less Saudi on six sentences. Rashed, the SADA broadcaster and Ahmed keep their
+6 s clips: Rashed's segments stop at 7.7 s, no second recording of the broadcaster exists
+in the data, and Ahmed has one clip. Majed's own recordings score low on UTMOS, and so do
+his clones. Details and numbers: [voices/README.md](voices/README.md).
 
 ### The dialect follows the voice
 
@@ -204,7 +260,8 @@ for that reason, or send `dialect=msa` over the API.
 ### Your own voices
 
 **➕ Add a voice** under the cards: give it a name, drop a WAV of one speaker
-(2–30 s; 5–10 s of clean, natural speech clones best), and check **what is said in the
+(2–30 s; 6–14 s of clean speech in the manner you want back clones best, since the clone
+copies the clip's pace and mood), and check **what is said in the
 clip** — the studio fills that in with the transcription model when its worker is running,
 otherwise type it (or leave it empty and OmniVoice transcribes the clip itself with Whisper
 on every use, which is slower and downloads a model the first time). Pick the **dialect of
@@ -318,7 +375,7 @@ token budget a quarter of this model's tashkeel calls came back empty, so
 # 1. One-time: gateway conda env + worker web deps
 bash setup_webapp.sh
 
-# 2. Reassemble the fine-tuned checkpoint (committed as split parts, because
+# 2. Reassemble the two fine-tuned checkpoints (committed as split parts, because
 #    GitHub caps files at 100 MB; verifies SHA-256). start.sh also does this
 #    automatically whenever a pull brings new parts.
 bash scripts/assemble_omnivoice_checkpoint.sh
@@ -341,7 +398,7 @@ static/           frontend (vanilla JS, RTL Arabic UI) — studio, API console, 
 server.py         gateway :8025 — serves the frontend, proxies /api/* to workers,
                   keeps only one heavyweight model in RAM (single-model mode)
 reqlog.py         request log: body summarising, SQLite store, ASGI middleware
-workers/          omnivoice_server.py :8082 — the only active worker; handles both
+workers/          omnivoice_server.py :8082 — the only active worker; handles the three
                   model variants (`variant` form field) and built-in voices
 compose.py        ✨ Auto-Compose agent: job + persona -> Arabic script + settings
 textprep.py       Text-Prep agent: number/abbrev normalization + optional tashkeel
@@ -349,11 +406,12 @@ llm.py            the agents' chat model: Groq (default openai/gpt-oss-120b) or 
 voices/           bundled clone voices, tagged (nasser, joud, nora, ali, firas, majed,
                   rashed, reem, abeer, sada_male, ahmed); uploaded ones live in
                   $TTS_WORKDIR/voices_custom
-models/omnivoice/ fine-tuned checkpoint najdi_v4_6250 (split parts + metadata)
+models/omnivoice/ fine-tuned checkpoints najdi_v4_6250 and najdi_v4c_1000 (split parts
+                  + metadata)
 ```
 
 Key endpoints: `POST /api/{model}/synthesize` (`model` ∈ `omnivoice_najdi`,
-`omnivoice_base`), `GET /api/status`, `GET /api/{model}/history`,
+`omnivoice_najdi_v4c`, `omnivoice_base`), `GET /api/status`, `GET /api/{model}/history`,
 `GET /audio/{model}/{file}` (add `?format=mp3` for an MP3), `POST /api/compose`, `POST /api/prepare`, and the voice
 library: `GET`/`POST /api/voices`, `GET /api/voices/{voice_id}/audio`,
 `DELETE /api/voices/{voice_id}`.
@@ -387,13 +445,14 @@ git pull && bash start.sh
 `start.sh` stops the running instance, rebuilds any checkpoint whose parts changed
 (about a minute per checkpoint, SHA-256 verified), then starts the workers and gateway.
 
-## The fine-tuned checkpoint
+## The fine-tuned checkpoints
 
-`models/omnivoice/najdi_v4_6250/` carries the full checkpoint: config and
-tokenizer committed as-is, the 2.45 GB `model.safetensors` as 25 split parts
-(`git push` also caps packs at 2 GB, so push the weights as two commits). Resolution order is
-listed under [Najdi](#najdi-omnivoice_najdi) above; selection details and hashes:
-[models/omnivoice/README.md](models/omnivoice/README.md).
+`models/omnivoice/najdi_v4_6250/` and `models/omnivoice/najdi_v4c_1000/` each carry a full
+checkpoint: config and tokenizer committed as-is, the 2.45 GB `model.safetensors` as 25
+split parts (`git push` also caps packs at 2 GB, so push each checkpoint's weights as two
+commits). Resolution order is listed under [Najdi v4](#najdi-v4-omnivoice_najdi) and
+[Najdi v4 continued](#najdi-v4-continued-omnivoice_najdi_v4c) above; selection details and
+hashes: [models/omnivoice/README.md](models/omnivoice/README.md).
 
 ## Retired engines
 

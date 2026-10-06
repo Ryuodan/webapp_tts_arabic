@@ -11,20 +11,20 @@
     "synthetic",
     "support"
   ],
-  "ref_audio": "majed_ref_7s.wav",
-  "ref_text": "إي والله تأخرتوا، شنطتي زادت كيلو، ورسوم التخليص طلعت مية وعشرين ريال.",
+  "ref_audio": "majed_ref_11s.wav",
+  "ref_text": "الخدمة في البكيرية، حي إشبيلية، وأبي زيادة السرعة مع مية جيجا. أرسلت عبر واتساب، وغريب إن الموعد انلغى بدون إشعار.",
   "sample_rate": 24000,
-  "duration_s": 6.83,
-  "source": "omnivoice-finetune/data/najdi_v4/wavs/af2c97f71435.wav (id najdi_v4_af2c97f71435: in the najdi_v4 test split, so the shipped najdi_v4_ft checkpoint never trained on it)",
-  "notes": "Majed (a synthesiser voice described as measured and steady), a Najdi male support agent: one of the six voices the omnivoice_najdi model trained on (2,477 of his clips, 5.8 h, in Najdi and MSA). A customer complaining about a late delivery. Picked from his 14 held-out Najdi clips of 5-9 s: of the eight cloned on eight unseen sentences with the shipped model this one ranked first, and on 20 more held-out Najdi lines it beat the runner-up on UTMOS (+0.10 +/- 0.04) and on accent (P(Gulf) +0.24 +/- 0.07). His is the lowest UTMOS of the six trained voices (2.85; this clip itself scores 2.64), and his clones speak faster than he does (1.17x).",
+  "duration_s": 10.82,
+  "source": "omnivoice-finetune/data/najdi_v4/wavs/156e770c28bb.wav (id najdi_v4_156e770c28bb: in the najdi_v4 val split, which the run measured its loss on but never trained on)",
+  "notes": "Majed (a synthesiser voice described as measured and steady), a Najdi male support agent: one of the six voices the omnivoice_najdi model trained on (2,477 of his clips, 5.8 h, in Najdi and MSA). A customer describing his service request, said formally. It replaces, on 2026-10-05, a 6.8 s clip of a frustrated customer, whose manner every clone copied, and was chosen by ear from the audition page of that day. Of his 13 held-out lines of 9.5-18 s spoken warmly or formally (nine an agent's, four a customer's), the five best by their own audio were each cloned on six sentences (four short, two long) with the shipped model: this one measures level with the previous clip on similarity (-0.012) and UTMOS (+0.01), and its clones are heard as less Saudi (P(Gulf) 0.58 against 0.83, within noise over six sentences). They speak faster than he does (1.17x). His remains the lowest UTMOS of the six trained voices.",
   "clone_check": {
-    "model": "najdi_v4_ft/checkpoint-6250, language arb, 8 unseen sentences",
-    "sim_speaker": 0.889,
-    "utmos": 2.855,
-    "cer": 0.002,
-    "p_gulf": 0.777,
+    "model": "najdi_v4_ft/checkpoint-6250, language ars, 6 sentences (4 short, 2 long)",
+    "sim_speaker": 0.895,
+    "utmos": 2.701,
+    "cer": 0.016,
+    "p_gulf": 0.575,
     "pace_vs_natural": 1.17,
-    "from": "omnivoice-finetune/scripts/pick_voice_refs_v4.py -> outputs/voice_refs_v4/picks.json"
+    "from": "omnivoice-finetune/scripts/pick_voice_refs_long.py -> outputs/voice_refs_long/picks.json"
   },
   "language_check": {
     "model": "najdi_v4_ft/checkpoint-6250, 20 held-out Najdi lines and 20 held-out MSA lines, each code",
@@ -60,6 +60,7 @@
         "p_msa": 0.666
       }
     },
-    "from": "omnivoice-finetune/scripts/check_voice_language_v4.py -> outputs/voice_refs_v4/language/report.txt"
+    "from": "omnivoice-finetune/scripts/check_voice_language_v4.py -> outputs/voice_refs_v4/language/report.txt",
+    "clip": "measured with the previous clip, majed_ref_7s.wav"
   }
 }

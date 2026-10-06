@@ -22,36 +22,50 @@ from _common import WORKDIR, output_dir, register_audio_route, write_sidecar
 OUT_DIR = output_dir("OMNIVOICE_OUT_DIR", "outputs_omnivoice")
 REPO_DIR = pathlib.Path(__file__).resolve().parents[1]
 OMNIVOICE_BASE_MODEL_ID = os.getenv("OMNIVOICE_BASE_MODEL_ID", "k2-fsa/OmniVoice")
-# Najdi fine-tune najdi_v4_ft/checkpoint-6250: the best all-round model in the v4 eval
-# (see models/omnivoice/najdi_v4_6250_checkpoint.json). It backs the `najdi` variant,
-# whose house voice is Nasser (see VARIANT_DEFAULT_VOICES). The repo ships it as split parts (start.sh
-# assembles them); the training project is the fallback source.
-REPO_NAJDI_CHECKPOINT = REPO_DIR / "models" / "omnivoice" / "najdi_v4_6250"
+# The two Najdi fine-tunes the studio offers, both with Nasser as house voice (see
+# VARIANT_DEFAULT_VOICES). The repo ships each as split parts (start.sh assembles them); the
+# training project is the fallback source.
+#   najdi      najdi_v4_ft/checkpoint-6250: six voices, Najdi and MSA; the best all-round
+#              model in the v4 eval (models/omnivoice/najdi_v4_6250_checkpoint.json)
+#   najdi_v4c  najdi_v4c_ft/checkpoint-1000: that model trained 1,000 steps more on four of
+#              its voices (models/omnivoice/najdi_v4c_1000_checkpoint.json)
 FINETUNE_PROJECT = pathlib.Path(
     os.getenv("OMNIVOICE_FINETUNE_DIR", str(REPO_DIR.parent / "omnivoice-finetune"))).expanduser()
+REPO_NAJDI_CHECKPOINT = REPO_DIR / "models" / "omnivoice" / "najdi_v4_6250"
 NAJDI_CHECKPOINT = FINETUNE_PROJECT / "checkpoints" / "najdi_v4_ft" / "checkpoint-6250"
+REPO_NAJDI_V4C_CHECKPOINT = REPO_DIR / "models" / "omnivoice" / "najdi_v4c_1000"
+NAJDI_V4C_CHECKPOINT = FINETUNE_PROJECT / "checkpoints" / "najdi_v4c_ft" / "checkpoint-1000"
 
 
-def _najdi_model_id() -> str | None:
-    env = os.getenv("OMNIVOICE_NAJDI_MODEL_ID")
+def _weights(env_var: str, *candidates: pathlib.Path) -> str | None:
+    """Where a fine-tune's weights are: the env override, else the first folder that has them."""
+    env = os.getenv(env_var)
     if env:
         return env
-    for candidate in (REPO_NAJDI_CHECKPOINT, NAJDI_CHECKPOINT):
+    for candidate in candidates:
         if (candidate / "model.safetensors").exists():
             return str(candidate)
     return None
 
 
-# Selectable model variants; the Najdi fine-tune is present only when its weights exist.
+def _najdi_model_id() -> str | None:
+    return _weights("OMNIVOICE_NAJDI_MODEL_ID", REPO_NAJDI_CHECKPOINT, NAJDI_CHECKPOINT)
+
+
+def _najdi_v4c_model_id() -> str | None:
+    return _weights("OMNIVOICE_NAJDI_V4C_MODEL_ID", REPO_NAJDI_V4C_CHECKPOINT, NAJDI_V4C_CHECKPOINT)
+
+
+# Selectable model variants; a fine-tune is present only when its weights exist.
 MODEL_VARIANTS = {"base": OMNIVOICE_BASE_MODEL_ID}
-_najdi_id = _najdi_model_id()
-if _najdi_id:
-    MODEL_VARIANTS["najdi"] = _najdi_id
+for _variant, _model_id in (("najdi", _najdi_model_id()), ("najdi_v4c", _najdi_v4c_model_id())):
+    if _model_id:
+        MODEL_VARIANTS[_variant] = _model_id
 DEFAULT_VARIANT = "base"
 
 # A variant's house voice: cloned when the request names no voice and uploads no reference.
 # Any other built-in or custom voice can still be picked.
-VARIANT_DEFAULT_VOICES = {"najdi": "nasser"}
+VARIANT_DEFAULT_VOICES = {"najdi": "nasser", "najdi_v4c": "nasser"}
 
 
 OMNIVOICE_DEVICE = os.getenv("OMNIVOICE_DEVICE", "auto")
